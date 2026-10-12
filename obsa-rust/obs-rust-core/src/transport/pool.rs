@@ -201,13 +201,25 @@ impl HttpPool {
 }
 
 /// HTTP response wrapper.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HttpResponse {
     pub status: StatusCode,
     pub headers: BTreeMap<String, String>,
     pub body: Bytes,
     pub request_id: String,
     pub duration_us: u64,
+}
+
+impl std::fmt::Debug for HttpResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpResponse")
+            .field("status", &self.status)
+            .field("header_count", &self.headers.len())
+            .field("body_len", &self.body.len())
+            .field("request_id", &self.request_id)
+            .field("duration_us", &self.duration_us)
+            .finish()
+    }
 }
 
 impl HttpResponse {
@@ -589,5 +601,27 @@ mod response_frame_tests {
             ).await.unwrap();
             assert_eq!(&result[..], b"abcd");
         }
+    }
+}
+
+#[cfg(test)]
+mod debug_tests {
+    use super::*;
+    #[test]
+    fn response_debug_redacts_headers_and_body() {
+        let response = HttpResponse {
+            status: StatusCode::OK,
+            headers: BTreeMap::from([("Set-Cookie".into(), "private-cookie".into()),
+                ("x-obs-meta-custom".into(), "private-metadata".into())]),
+            body: Bytes::from_static(b"private-object-content"),
+            request_id: "request-123".into(), duration_us: 42,
+        };
+        for rendered in [format!("{response:?}"), format!("{response:#?}")] {
+            assert!(!rendered.contains("private-"), "Debug exposed protected response data");
+            assert!(rendered.contains("200"));
+            assert!(rendered.contains("request-123"));
+        }
+        assert_eq!(response.header("set-cookie"), Some("private-cookie"));
+        assert_eq!(response.body.as_ref(), b"private-object-content");
     }
 }

@@ -7,13 +7,27 @@ use crate::config::ObsConfig;
 use crate::types::AddressingStyle;
 
 /// Low-level HTTP request descriptor.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct HttpRequest {
     pub method: Method,
     pub uri: Uri,
     pub headers: BTreeMap<String, String>,
     pub body: Option<Bytes>,
     pub idempotent: bool,
+}
+
+impl std::fmt::Debug for HttpRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // URIs may contain signed query parameters; bodies and arbitrary
+        // headers are application data, not safe diagnostic output.
+        f.debug_struct("HttpRequest")
+            .field("method", &self.method)
+            .field("uri", &"<redacted>")
+            .field("header_count", &self.headers.len())
+            .field("body_len", &self.body.as_ref().map(Bytes::len))
+            .field("idempotent", &self.idempotent)
+            .finish()
+    }
 }
 
 /// Fluent request builder for OBS operations.
@@ -169,5 +183,27 @@ impl RequestBuilder {
             self.body,
             self.idempotent,
         )
+    }
+}
+
+#[cfg(test)]
+mod debug_tests {
+    use super::*;
+    #[test]
+    fn request_debug_redacts_headers_uri_and_body() {
+        let request = HttpRequest {
+            method: Method::PUT,
+            uri: "https://example.invalid/private-path?token=private-query".parse().unwrap(),
+            headers: BTreeMap::from([("aUtHoRiZaTiOn".into(), "private-auth".into()),
+                ("x-obs-security-token".into(), "private-token".into()),
+                ("x-obs-meta-custom".into(), "private-metadata".into())]),
+            body: Some(Bytes::from_static(b"private-body")), idempotent: false,
+        };
+        for rendered in [format!("{request:?}"), format!("{request:#?}")] {
+            assert!(!rendered.contains("private-"), "Debug exposed protected request data");
+            assert!(rendered.contains("PUT"));
+        }
+        assert_eq!(request.body.as_deref(), Some(b"private-body".as_slice()));
+        assert_eq!(request.headers["aUtHoRiZaTiOn"], "private-auth");
     }
 }
