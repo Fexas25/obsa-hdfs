@@ -1125,3 +1125,55 @@ async fn total_deadline_cancels_stalled_body_and_pool_remains_usable() {
     assert_eq!(response.body.as_ref(), b"ok");
     server.await.unwrap();
 }
+
+
+#[tokio::test]
+async fn upload_part_etag_rejects_missing_or_empty_response() {
+    for headers in ["", "ETag: \r\n", "ETag: \"\"\r\n", "ETag: \"   \"\r\n"] {
+        let (store, server) = server(vec![("200 OK", headers, "")]).await;
+        let result = store.upload_part("file", "upload", 1, bytes::Bytes::from_static(b"data")).await;
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with("PUT "));
+        assert!(matches!(result, Err(obs_rust_core::ObsError::Io(ref message)) if message.contains("ETag")),
+            "empty part ETag must not be accepted: {result:?}");
+    }
+}
+
+#[tokio::test]
+async fn upload_part_etag_preserves_nonempty_opaque_value() {
+    for headers in ["ETag: \"part&<opaque>-2\"\r\n", "eTaG: part&<opaque>-2\r\n"] {
+        let (store, server) = server(vec![("200 OK", headers, "")]).await;
+        let etag = store.upload_part("file", "upload", 1, bytes::Bytes::from_static(b"data")).await.unwrap();
+        assert_eq!(etag, "part&<opaque>-2");
+        assert_eq!(server.await.unwrap().len(), 1);
+    }
+}
+
+#[tokio::test]
+async fn upload_part_etag_failure_aborts_stream_without_complete() {
+    let config = ObsConfig { multipart_threshold: 1, buffer_total_bytes: 128,
+        retry_max_attempts: 0, ..Default::default() };
+    let (store, server) = server_with_config(vec![
+        ("200 OK", "", "<InitiateMultipartUploadResult><UploadId>upload</UploadId></InitiateMultipartUploadResult>"),
+        ("200 OK", "", ""),
+        ("204 No Content", "", ""),
+        ("200 OK", "", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
+    ], config.clone()).await;
+    let store = std::sync::Arc::new(store);
+    let gate = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+    let mut output = obs_rust_core::io::ObsOutputStream::new(store.clone(), &config, "file".into(), gate.clone());
+    output.write(b"data").await.unwrap();
+    let result = output.close().await;
+    // An exact-budget GET succeeds only after the failed upload releases its buffer.
+    let response = store.get("probe", None, None).await.unwrap();
+    drop(response);
+    let requests = server.await.unwrap();
+    assert_eq!(requests.len(), 4);
+    assert!(requests[0].starts_with("POST /bucket/file?uploads "));
+    assert!(requests[1].starts_with("PUT /bucket/file?partNumber=1&uploadId=upload "));
+    assert!(requests[2].starts_with("DELETE /bucket/file?uploadId=upload "), "must abort, not complete");
+    assert!(matches!(result, Err(obs_rust_core::ObsError::Io(ref message)) if message.contains("ETag")));
+    assert_eq!(gate.available_permits(), 1);
+    assert!(requests[3].starts_with("GET /bucket/probe "));
+}

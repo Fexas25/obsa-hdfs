@@ -496,7 +496,11 @@ impl ObjectStore for ObsStore {
             .signed_execute(builder, &content_md5, "application/octet-stream")
             .await?;
         let resp = self.map_response(resp)?;
-        Ok(resp.etag().unwrap_or_default())
+        // A successful status alone cannot supply a part for CompleteMultipartUpload.
+        // Preserve opaque nonempty values; never manufacture a missing ETag.
+        resp.etag()
+            .filter(|etag| !etag.trim().is_empty())
+            .ok_or_else(|| ObsError::Io("UploadPart response is missing a non-empty ETag".into()))
     }
 
     async fn complete_multipart_upload(
