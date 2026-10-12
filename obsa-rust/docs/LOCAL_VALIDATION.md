@@ -1156,3 +1156,8 @@ release filesystem 默认 151、诊断 152 项通过，各 4 ignored。详见 [�
 ### 2026-10-12：签名和 HTTP 调试输出脱敏
 
 修复 SignedRequest、HttpRequest、HttpResponse 自动 Debug 暴露认证信息、URI 或正文的问题；三个新增回归在旧实现均失败，修复后通过。完整 Rust workspace 307 项通过、0 失败、15 ignored，其中本地 HTTP 46 项通过。签名、传输数据和 JNI 接口未改；未重跑 Hadoop/JVM 或性能基准。详见[验证范围与兼容边界](DEBUG_REDACTION.md)。
+
+
+### 2026-10-12：分片上传响应 ETag 校验
+
+拒绝 UploadPart 成功响应中缺失或空白 ETag，避免空值进入合并段列表。新增三项 HTTP 回归，包含实际上传流 abort、不发送 complete、名额和共享预算复用；旧实现缺失 ETag 时返回空字符串的问题已复现。完整 Rust workspace 310 通过、0 失败、15 ignored，本地 HTTP 49 项通过。详见[修复及验证边界](PART_ETAG.md)。
