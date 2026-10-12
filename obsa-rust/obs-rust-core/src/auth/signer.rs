@@ -18,11 +18,23 @@ type HmacSha1 = Hmac<Sha1>;
 pub struct ObsSigner;
 
 /// Signed HTTP request headers ready to send.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct SignedRequest {
     pub headers: BTreeMap<String, String>,
     pub date: String,
     pub authorization: String,
+}
+
+impl std::fmt::Debug for SignedRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Header values can carry tokens and arbitrary user metadata. Do not
+        // depend on a case-sensitive or exhaustive sensitive-header denylist.
+        f.debug_struct("SignedRequest")
+            .field("header_count", &self.headers.len())
+            .field("date", &self.date)
+            .field("authorization", &"<redacted>")
+            .finish()
+    }
 }
 
 impl ObsSigner {
@@ -126,6 +138,24 @@ impl ObsSigner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn signed_debug_redacts_credentials_and_metadata() {
+        let creds = Credentials::new("private-access-marker", "private-secret-marker")
+            .with_session_token("private-token-marker");
+        let headers = BTreeMap::from([("x-obs-meta-custom".into(), "private-metadata-marker".into())]);
+        let signed = ObsSigner::sign("GET", "", "", "Mon, 01 Jan 2024 00:00:00 GMT", &headers, "/bucket/key", &creds);
+        for rendered in [format!("{signed:?}"), format!("{signed:#?}")] {
+            for secret in [creds.access_key.as_str(), creds.secret_key.as_str(),
+                creds.session_token.as_deref().unwrap(), "private-metadata-marker", signed.authorization.as_str()] {
+                assert!(!rendered.contains(secret), "Debug exposed protected request data");
+            }
+            assert!(rendered.contains("SignedRequest"));
+        }
+        assert_eq!(signed.headers["Authorization"], signed.authorization);
+        assert_eq!(signed.headers["x-obs-security-token"], "private-token-marker");
+        assert_eq!(signed.headers["x-obs-meta-custom"], "private-metadata-marker");
+    }
 
     #[test]
     fn canonicalize_obs_headers_sorted() {
