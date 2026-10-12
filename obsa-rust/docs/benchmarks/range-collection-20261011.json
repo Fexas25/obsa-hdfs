@@ -1,0 +1,702 @@
+{
+  "date": "2026-10-11",
+  "runs": [
+    {
+      "label": "exploratory_doubling",
+      "log": "work/range-benchmark-release.log",
+      "samples": [
+        {
+          "bounded_ns": 30545600,
+          "eager_ns": 31985400,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 27931900,
+          "eager_ns": 32763400,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 31372600,
+          "eager_ns": 32543000,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 32323100,
+          "eager_ns": 36299300,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 20301700,
+          "eager_ns": 19489700,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 126127300,
+          "eager_ns": 74310000,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 248064300,
+          "eager_ns": 144641800,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 250997300,
+          "eager_ns": 151140600,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 279991700,
+          "eager_ns": 162307000,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 252020400,
+          "eager_ns": 140303200,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 310940600,
+          "eager_ns": 169652500,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 294031200,
+          "eager_ns": 163157300,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 317504500,
+          "eager_ns": 177689500,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 295577100,
+          "eager_ns": 159386400,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 301860200,
+          "eager_ns": 176064600,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 249907600,
+          "eager_ns": 145909900,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 283661400,
+          "eager_ns": 152413900,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 247444800,
+          "eager_ns": 140556600,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 278241100,
+          "eager_ns": 147421500,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 274108000,
+          "eager_ns": 144931500,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 31800,
+          "eager_ns": 32000,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 31800,
+          "eager_ns": 35000,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 27500,
+          "eager_ns": 23000,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 30900,
+          "eager_ns": 29200,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 32000,
+          "eager_ns": 23900,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        }
+      ],
+      "scope": "release cached in-memory frames; source allocation, result verification and drop excluded; no network or RSS",
+      "warmup_rounds": 1
+    },
+    {
+      "label": "exploratory_fourfold",
+      "log": "work/range-benchmark-growth4.log",
+      "samples": [
+        {
+          "bounded_ns": 17916600,
+          "eager_ns": 17562600,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 17276100,
+          "eager_ns": 17140400,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 19507800,
+          "eager_ns": 18887100,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 17113500,
+          "eager_ns": 17041700,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 17196000,
+          "eager_ns": 17542300,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 86055600,
+          "eager_ns": 68954600,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 85201300,
+          "eager_ns": 70155900,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 87105800,
+          "eager_ns": 68793700,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 85428300,
+          "eager_ns": 69980300,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 84830900,
+          "eager_ns": 68667800,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 108364100,
+          "eager_ns": 88653500,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 112162400,
+          "eager_ns": 85076100,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 115770800,
+          "eager_ns": 91770000,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 109134000,
+          "eager_ns": 90792900,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 100823200,
+          "eager_ns": 82488100,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 96999900,
+          "eager_ns": 82504400,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 108660600,
+          "eager_ns": 75057300,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 110463200,
+          "eager_ns": 88812100,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 106784100,
+          "eager_ns": 83755600,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 111605800,
+          "eager_ns": 82135300,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 18700,
+          "eager_ns": 14900,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 16400,
+          "eager_ns": 15300,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 23000,
+          "eager_ns": 16300,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 16600,
+          "eager_ns": 47800,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 17600,
+          "eager_ns": 15900,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        }
+      ],
+      "scope": "release cached in-memory frames; source allocation, result verification and drop excluded; no network or RSS",
+      "warmup_rounds": 1
+    },
+    {
+      "label": "final_rotating_three_strategies",
+      "log": "work/range-benchmark-final.log",
+      "samples": [
+        {
+          "bounded_ns": 18770900,
+          "doubling_ns": 20686300,
+          "eager_ns": 19524000,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 19245200,
+          "doubling_ns": 18717200,
+          "eager_ns": 18336800,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 18185500,
+          "doubling_ns": 17443800,
+          "eager_ns": 17866300,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 17851300,
+          "doubling_ns": 17459500,
+          "eager_ns": 17478700,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 19452400,
+          "doubling_ns": 18569500,
+          "eager_ns": 18381200,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 8388608
+        },
+        {
+          "bounded_ns": 84074400,
+          "doubling_ns": 118832800,
+          "eager_ns": 68058900,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 85277100,
+          "doubling_ns": 116121700,
+          "eager_ns": 69333400,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 89346200,
+          "doubling_ns": 131693900,
+          "eager_ns": 75085200,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 113303700,
+          "doubling_ns": 144184400,
+          "eager_ns": 81415800,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 114126200,
+          "doubling_ns": 161696900,
+          "eager_ns": 91429600,
+          "frame_bytes": 4096,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 109795300,
+          "doubling_ns": 157340700,
+          "eager_ns": 86640800,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 110364500,
+          "doubling_ns": 170372000,
+          "eager_ns": 100819700,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 122913900,
+          "doubling_ns": 159243200,
+          "eager_ns": 84910900,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 106402900,
+          "doubling_ns": 159115700,
+          "eager_ns": 81694900,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 104327700,
+          "doubling_ns": 172062400,
+          "eager_ns": 85549000,
+          "frame_bytes": 65536,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 114015900,
+          "doubling_ns": 148907200,
+          "eager_ns": 78904000,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 105887300,
+          "doubling_ns": 153817900,
+          "eager_ns": 78201000,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 105602400,
+          "doubling_ns": 148852800,
+          "eager_ns": 84226300,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 117051000,
+          "doubling_ns": 174645900,
+          "eager_ns": 85200800,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 103961300,
+          "doubling_ns": 144843200,
+          "eager_ns": 92236100,
+          "frame_bytes": 1048576,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 16400,
+          "doubling_ns": 20200,
+          "eager_ns": 16000,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 1,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 15600,
+          "doubling_ns": 17700,
+          "eager_ns": 17100,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 2,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 14200,
+          "doubling_ns": 14200,
+          "eager_ns": 12400,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 3,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 15900,
+          "doubling_ns": 18300,
+          "eager_ns": 17200,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 4,
+          "total_bytes": 33554432
+        },
+        {
+          "bounded_ns": 17600,
+          "doubling_ns": 18800,
+          "eager_ns": 25100,
+          "frame_bytes": 33554432,
+          "iterations": 8,
+          "round": 5,
+          "total_bytes": 33554432
+        }
+      ],
+      "scope": "release cached in-memory frames; source allocation, result verification and drop excluded; no network or RSS",
+      "warmup_rounds": 1
+    }
+  ],
+  "summary": [
+    {
+      "total_bytes": 8388608,
+      "frame_bytes": 65536,
+      "median_round_mean_us": {
+        "eager": 2292.1,
+        "doubling": 2321.1875,
+        "bounded": 2346.3625
+      }
+    },
+    {
+      "total_bytes": 33554432,
+      "frame_bytes": 4096,
+      "median_round_mean_us": {
+        "eager": 9385.65,
+        "doubling": 16461.7375,
+        "bounded": 11168.275
+      }
+    },
+    {
+      "total_bytes": 33554432,
+      "frame_bytes": 65536,
+      "median_round_mean_us": {
+        "eager": 10693.625,
+        "doubling": 19905.4,
+        "bounded": 13724.4125
+      }
+    },
+    {
+      "total_bytes": 33554432,
+      "frame_bytes": 1048576,
+      "median_round_mean_us": {
+        "eager": 10528.2875,
+        "doubling": 18613.4,
+        "bounded": 13235.9125
+      }
+    },
+    {
+      "total_bytes": 33554432,
+      "frame_bytes": 33554432,
+      "median_round_mean_us": {
+        "eager": 2.1375,
+        "doubling": 2.2875,
+        "bounded": 1.9875
+      }
+    }
+  ],
+  "caveats": "single Windows machine, warm cached memory, five measured rounds after one warmup, eight iterations/strategy/round; no network or RSS; compare strategies within final run, not absolute times across runs"
+}

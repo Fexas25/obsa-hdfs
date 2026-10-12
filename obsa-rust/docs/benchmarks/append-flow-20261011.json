@@ -1,0 +1,6289 @@
+{
+  "method": "Main coordinator runs sequential; full filesystem executable order alternates by batch, three batches per copy/inplace mode, with warmup and three measured trials per batch. Instrumented profile runs are separate. Inplace is a mock-only diagnostic, never production cloud throughput. Medians are over trial statistics, not pooled percentiles.",
+  "environment": {
+    "date": "2026-10-11",
+    "platform": "Windows x86_64-pc-windows-msvc",
+    "rust": "1.98.1 (48a229cea 2026-09-01)",
+    "cpu": "Intel Core i7-12700H",
+    "logical_processors": 20,
+    "runtime_workers": 4,
+    "profile": "release",
+    "command": "./scripts/build-windows.ps1 -BenchmarkAppend",
+    "warmup_trials": 1,
+    "measured_trials": 3,
+    "scenario_order": "rotated each trial",
+    "timing": "closed-loop; nearest-rank percentiles per trial; no CI timing thresholds",
+    "before_coordinator_sha256": "3d516caef3457b1e38d627f7d7fc0b34a9c86ec237642698bfa5d68f965b6684",
+    "after_coordinator_sha256": "3013d9ac857e16e8425e056d713d05c02f1a99fc39912430e5b14d7365eb65a2",
+    "benchmark_sha256": {
+      "obs-rust-core/src/io/append_benchmark.rs": "26f81eb8f826b19f051f987f09d0ddcc659b0dea985d88484a6150a24b0051e0",
+      "obs-rust-core/tests/support/append_latency.rs": "b47d995eab430188c566a9d19da75147fed035b55c86477caafa83f51fff57ac",
+      "scripts/build-windows.ps1": "a51ddbc25e720bbe9f2baeb6f6eebbe16adfd9940c2add4a2a247fc256705a2a"
+    },
+    "stress_benchmark_sha256": "4bb72b029c854100ec4b8ae30ed02dd676687481ae07477c66c656372e3f6ddc"
+  },
+  "source_sha256": {
+    "obs-rust-core/src/io/append_coordination.rs": "29cc13af04aed8f2b7e1c097e03fd848b5ab3e71affc29546d60a0a2827dc533",
+    "obs-rust-core/src/io/append_benchmark.rs": "4bb72b029c854100ec4b8ae30ed02dd676687481ae07477c66c656372e3f6ddc",
+    "obs-rust-core/tests/filesystem.rs": "240372bb164d0cfa84cb9009c6051d7aa64993c3f6e0663aa7ffe3762b253bc2",
+    "obs-rust-core/tests/support/append_latency.rs": "9098787ec4a954d676f255790277edbc2aea9f03d0dc8d3e94293895211dd4ae"
+  },
+  "before_coordinator_sha256": "94b341b5d9d59e9a1325ccad9b84f21776da3710ca8e32b7c4bd4f64443b6267",
+  "binary_sha256": {
+    "append-flow-before.exe": "f6073472976a431bbd87001ab9784e77b3ceb416c4c3d44c74913274d38bea38",
+    "append-flow-after.exe": "aaef47e9bf484e9d57343e4a65cd7cb995dc51d968e60a711ded661371733c42",
+    "append-flow-before-coordinator.exe": "99b9aff2c2cb6d527cd86afc86f2214f85c41b70ca19e7deb51b7cde1954f02d"
+  },
+  "raw": {
+    "before64": [
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 2107.1,
+          "p50_us": 49.0,
+          "p95_us": 353.7,
+          "p99_us": 714.3
+        },
+        "append_ops_s": 656075.8259635858,
+        "directory": false,
+        "elapsed_s": 0.0975497,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 18.4,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 4.8
+        },
+        "registration_ms": 0.5720999999999999,
+        "rename": {
+          "count": 200,
+          "max_us": 1939.1,
+          "p50_us": 236.6,
+          "p95_us": 617.6,
+          "p99_us": 1168.6
+        },
+        "rename_ops_s": 2050.236956136205,
+        "service_delay_ms": 0,
+        "streams": 1024,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 3454.5,
+          "p50_us": 26.6,
+          "p95_us": 400.4,
+          "p99_us": 1107.1
+        },
+        "append_ops_s": 725746.1861470928,
+        "directory": false,
+        "elapsed_s": 0.0881851,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 170.7,
+          "p50_us": 0.3,
+          "p95_us": 0.3,
+          "p99_us": 0.9
+        },
+        "registration_ms": 5.349600000000001,
+        "rename": {
+          "count": 200,
+          "max_us": 1714.1,
+          "p50_us": 237.5,
+          "p95_us": 620.2,
+          "p99_us": 1584.3
+        },
+        "rename_ops_s": 2267.956831709665,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 11341.0,
+          "p50_us": 24.1,
+          "p95_us": 3613.2,
+          "p99_us": 5481.5
+        },
+        "append_ops_s": 97092.85778869802,
+        "directory": false,
+        "elapsed_s": 0.6591628,
+        "files": 1,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 163.9,
+          "p50_us": 0.3,
+          "p95_us": 0.6,
+          "p99_us": 2.2
+        },
+        "registration_ms": 5.6791,
+        "rename": {
+          "count": 200,
+          "max_us": 7220.9,
+          "p50_us": 2840.4,
+          "p95_us": 5599.7,
+          "p99_us": 6847.4
+        },
+        "rename_ops_s": 303.4151805896813,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 20021.4,
+          "p50_us": 16.9,
+          "p95_us": 5778.8,
+          "p99_us": 8823.8
+        },
+        "append_ops_s": 63574.420116853755,
+        "directory": true,
+        "elapsed_s": 1.0066942,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 68.0,
+          "p50_us": 0.3,
+          "p95_us": 0.3,
+          "p99_us": 2.0
+        },
+        "registration_ms": 4.7202,
+        "rename": {
+          "count": 200,
+          "max_us": 12212.9,
+          "p50_us": 4309.7,
+          "p95_us": 8881.4,
+          "p99_us": 10799.6
+        },
+        "rename_ops_s": 198.67006286516798,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 31424.3,
+          "p50_us": 15542.0,
+          "p95_us": 16396.1,
+          "p99_us": 16824.4
+        },
+        "append_ops_s": 4088.0285144587915,
+        "directory": false,
+        "elapsed_s": 15.6554681,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 108.0,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 5.0
+        },
+        "registration_ms": 0.6658999999999999,
+        "rename": {
+          "count": 200,
+          "max_us": 32083.0,
+          "p50_us": 15576.2,
+          "p95_us": 30779.2,
+          "p99_us": 31954.2
+        },
+        "rename_ops_s": 12.775089107683723,
+        "service_delay_ms": 1,
+        "streams": 1024,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 3299.9,
+          "p50_us": 24.0,
+          "p95_us": 92.3,
+          "p99_us": 314.0
+        },
+        "append_ops_s": 1351573.9501015793,
+        "directory": false,
+        "elapsed_s": 0.0473522,
+        "files": 32,
+        "kind": "coordinator",
+        "registration": {
+          "count": 32,
+          "max_us": 25.2,
+          "p50_us": 0.4,
+          "p95_us": 4.6,
+          "p99_us": 25.2
+        },
+        "registration_ms": 0.0586,
+        "rename": {
+          "count": 200,
+          "max_us": 1170.5,
+          "p50_us": 101.7,
+          "p95_us": 334.9,
+          "p99_us": 663.8
+        },
+        "rename_ops_s": 4223.668594067435,
+        "service_delay_ms": 0,
+        "streams": 32,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 6356.1,
+          "p50_us": 31.9,
+          "p95_us": 469.5,
+          "p99_us": 1388.6
+        },
+        "append_ops_s": 610928.9460998392,
+        "directory": false,
+        "elapsed_s": 0.1047585,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 1329.1,
+          "p50_us": 0.2,
+          "p95_us": 0.5,
+          "p99_us": 2.3
+        },
+        "registration_ms": 9.4433,
+        "rename": {
+          "count": 200,
+          "max_us": 2776.2,
+          "p50_us": 257.2,
+          "p95_us": 1153.2,
+          "p99_us": 2205.5
+        },
+        "rename_ops_s": 1909.1529565619974,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 15293.9,
+          "p50_us": 20.9,
+          "p95_us": 3955.0,
+          "p99_us": 7578.1
+        },
+        "append_ops_s": 86943.75187557371,
+        "directory": false,
+        "elapsed_s": 0.7361081,
+        "files": 1,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 3037.2,
+          "p50_us": 0.3,
+          "p95_us": 0.4,
+          "p99_us": 1.5
+        },
+        "registration_ms": 8.5636,
+        "rename": {
+          "count": 200,
+          "max_us": 11234.6,
+          "p50_us": 2986.2,
+          "p95_us": 7450.8,
+          "p99_us": 9809.1
+        },
+        "rename_ops_s": 271.69922461116784,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 16909.5,
+          "p50_us": 17.9,
+          "p95_us": 5295.1,
+          "p99_us": 7540.6
+        },
+        "append_ops_s": 65574.77830089603,
+        "directory": true,
+        "elapsed_s": 0.975985,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 278.7,
+          "p50_us": 0.2,
+          "p95_us": 0.4,
+          "p99_us": 2.3
+        },
+        "registration_ms": 5.7733,
+        "rename": {
+          "count": 200,
+          "max_us": 16105.9,
+          "p50_us": 4249.7,
+          "p95_us": 7314.1,
+          "p99_us": 10407.3
+        },
+        "rename_ops_s": 204.92118219030004,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 31908.2,
+          "p50_us": 15526.7,
+          "p95_us": 16278.9,
+          "p99_us": 16975.1
+        },
+        "append_ops_s": 4096.147487524895,
+        "directory": false,
+        "elapsed_s": 15.6244374,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 135.0,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 4.9
+        },
+        "registration_ms": 0.6653,
+        "rename": {
+          "count": 200,
+          "max_us": 31900.1,
+          "p50_us": 15575.3,
+          "p95_us": 30180.0,
+          "p99_us": 31248.1
+        },
+        "rename_ops_s": 12.800460898515297,
+        "service_delay_ms": 1,
+        "streams": 1024,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 1960.4,
+          "p50_us": 30.3,
+          "p95_us": 103.8,
+          "p99_us": 180.8
+        },
+        "append_ops_s": 1417101.7611917828,
+        "directory": false,
+        "elapsed_s": 0.0451626,
+        "files": 32,
+        "kind": "coordinator",
+        "registration": {
+          "count": 32,
+          "max_us": 3.8,
+          "p50_us": 0.4,
+          "p95_us": 2.4,
+          "p99_us": 3.8
+        },
+        "registration_ms": 0.0315,
+        "rename": {
+          "count": 200,
+          "max_us": 1395.8,
+          "p50_us": 95.8,
+          "p95_us": 220.8,
+          "p99_us": 341.4
+        },
+        "rename_ops_s": 4428.443003724321,
+        "service_delay_ms": 0,
+        "streams": 32,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 2056.8,
+          "p50_us": 26.3,
+          "p95_us": 238.9,
+          "p99_us": 532.5
+        },
+        "append_ops_s": 1042211.1812975203,
+        "directory": false,
+        "elapsed_s": 0.0614079,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 160.6,
+          "p50_us": 0.2,
+          "p95_us": 0.4,
+          "p99_us": 4.6
+        },
+        "registration_ms": 0.9039999999999999,
+        "rename": {
+          "count": 200,
+          "max_us": 2002.8,
+          "p50_us": 134.7,
+          "p95_us": 519.1,
+          "p99_us": 1545.2
+        },
+        "rename_ops_s": 3256.909941554751,
+        "service_delay_ms": 0,
+        "streams": 1024,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 13834.3,
+          "p50_us": 10.1,
+          "p95_us": 3064.7,
+          "p99_us": 4487.1
+        },
+        "append_ops_s": 110332.13939017702,
+        "directory": false,
+        "elapsed_s": 0.5800667,
+        "files": 1,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 218.9,
+          "p50_us": 0.3,
+          "p95_us": 0.3,
+          "p99_us": 1.8
+        },
+        "registration_ms": 5.2305,
+        "rename": {
+          "count": 200,
+          "max_us": 5557.6,
+          "p50_us": 2650.0,
+          "p95_us": 4210.8,
+          "p99_us": 5240.8
+        },
+        "rename_ops_s": 344.7879355943032,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 12755.2,
+          "p50_us": 23.8,
+          "p95_us": 4470.9,
+          "p99_us": 6333.1
+        },
+        "append_ops_s": 78405.92905635523,
+        "directory": true,
+        "elapsed_s": 0.8162648,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 97.5,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 1.9
+        },
+        "registration_ms": 4.8552,
+        "rename": {
+          "count": 200,
+          "max_us": 7595.4,
+          "p50_us": 3782.7,
+          "p95_us": 6335.1,
+          "p99_us": 7014.9
+        },
+        "rename_ops_s": 245.01852830111014,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 32213.3,
+          "p50_us": 15535.7,
+          "p95_us": 16275.4,
+          "p99_us": 16585.6
+        },
+        "append_ops_s": 4089.5528232457955,
+        "directory": false,
+        "elapsed_s": 15.6496328,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 24.0,
+          "p50_us": 0.4,
+          "p95_us": 0.5,
+          "p99_us": 8.3
+        },
+        "registration_ms": 0.8175,
+        "rename": {
+          "count": 200,
+          "max_us": 32008.7,
+          "p50_us": 15628.1,
+          "p95_us": 30591.7,
+          "p99_us": 31697.7
+        },
+        "rename_ops_s": 12.779852572643112,
+        "service_delay_ms": 1,
+        "streams": 1024,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 1422.1,
+          "p50_us": 34.9,
+          "p95_us": 133.2,
+          "p99_us": 249.1
+        },
+        "append_ops_s": 1262454.4086288759,
+        "directory": false,
+        "elapsed_s": 0.0506949,
+        "files": 32,
+        "kind": "coordinator",
+        "registration": {
+          "count": 32,
+          "max_us": 3.4,
+          "p50_us": 0.2,
+          "p95_us": 1.2,
+          "p99_us": 3.4
+        },
+        "registration_ms": 0.0208,
+        "rename": {
+          "count": 200,
+          "max_us": 1002.3,
+          "p50_us": 130.9,
+          "p95_us": 330.7,
+          "p99_us": 507.3
+        },
+        "rename_ops_s": 3945.170026965237,
+        "service_delay_ms": 0,
+        "streams": 32,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 483.2,
+          "p50_us": 25.8,
+          "p95_us": 118.3,
+          "p99_us": 206.8
+        },
+        "append_ops_s": 1645870.4082787281,
+        "directory": false,
+        "elapsed_s": 0.0388852,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 17.8,
+          "p50_us": 0.3,
+          "p95_us": 0.4,
+          "p99_us": 2.1
+        },
+        "registration_ms": 0.5519999999999999,
+        "rename": {
+          "count": 200,
+          "max_us": 398.2,
+          "p50_us": 75.9,
+          "p95_us": 186.7,
+          "p99_us": 241.5
+        },
+        "rename_ops_s": 5143.345025871025,
+        "service_delay_ms": 0,
+        "streams": 1024,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 4950.0,
+          "p50_us": 18.9,
+          "p95_us": 294.5,
+          "p99_us": 958.0
+        },
+        "append_ops_s": 870629.8462794177,
+        "directory": false,
+        "elapsed_s": 0.07351,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 125.9,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 1.6
+        },
+        "registration_ms": 4.8145,
+        "rename": {
+          "count": 200,
+          "max_us": 3222.1,
+          "p50_us": 186.6,
+          "p95_us": 1412.2,
+          "p99_us": 2776.6
+        },
+        "rename_ops_s": 2720.7182696231803,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 64
+      }
+    ],
+    "after64": [
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 3190.5,
+          "p50_us": 38.9,
+          "p95_us": 126.6,
+          "p99_us": 301.7
+        },
+        "append_ops_s": 1113159.6340487702,
+        "directory": false,
+        "elapsed_s": 0.057494,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 27.2,
+          "p50_us": 0.5,
+          "p95_us": 0.5,
+          "p99_us": 4.9
+        },
+        "registration_ms": 1.1456000000000002,
+        "rename": {
+          "count": 200,
+          "max_us": 1099.4,
+          "p50_us": 42.6,
+          "p95_us": 100.0,
+          "p99_us": 319.2
+        },
+        "rename_ops_s": 3478.623856402407,
+        "service_delay_ms": 0,
+        "streams": 1024,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 3707.0,
+          "p50_us": 34.6,
+          "p95_us": 115.8,
+          "p99_us": 258.0
+        },
+        "append_ops_s": 1173168.894160002,
+        "directory": false,
+        "elapsed_s": 0.0545531,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 237.5,
+          "p50_us": 0.3,
+          "p95_us": 0.3,
+          "p99_us": 2.2
+        },
+        "registration_ms": 5.7154,
+        "rename": {
+          "count": 200,
+          "max_us": 3623.1,
+          "p50_us": 49.1,
+          "p95_us": 165.8,
+          "p99_us": 525.3
+        },
+        "rename_ops_s": 3666.152794250006,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 13132.4,
+          "p50_us": 12.0,
+          "p95_us": 3368.2,
+          "p99_us": 4882.6
+        },
+        "append_ops_s": 96169.11820281556,
+        "directory": false,
+        "elapsed_s": 0.6654943,
+        "files": 1,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 267.0,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 2.2
+        },
+        "registration_ms": 5.5696,
+        "rename": {
+          "count": 200,
+          "max_us": 9424.8,
+          "p50_us": 3032.5,
+          "p95_us": 5066.1,
+          "p99_us": 6359.9
+        },
+        "rename_ops_s": 300.52849438379866,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 13307.8,
+          "p50_us": 16.2,
+          "p95_us": 5078.6,
+          "p99_us": 6636.8
+        },
+        "append_ops_s": 69640.98981609338,
+        "directory": true,
+        "elapsed_s": 0.918999,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 151.2,
+          "p50_us": 0.3,
+          "p95_us": 0.3,
+          "p99_us": 2.2
+        },
+        "registration_ms": 5.4306,
+        "rename": {
+          "count": 200,
+          "max_us": 7519.0,
+          "p50_us": 4348.5,
+          "p95_us": 6579.1,
+          "p99_us": 7086.2
+        },
+        "rename_ops_s": 217.6280931752918,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 31810.5,
+          "p50_us": 15558.7,
+          "p95_us": 16402.4,
+          "p99_us": 17102.8
+        },
+        "append_ops_s": 4102.003337671928,
+        "directory": false,
+        "elapsed_s": 15.602132600000001,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 99.3,
+          "p50_us": 0.3,
+          "p95_us": 0.4,
+          "p99_us": 8.0
+        },
+        "registration_ms": 0.9581000000000001,
+        "rename": {
+          "count": 200,
+          "max_us": 32178.5,
+          "p50_us": 15597.7,
+          "p95_us": 30185.4,
+          "p99_us": 32059.9
+        },
+        "rename_ops_s": 12.818760430224774,
+        "service_delay_ms": 1,
+        "streams": 1024,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 2103.7,
+          "p50_us": 51.1,
+          "p95_us": 167.7,
+          "p99_us": 430.7
+        },
+        "append_ops_s": 868469.0112616004,
+        "directory": false,
+        "elapsed_s": 0.0736929,
+        "files": 32,
+        "kind": "coordinator",
+        "registration": {
+          "count": 32,
+          "max_us": 3.1,
+          "p50_us": 0.3,
+          "p95_us": 1.6,
+          "p99_us": 3.1
+        },
+        "registration_ms": 0.0248,
+        "rename": {
+          "count": 200,
+          "max_us": 1888.3,
+          "p50_us": 128.8,
+          "p95_us": 387.0,
+          "p99_us": 1320.2
+        },
+        "rename_ops_s": 2713.965660192501,
+        "service_delay_ms": 0,
+        "streams": 32,
+        "trial": 1,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 5370.1,
+          "p50_us": 26.5,
+          "p95_us": 76.6,
+          "p99_us": 162.3
+        },
+        "append_ops_s": 1614612.2407790504,
+        "directory": false,
+        "elapsed_s": 0.039638,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 173.2,
+          "p50_us": 0.3,
+          "p95_us": 0.4,
+          "p99_us": 2.3
+        },
+        "registration_ms": 6.9532,
+        "rename": {
+          "count": 200,
+          "max_us": 5303.9,
+          "p50_us": 44.5,
+          "p95_us": 105.2,
+          "p99_us": 218.9
+        },
+        "rename_ops_s": 5045.663252434532,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 24912.7,
+          "p50_us": 29.9,
+          "p95_us": 3659.7,
+          "p99_us": 6174.4
+        },
+        "append_ops_s": 90133.72323679777,
+        "directory": false,
+        "elapsed_s": 0.7100561,
+        "files": 1,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 156.6,
+          "p50_us": 0.3,
+          "p95_us": 0.4,
+          "p99_us": 2.4
+        },
+        "registration_ms": 6.3765,
+        "rename": {
+          "count": 200,
+          "max_us": 17227.4,
+          "p50_us": 2928.1,
+          "p95_us": 6228.5,
+          "p99_us": 7427.4
+        },
+        "rename_ops_s": 281.66788511499306,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 17525.7,
+          "p50_us": 35.9,
+          "p95_us": 5253.2,
+          "p99_us": 7342.6
+        },
+        "append_ops_s": 65690.45855327234,
+        "directory": true,
+        "elapsed_s": 0.9742663,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 176.0,
+          "p50_us": 0.3,
+          "p95_us": 0.7,
+          "p99_us": 2.5
+        },
+        "registration_ms": 6.2044,
+        "rename": {
+          "count": 200,
+          "max_us": 10956.0,
+          "p50_us": 4463.8,
+          "p95_us": 6962.8,
+          "p99_us": 9292.7
+        },
+        "rename_ops_s": 205.28268297897608,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 32271.8,
+          "p50_us": 15586.1,
+          "p95_us": 16363.6,
+          "p99_us": 16887.0
+        },
+        "append_ops_s": 4073.3322255142593,
+        "directory": false,
+        "elapsed_s": 15.7119519,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 59.3,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 5.8
+        },
+        "registration_ms": 0.653,
+        "rename": {
+          "count": 200,
+          "max_us": 31772.4,
+          "p50_us": 15622.6,
+          "p95_us": 30840.2,
+          "p99_us": 31723.8
+        },
+        "rename_ops_s": 12.72916320473206,
+        "service_delay_ms": 1,
+        "streams": 1024,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 1756.9,
+          "p50_us": 26.5,
+          "p95_us": 92.7,
+          "p99_us": 163.1
+        },
+        "append_ops_s": 1618061.6127523482,
+        "directory": false,
+        "elapsed_s": 0.0395535,
+        "files": 32,
+        "kind": "coordinator",
+        "registration": {
+          "count": 32,
+          "max_us": 5.0,
+          "p50_us": 0.6,
+          "p95_us": 3.2,
+          "p99_us": 5.0
+        },
+        "registration_ms": 0.0483,
+        "rename": {
+          "count": 200,
+          "max_us": 722.9,
+          "p50_us": 89.6,
+          "p95_us": 196.5,
+          "p99_us": 318.3
+        },
+        "rename_ops_s": 5056.4425398510875,
+        "service_delay_ms": 0,
+        "streams": 32,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 993.7,
+          "p50_us": 25.9,
+          "p95_us": 85.2,
+          "p99_us": 195.0
+        },
+        "append_ops_s": 1726701.0028355669,
+        "directory": false,
+        "elapsed_s": 0.0370649,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 67.1,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 6.5
+        },
+        "registration_ms": 0.6716,
+        "rename": {
+          "count": 200,
+          "max_us": 463.3,
+          "p50_us": 41.7,
+          "p95_us": 139.1,
+          "p99_us": 237.7
+        },
+        "rename_ops_s": 5395.940633861146,
+        "service_delay_ms": 0,
+        "streams": 1024,
+        "trial": 2,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 10558.0,
+          "p50_us": 9.4,
+          "p95_us": 3255.4,
+          "p99_us": 4549.3
+        },
+        "append_ops_s": 101034.54639514264,
+        "directory": false,
+        "elapsed_s": 0.6334467,
+        "files": 1,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 178.0,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 1.8
+        },
+        "registration_ms": 4.454,
+        "rename": {
+          "count": 200,
+          "max_us": 7776.5,
+          "p50_us": 2876.7,
+          "p95_us": 4903.7,
+          "p99_us": 6708.6
+        },
+        "rename_ops_s": 315.7329574848207,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 19428.1,
+          "p50_us": 30.9,
+          "p95_us": 5953.2,
+          "p99_us": 8830.2
+        },
+        "append_ops_s": 58727.62741211112,
+        "directory": true,
+        "elapsed_s": 1.0897767,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 857.8,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 1.2
+        },
+        "registration_ms": 5.3103,
+        "rename": {
+          "count": 200,
+          "max_us": 10422.4,
+          "p50_us": 4948.9,
+          "p95_us": 8667.2,
+          "p99_us": 10034.6
+        },
+        "rename_ops_s": 183.52383566284726,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 32192.4,
+          "p50_us": 15593.0,
+          "p95_us": 16410.9,
+          "p99_us": 16941.8
+        },
+        "append_ops_s": 4092.817215780767,
+        "directory": false,
+        "elapsed_s": 15.6371508,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 169.1,
+          "p50_us": 0.3,
+          "p95_us": 0.5,
+          "p99_us": 9.1
+        },
+        "registration_ms": 1.0489,
+        "rename": {
+          "count": 200,
+          "max_us": 32418.6,
+          "p50_us": 15640.1,
+          "p95_us": 30439.0,
+          "p99_us": 32086.9
+        },
+        "rename_ops_s": 12.790053799314897,
+        "service_delay_ms": 1,
+        "streams": 1024,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 4117.8,
+          "p50_us": 31.8,
+          "p95_us": 132.8,
+          "p99_us": 286.9
+        },
+        "append_ops_s": 1212217.6385242767,
+        "directory": false,
+        "elapsed_s": 0.0527958,
+        "files": 32,
+        "kind": "coordinator",
+        "registration": {
+          "count": 32,
+          "max_us": 5.1,
+          "p50_us": 0.4,
+          "p95_us": 2.6,
+          "p99_us": 5.1
+        },
+        "registration_ms": 0.0782,
+        "rename": {
+          "count": 200,
+          "max_us": 4115.6,
+          "p50_us": 122.9,
+          "p95_us": 335.2,
+          "p99_us": 974.3
+        },
+        "rename_ops_s": 3788.1801203883642,
+        "service_delay_ms": 0,
+        "streams": 32,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 1195.9,
+          "p50_us": 36.1,
+          "p95_us": 119.5,
+          "p99_us": 224.1
+        },
+        "append_ops_s": 1299075.626499519,
+        "directory": false,
+        "elapsed_s": 0.0492658,
+        "files": 1024,
+        "kind": "coordinator",
+        "registration": {
+          "count": 1024,
+          "max_us": 71.9,
+          "p50_us": 0.2,
+          "p95_us": 0.6,
+          "p99_us": 11.4
+        },
+        "registration_ms": 0.7843,
+        "rename": {
+          "count": 200,
+          "max_us": 737.1,
+          "p50_us": 58.8,
+          "p95_us": 158.8,
+          "p99_us": 252.6
+        },
+        "rename_ops_s": 4059.611332810997,
+        "service_delay_ms": 0,
+        "streams": 1024,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 64000,
+          "max_us": 3892.4,
+          "p50_us": 23.3,
+          "p95_us": 72.2,
+          "p99_us": 186.6
+        },
+        "append_ops_s": 1590595.6034943396,
+        "directory": false,
+        "elapsed_s": 0.0402365,
+        "files": 8192,
+        "kind": "coordinator",
+        "registration": {
+          "count": 8192,
+          "max_us": 95.0,
+          "p50_us": 0.2,
+          "p95_us": 0.3,
+          "p99_us": 1.0
+        },
+        "registration_ms": 4.4746999999999995,
+        "rename": {
+          "count": 200,
+          "max_us": 3788.9,
+          "p50_us": 35.2,
+          "p95_us": 83.1,
+          "p99_us": 210.0
+        },
+        "rename_ops_s": 4970.611260919812,
+        "service_delay_ms": 0,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 64
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 18017.3,
+          "p50_us": 438.8,
+          "p95_us": 5003.8,
+          "p99_us": 9022.5
+        },
+        "append_ops_s": 2752.4014014126974,
+        "append_sum_ns": 1196096300,
+        "elapsed_s": 0.3633191,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 10.75156797426835,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 27314.5,
+          "p50_us": 75.8,
+          "p95_us": 1062.9,
+          "p99_us": 11718.2
+        },
+        "rename_ops_s": 550.4802802825395,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 18459.9,
+          "p50_us": 558.9,
+          "p95_us": 6007.6,
+          "p99_us": 11144.0
+        },
+        "append_ops_s": 2323.766695682767,
+        "append_sum_ns": 1468542600,
+        "elapsed_s": 0.4303358,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 9.077213655010809,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 39380.2,
+          "p50_us": 15.7,
+          "p95_us": 25.9,
+          "p99_us": 13666.0
+        },
+        "rename_ops_s": 464.7533391365534,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 23691.8,
+          "p50_us": 357.4,
+          "p95_us": 5284.0,
+          "p99_us": 11680.1
+        },
+        "append_ops_s": 3042.3044604442616,
+        "append_sum_ns": 1147475800,
+        "elapsed_s": 0.3286982,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 11.884001798610397,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 34173.0,
+          "p50_us": 14.8,
+          "p95_us": 41.8,
+          "p99_us": 17792.4
+        },
+        "rename_ops_s": 608.4608920888523,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 19938.2,
+          "p50_us": 361.8,
+          "p95_us": 4795.3,
+          "p99_us": 7394.0
+        },
+        "append_ops_s": 3126.3736504226545,
+        "append_sum_ns": 1091574100,
+        "elapsed_s": 0.3198594,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 12.212397071963494,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 17926.6,
+          "p50_us": 83.2,
+          "p95_us": 200.7,
+          "p99_us": 5210.7
+        },
+        "rename_ops_s": 625.2747300845309,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 31950.9,
+          "p50_us": 453.2,
+          "p95_us": 4191.0,
+          "p99_us": 6326.3
+        },
+        "append_ops_s": 3110.412166937065,
+        "append_sum_ns": 1049070200,
+        "elapsed_s": 0.3215008,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 12.150047527097911,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 28691.6,
+          "p50_us": 82.6,
+          "p95_us": 138.3,
+          "p99_us": 3734.2
+        },
+        "rename_ops_s": 622.0824333874131,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 36271.9,
+          "p50_us": 529.2,
+          "p95_us": 3969.6,
+          "p99_us": 8608.9
+        },
+        "append_ops_s": 2621.1117445464492,
+        "append_sum_ns": 1116973000,
+        "elapsed_s": 0.3815175,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 10.238717752134567,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 31322.7,
+          "p50_us": 24.3,
+          "p95_us": 112.9,
+          "p99_us": 7713.6
+        },
+        "rename_ops_s": 524.2223489092898,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "profile-before-copy": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 44470.8,
+          "p50_us": 567.4,
+          "p95_us": 7704.8,
+          "p99_us": 13564.0
+        },
+        "append_ops_s": 1805.7973317538624,
+        "append_sum_ns": 1842891400,
+        "elapsed_s": 0.553772,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 7.053895827163525,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 489065700,
+          "total_ns": 1783236400,
+          "wait_ns": 1291014000
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 31978.4,
+          "p50_us": 174.2,
+          "p95_us": 500.3,
+          "p99_us": 1572.7
+        },
+        "rename_ops_s": 361.1594663507725,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 42562.7,
+          "p50_us": 1122.2,
+          "p95_us": 7307.5,
+          "p99_us": 10635.4
+        },
+        "append_ops_s": 1703.177106574604,
+        "append_sum_ns": 2251174000,
+        "elapsed_s": 0.587138,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 6.653035572557047,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 565756900,
+          "total_ns": 2192156300,
+          "wait_ns": 1622595900
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 30246.3,
+          "p50_us": 14.8,
+          "p95_us": 38.4,
+          "p99_us": 2667.4
+        },
+        "rename_ops_s": 340.63542131492085,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 19482.8,
+          "p50_us": 1136.4,
+          "p95_us": 6120.6,
+          "p99_us": 9338.0
+        },
+        "append_ops_s": 1848.8679843548794,
+        "append_sum_ns": 1972173100,
+        "elapsed_s": 0.5408715,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 7.2221405638862475,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 521259800,
+          "total_ns": 1930939400,
+          "wait_ns": 1406046600
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 14828.3,
+          "p50_us": 17.7,
+          "p95_us": 27.3,
+          "p99_us": 824.1
+        },
+        "rename_ops_s": 369.77359687097584,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 22739.2,
+          "p50_us": 1761.7,
+          "p95_us": 5807.3,
+          "p99_us": 8201.4
+        },
+        "append_ops_s": 1332.444681560378,
+        "append_sum_ns": 2211550700,
+        "elapsed_s": 0.7505002,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 5.204862037345227,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 574352200,
+          "total_ns": 2156909900,
+          "wait_ns": 1578082100
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 26091.8,
+          "p50_us": 350.6,
+          "p95_us": 3448.1,
+          "p99_us": 21631.2
+        },
+        "rename_ops_s": 266.4889363120756,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 26886.8,
+          "p50_us": 1089.3,
+          "p95_us": 6184.5,
+          "p99_us": 9258.9
+        },
+        "append_ops_s": 1543.9184588729456,
+        "append_sum_ns": 1998740500,
+        "elapsed_s": 0.6477026,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 6.030931479972444,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 502203000,
+          "total_ns": 1934746400,
+          "wait_ns": 1428286100
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 24114.6,
+          "p50_us": 367.3,
+          "p95_us": 2346.4,
+          "p99_us": 9037.0
+        },
+        "rename_ops_s": 308.78369177458916,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 14827.2,
+          "p50_us": 1727.6,
+          "p95_us": 5796.0,
+          "p99_us": 8654.7
+        },
+        "append_ops_s": 1738.535099893619,
+        "append_sum_ns": 2180447400,
+        "elapsed_s": 0.5751969,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 6.791152733959449,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 549999400,
+          "total_ns": 2139972500,
+          "wait_ns": 1585538400
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 11269.6,
+          "p50_us": 22.8,
+          "p95_us": 63.1,
+          "p99_us": 254.5
+        },
+        "rename_ops_s": 347.7070199787238,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-copy-before-1": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 13372.6,
+          "p50_us": 317.2,
+          "p95_us": 3162.8,
+          "p99_us": 4779.9
+        },
+        "append_ops_s": 3889.83368627091,
+        "append_sum_ns": 811770100,
+        "elapsed_s": 0.2570804,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 15.194662836995743,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 12022.5,
+          "p50_us": 150.4,
+          "p95_us": 192.7,
+          "p99_us": 3759.4
+        },
+        "rename_ops_s": 777.966737254182,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 13738.6,
+          "p50_us": 395.7,
+          "p95_us": 2871.2,
+          "p99_us": 6096.8
+        },
+        "append_ops_s": 3966.286564204264,
+        "append_sum_ns": 911538600,
+        "elapsed_s": 0.252125,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 15.493306891422906,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 3964.6,
+          "p50_us": 13.8,
+          "p95_us": 21.1,
+          "p99_us": 1800.6
+        },
+        "rename_ops_s": 793.2573128408528,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 18135.5,
+          "p50_us": 296.9,
+          "p95_us": 2904.9,
+          "p99_us": 5205.7
+        },
+        "append_ops_s": 4588.456727641139,
+        "append_sum_ns": 813157700,
+        "elapsed_s": 0.2179382,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 17.9236590923482,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 14697.0,
+          "p50_us": 13.9,
+          "p95_us": 18.8,
+          "p99_us": 88.4
+        },
+        "rename_ops_s": 917.6913455282278,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 6693.9,
+          "p50_us": 284.9,
+          "p95_us": 2805.4,
+          "p99_us": 4562.4
+        },
+        "append_ops_s": 4454.731905324474,
+        "append_sum_ns": 703088900,
+        "elapsed_s": 0.2244804,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 17.401296505173725,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 10343.7,
+          "p50_us": 158.5,
+          "p95_us": 206.4,
+          "p99_us": 5997.2
+        },
+        "rename_ops_s": 890.9463810648948,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 5581.2,
+          "p50_us": 309.0,
+          "p95_us": 1900.9,
+          "p99_us": 3103.7
+        },
+        "append_ops_s": 4856.792613012707,
+        "append_sum_ns": 580104100,
+        "elapsed_s": 0.2058972,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 18.971846144580887,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 9935.0,
+          "p50_us": 141.0,
+          "p95_us": 1924.3,
+          "p99_us": 4868.4
+        },
+        "rename_ops_s": 971.3585226025415,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 19203.3,
+          "p50_us": 297.6,
+          "p95_us": 2176.4,
+          "p99_us": 3706.8
+        },
+        "append_ops_s": 5407.688326801747,
+        "append_sum_ns": 659133000,
+        "elapsed_s": 0.1849219,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 21.123782526569325,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 18943.9,
+          "p50_us": 13.6,
+          "p95_us": 17.1,
+          "p99_us": 618.4
+        },
+        "rename_ops_s": 1081.5376653603494,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-copy-before-2": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 10729.1,
+          "p50_us": 309.4,
+          "p95_us": 3018.4,
+          "p99_us": 5540.8
+        },
+        "append_ops_s": 4067.45797705791,
+        "append_sum_ns": 761829700,
+        "elapsed_s": 0.2458538,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 15.88850772288246,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 20226.7,
+          "p50_us": 151.1,
+          "p95_us": 186.1,
+          "p99_us": 5459.9
+        },
+        "rename_ops_s": 813.491595411582,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 13177.8,
+          "p50_us": 487.0,
+          "p95_us": 3485.2,
+          "p99_us": 5233.0
+        },
+        "append_ops_s": 3875.6805695080056,
+        "append_sum_ns": 949120000,
+        "elapsed_s": 0.2580192,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 15.139377224640647,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 11345.8,
+          "p50_us": 14.5,
+          "p95_us": 21.0,
+          "p99_us": 2394.1
+        },
+        "rename_ops_s": 775.1361139016011,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 24202.6,
+          "p50_us": 446.4,
+          "p95_us": 2495.2,
+          "p99_us": 5120.2
+        },
+        "append_ops_s": 4206.558866584779,
+        "append_sum_ns": 832362500,
+        "elapsed_s": 0.237724,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 16.431870572596793,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 19456.9,
+          "p50_us": 14.1,
+          "p95_us": 34.8,
+          "p99_us": 169.9
+        },
+        "rename_ops_s": 841.3117733169559,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 10649.2,
+          "p50_us": 260.5,
+          "p95_us": 2986.5,
+          "p99_us": 5306.7
+        },
+        "append_ops_s": 4447.640815643954,
+        "append_sum_ns": 701735200,
+        "elapsed_s": 0.2248383,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 17.373596936109195,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 22482.3,
+          "p50_us": 142.4,
+          "p95_us": 195.7,
+          "p99_us": 19018.1
+        },
+        "rename_ops_s": 889.5281631287908,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 5758.9,
+          "p50_us": 345.4,
+          "p95_us": 2168.1,
+          "p99_us": 3793.9
+        },
+        "append_ops_s": 4677.268475210477,
+        "append_sum_ns": 630208800,
+        "elapsed_s": 0.2138,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 18.270579981290926,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 9759.1,
+          "p50_us": 140.4,
+          "p95_us": 163.0,
+          "p99_us": 5920.0
+        },
+        "rename_ops_s": 935.4536950420954,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 10920.4,
+          "p50_us": 298.7,
+          "p95_us": 2528.2,
+          "p99_us": 3943.4
+        },
+        "append_ops_s": 5270.281095712521,
+        "append_sum_ns": 695263800,
+        "elapsed_s": 0.1897432,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 20.587035530127036,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 8195.7,
+          "p50_us": 13.4,
+          "p95_us": 22.8,
+          "p99_us": 2832.4
+        },
+        "rename_ops_s": 1054.0562191425042,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-copy-before-3": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 13611.7,
+          "p50_us": 320.8,
+          "p95_us": 2856.1,
+          "p99_us": 7398.7
+        },
+        "append_ops_s": 3903.4520177919344,
+        "append_sum_ns": 718121500,
+        "elapsed_s": 0.2561835,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 15.247859444499744,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 13805.4,
+          "p50_us": 151.2,
+          "p95_us": 2561.0,
+          "p99_us": 10570.9
+        },
+        "rename_ops_s": 780.6904035583868,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 12534.2,
+          "p50_us": 452.9,
+          "p95_us": 3199.5,
+          "p99_us": 4948.8
+        },
+        "append_ops_s": 3841.0437806011155,
+        "append_sum_ns": 939118500,
+        "elapsed_s": 0.2603459,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 15.004077267973107,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 12220.4,
+          "p50_us": 13.4,
+          "p95_us": 18.5,
+          "p99_us": 89.8
+        },
+        "rename_ops_s": 768.208756120223,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 9794.2,
+          "p50_us": 483.5,
+          "p95_us": 2666.3,
+          "p99_us": 4462.7
+        },
+        "append_ops_s": 4340.782695209338,
+        "append_sum_ns": 840985700,
+        "elapsed_s": 0.2303732,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 16.956182403161478,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 6517.3,
+          "p50_us": 13.7,
+          "p95_us": 24.0,
+          "p99_us": 2193.5
+        },
+        "rename_ops_s": 868.1565390418677,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 9125.6,
+          "p50_us": 324.1,
+          "p95_us": 2563.0,
+          "p99_us": 4364.8
+        },
+        "append_ops_s": 4632.853323400495,
+        "append_sum_ns": 703011300,
+        "elapsed_s": 0.2158497,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 18.097083294533185,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 4553.7,
+          "p50_us": 151.9,
+          "p95_us": 176.4,
+          "p99_us": 1589.7
+        },
+        "rename_ops_s": 926.5706646800992,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 5073.3,
+          "p50_us": 314.9,
+          "p95_us": 2364.6,
+          "p99_us": 3554.1
+        },
+        "append_ops_s": 4684.308083195186,
+        "append_sum_ns": 672673900,
+        "elapsed_s": 0.2134787,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 18.298078449981194,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 10905.7,
+          "p50_us": 143.7,
+          "p95_us": 169.6,
+          "p99_us": 4980.3
+        },
+        "rename_ops_s": 936.861616639037,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 12810.2,
+          "p50_us": 332.3,
+          "p95_us": 2339.9,
+          "p99_us": 5199.7
+        },
+        "append_ops_s": 5110.896226318662,
+        "append_sum_ns": 733019100,
+        "elapsed_s": 0.1956604,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 19.964438384057274,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 11825.3,
+          "p50_us": 14.0,
+          "p95_us": 24.1,
+          "p99_us": 4571.5
+        },
+        "rename_ops_s": 1022.1792452637324,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "profile-before-inplace": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 2625.0,
+          "p50_us": 6.0,
+          "p95_us": 331.4,
+          "p99_us": 1340.6
+        },
+        "append_ops_s": 9899.774681128258,
+        "append_sum_ns": 74541000,
+        "elapsed_s": 0.1010124,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 38.67099484815726,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 6586900,
+          "total_ns": 49262800,
+          "wait_ns": 41638700
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 2585.3,
+          "p50_us": 266.7,
+          "p95_us": 1516.1,
+          "p99_us": 2330.1
+        },
+        "rename_ops_s": 1979.9549362256514,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 2405.1,
+          "p50_us": 6.8,
+          "p95_us": 140.5,
+          "p99_us": 565.4
+        },
+        "append_ops_s": 66584.98908006179,
+        "append_sum_ns": 40660300,
+        "elapsed_s": 0.0150184,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 260.09761359399135,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 7961400,
+          "total_ns": 35717200,
+          "wait_ns": 26423400
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 313.5,
+          "p50_us": 14.9,
+          "p95_us": 28.9,
+          "p99_us": 98.7
+        },
+        "rename_ops_s": 13316.99781601236,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 953.5,
+          "p50_us": 7.3,
+          "p95_us": 153.6,
+          "p99_us": 508.8
+        },
+        "append_ops_s": 75287.03180877095,
+        "append_sum_ns": 34581600,
+        "elapsed_s": 0.0132825,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 294.0899680030115,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 6948900,
+          "total_ns": 29552500,
+          "wait_ns": 21208800
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 648.5,
+          "p50_us": 17.0,
+          "p95_us": 30.1,
+          "p99_us": 116.5
+        },
+        "rename_ops_s": 15057.406361754189,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 3914.4,
+          "p50_us": 9.1,
+          "p95_us": 730.7,
+          "p99_us": 1437.7
+        },
+        "append_ops_s": 14151.437361492808,
+        "append_sum_ns": 116214700,
+        "elapsed_s": 0.0706642,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 55.27905219333128,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 8662900,
+          "total_ns": 76244700,
+          "wait_ns": 66309300
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 3825.6,
+          "p50_us": 186.8,
+          "p95_us": 818.7,
+          "p99_us": 2409.5
+        },
+        "rename_ops_s": 2830.2874722985616,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 2110.2,
+          "p50_us": 9.4,
+          "p95_us": 266.8,
+          "p99_us": 1096.6
+        },
+        "append_ops_s": 8246.456909788709,
+        "append_sum_ns": 64996300,
+        "elapsed_s": 0.1212642,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 32.212722303862144,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 7314300,
+          "total_ns": 45898400,
+          "wait_ns": 37479600
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 3725.2,
+          "p50_us": 252.2,
+          "p95_us": 2136.9,
+          "p99_us": 2785.1
+        },
+        "rename_ops_s": 1649.2913819577418,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 1179.2,
+          "p50_us": 10.4,
+          "p95_us": 199.1,
+          "p99_us": 749.6
+        },
+        "append_ops_s": 51364.23405654175,
+        "append_sum_ns": 51255900,
+        "elapsed_s": 0.0194688,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 200.6415392833662,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 10469000,
+          "total_ns": 44157100,
+          "wait_ns": 32085800
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 302.7,
+          "p50_us": 23.4,
+          "p95_us": 45.9,
+          "p99_us": 118.9
+        },
+        "rename_ops_s": 10272.846811308349,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-inplace-before-1": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 464.6,
+          "p50_us": 5.4,
+          "p95_us": 100.4,
+          "p99_us": 217.0
+        },
+        "append_ops_s": 29913.877945395205,
+        "append_sum_ns": 17389600,
+        "elapsed_s": 0.0334293,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 116.85108572420002,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 360.4,
+          "p50_us": 139.9,
+          "p95_us": 154.6,
+          "p99_us": 281.3
+        },
+        "rename_ops_s": 5982.775589079041,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 564.7,
+          "p50_us": 5.1,
+          "p95_us": 78.1,
+          "p99_us": 227.2
+        },
+        "append_ops_s": 129411.30796008954,
+        "append_sum_ns": 17433200,
+        "elapsed_s": 0.0077273,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 505.5129217190998,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 61.6,
+          "p50_us": 13.8,
+          "p95_us": 18.1,
+          "p99_us": 34.5
+        },
+        "rename_ops_s": 25882.26159201791,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 414.4,
+          "p50_us": 4.8,
+          "p95_us": 73.5,
+          "p99_us": 198.2
+        },
+        "append_ops_s": 142953.12567009276,
+        "append_sum_ns": 15513500,
+        "elapsed_s": 0.0069953,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 558.4106471487999,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 35.6,
+          "p50_us": 13.1,
+          "p95_us": 17.4,
+          "p99_us": 30.5
+        },
+        "rename_ops_s": 28590.625134018555,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 795.8,
+          "p50_us": 5.4,
+          "p95_us": 195.9,
+          "p99_us": 334.5
+        },
+        "append_ops_s": 27500.55688627695,
+        "append_sum_ns": 34068300,
+        "elapsed_s": 0.0363629,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 107.42405033701934,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 475.7,
+          "p50_us": 144.7,
+          "p95_us": 225.2,
+          "p99_us": 320.2
+        },
+        "rename_ops_s": 5500.11137725539,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 656.1,
+          "p50_us": 5.1,
+          "p95_us": 97.7,
+          "p99_us": 221.2
+        },
+        "append_ops_s": 29242.4167102866,
+        "append_sum_ns": 18496800,
+        "elapsed_s": 0.0341969,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 114.22819027455704,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 640.6,
+          "p50_us": 141.2,
+          "p95_us": 178.0,
+          "p99_us": 362.4
+        },
+        "rename_ops_s": 5848.48334205732,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 737.2,
+          "p50_us": 5.5,
+          "p95_us": 66.2,
+          "p99_us": 299.6
+        },
+        "append_ops_s": 119482.87810356775,
+        "append_sum_ns": 18565600,
+        "elapsed_s": 0.0083694,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 466.72999259206154,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 56.1,
+          "p50_us": 13.9,
+          "p95_us": 22.5,
+          "p99_us": 40.2
+        },
+        "rename_ops_s": 23896.57562071355,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-inplace-before-2": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 579.0,
+          "p50_us": 5.3,
+          "p95_us": 135.5,
+          "p99_us": 252.2
+        },
+        "append_ops_s": 26132.791165025963,
+        "append_sum_ns": 21731500,
+        "elapsed_s": 0.0382661,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 102.08121548838267,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 421.3,
+          "p50_us": 159.3,
+          "p95_us": 246.3,
+          "p99_us": 345.9
+        },
+        "rename_ops_s": 5226.558233005193,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 699.2,
+          "p50_us": 5.4,
+          "p95_us": 84.6,
+          "p99_us": 361.9
+        },
+        "append_ops_s": 108045.03316982518,
+        "append_sum_ns": 20551800,
+        "elapsed_s": 0.0092554,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 422.0509108196296,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 630.9,
+          "p50_us": 16.2,
+          "p95_us": 19.9,
+          "p99_us": 42.1
+        },
+        "rename_ops_s": 21609.006633965037,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 419.3,
+          "p50_us": 5.5,
+          "p95_us": 66.8,
+          "p99_us": 208.6
+        },
+        "append_ops_s": 137355.09037964945,
+        "append_sum_ns": 15409200,
+        "elapsed_s": 0.0072804,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 536.5433217955057,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 203.1,
+          "p50_us": 14.2,
+          "p95_us": 17.5,
+          "p99_us": 32.1
+        },
+        "rename_ops_s": 27471.018075929893,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 619.1,
+          "p50_us": 5.4,
+          "p95_us": 141.4,
+          "p99_us": 362.7
+        },
+        "append_ops_s": 26953.233444650188,
+        "append_sum_ns": 25445100,
+        "elapsed_s": 0.0371013,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 105.2860681431648,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 739.2,
+          "p50_us": 142.5,
+          "p95_us": 181.8,
+          "p99_us": 574.3
+        },
+        "rename_ops_s": 5390.646688930038,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 739.8,
+          "p50_us": 5.5,
+          "p95_us": 94.6,
+          "p99_us": 246.3
+        },
+        "append_ops_s": 28894.468731850662,
+        "append_sum_ns": 18422200,
+        "elapsed_s": 0.0346087,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 112.86901848379165,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 718.9,
+          "p50_us": 141.8,
+          "p95_us": 163.3,
+          "p99_us": 374.6
+        },
+        "rename_ops_s": 5778.893746370132,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 454.6,
+          "p50_us": 5.0,
+          "p95_us": 58.9,
+          "p99_us": 165.6
+        },
+        "append_ops_s": 139573.18519965943,
+        "append_sum_ns": 14840400,
+        "elapsed_s": 0.0071647,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 545.2077546861697,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 259.5,
+          "p50_us": 13.9,
+          "p95_us": 17.3,
+          "p99_us": 32.7
+        },
+        "rename_ops_s": 27914.637039931888,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-inplace-before-3": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 563.1,
+          "p50_us": 5.5,
+          "p95_us": 118.8,
+          "p99_us": 304.2
+        },
+        "append_ops_s": 29965.868875350974,
+        "append_sum_ns": 19634500,
+        "elapsed_s": 0.0333713,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 117.05417529433974,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 546.6,
+          "p50_us": 138.6,
+          "p95_us": 147.3,
+          "p99_us": 364.7
+        },
+        "rename_ops_s": 5993.173775070195,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 495.0,
+          "p50_us": 5.0,
+          "p95_us": 61.3,
+          "p99_us": 183.4
+        },
+        "append_ops_s": 141410.71327563777,
+        "append_sum_ns": 14715900,
+        "elapsed_s": 0.0070716,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 552.38559873296,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 481.3,
+          "p50_us": 14.1,
+          "p95_us": 21.8,
+          "p99_us": 49.0
+        },
+        "rename_ops_s": 28282.142655127554,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 438.1,
+          "p50_us": 5.3,
+          "p95_us": 60.5,
+          "p99_us": 198.9
+        },
+        "append_ops_s": 137725.8704275011,
+        "append_sum_ns": 15009700,
+        "elapsed_s": 0.0072608,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 537.9916813574262,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 139.2,
+          "p50_us": 13.7,
+          "p95_us": 17.0,
+          "p99_us": 39.7
+        },
+        "rename_ops_s": 27545.174085500217,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 599.6,
+          "p50_us": 5.7,
+          "p95_us": 125.8,
+          "p99_us": 299.2
+        },
+        "append_ops_s": 27289.671677960043,
+        "append_sum_ns": 21616300,
+        "elapsed_s": 0.0366439,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 106.60027999203142,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 824.6,
+          "p50_us": 147.4,
+          "p95_us": 175.1,
+          "p99_us": 417.8
+        },
+        "rename_ops_s": 5457.934335592008,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 721.0,
+          "p50_us": 5.5,
+          "p95_us": 126.2,
+          "p99_us": 323.1
+        },
+        "append_ops_s": 28269.27045493737,
+        "append_sum_ns": 20641900,
+        "elapsed_s": 0.0353741,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 110.4268377145991,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 703.6,
+          "p50_us": 139.1,
+          "p95_us": 219.8,
+          "p99_us": 416.5
+        },
+        "rename_ops_s": 5653.854090987474,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 359.1,
+          "p50_us": 4.9,
+          "p95_us": 71.3,
+          "p99_us": 219.8
+        },
+        "append_ops_s": 139318.45412243306,
+        "append_sum_ns": 15098300,
+        "elapsed_s": 0.0071778,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 544.2127114157541,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 321.9,
+          "p50_us": 13.4,
+          "p95_us": 17.5,
+          "p99_us": 34.9
+        },
+        "rename_ops_s": 27863.690824486614,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "profile-after-copy": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 11520.1,
+          "p50_us": 253.0,
+          "p95_us": 3808.7,
+          "p99_us": 6408.4
+        },
+        "append_ops_s": 4346.797974739888,
+        "append_sum_ns": 776772900,
+        "elapsed_s": 0.2300544,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 16.979679588827686,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 206571500,
+          "total_ns": 764315900,
+          "wait_ns": 556790000
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 12549.4,
+          "p50_us": 67.5,
+          "p95_us": 101.9,
+          "p99_us": 8706.7
+        },
+        "rename_ops_s": 869.3595949479776,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 15978.7,
+          "p50_us": 346.9,
+          "p95_us": 3587.1,
+          "p99_us": 6998.2
+        },
+        "append_ops_s": 3690.258860588294,
+        "append_sum_ns": 947538200,
+        "elapsed_s": 0.2709837,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 14.415073674173023,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 260605600,
+          "total_ns": 928031800,
+          "wait_ns": 666150100
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 12956.3,
+          "p50_us": 14.7,
+          "p95_us": 19.5,
+          "p99_us": 7822.9
+        },
+        "rename_ops_s": 738.0517721176587,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 10666.2,
+          "p50_us": 339.7,
+          "p95_us": 3135.9,
+          "p99_us": 5827.2
+        },
+        "append_ops_s": 4433.936999075968,
+        "append_sum_ns": 804690900,
+        "elapsed_s": 0.2255332,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 17.3200664026405,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 215992900,
+          "total_ns": 790278900,
+          "wait_ns": 573218100
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 5826.3,
+          "p50_us": 14.1,
+          "p95_us": 18.0,
+          "p99_us": 212.9
+        },
+        "rename_ops_s": 886.7873998151936,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 9768.7,
+          "p50_us": 297.3,
+          "p95_us": 2542.4,
+          "p99_us": 4685.5
+        },
+        "append_ops_s": 4667.326937850808,
+        "append_sum_ns": 670392700,
+        "elapsed_s": 0.2142554,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 18.231745850979717,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 187843800,
+          "total_ns": 653493400,
+          "wait_ns": 464579600
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 18897.2,
+          "p50_us": 69.1,
+          "p95_us": 2825.0,
+          "p99_us": 8248.0
+        },
+        "rename_ops_s": 933.4653875701615,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 5571.4,
+          "p50_us": 328.3,
+          "p95_us": 1997.9,
+          "p99_us": 2743.6
+        },
+        "append_ops_s": 5434.782608695652,
+        "append_sum_ns": 580249000,
+        "elapsed_s": 0.184,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 21.22961956521739,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 161223400,
+          "total_ns": 563787900,
+          "wait_ns": 401653500
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 4510.3,
+          "p50_us": 67.8,
+          "p95_us": 86.2,
+          "p99_us": 2648.7
+        },
+        "rename_ops_s": 1086.9565217391305,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 9651.6,
+          "p50_us": 300.3,
+          "p95_us": 2272.0,
+          "p99_us": 4746.5
+        },
+        "append_ops_s": 5468.547920065142,
+        "append_sum_ns": 668050800,
+        "elapsed_s": 0.1828639,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 21.36151531275446,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 509952000,
+          "hold_ns": 174439400,
+          "total_ns": 650525300,
+          "wait_ns": 475083700
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 6365.1,
+          "p50_us": 13.2,
+          "p95_us": 18.6,
+          "p99_us": 386.0
+        },
+        "rename_ops_s": 1093.7095840130282,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-copy-after-1": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 22428.8,
+          "p50_us": 303.6,
+          "p95_us": 3537.9,
+          "p99_us": 7340.0
+        },
+        "append_ops_s": 3596.748395580459,
+        "append_sum_ns": 891463700,
+        "elapsed_s": 0.2780289,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 14.049798420236169,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 25275.7,
+          "p50_us": 74.7,
+          "p95_us": 147.1,
+          "p99_us": 5408.3
+        },
+        "rename_ops_s": 719.3496791160918,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 35217.4,
+          "p50_us": 278.5,
+          "p95_us": 4041.5,
+          "p99_us": 11426.7
+        },
+        "append_ops_s": 4036.276438115204,
+        "append_sum_ns": 903445000,
+        "elapsed_s": 0.2477531,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 15.766704836387516,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 26087.8,
+          "p50_us": 13.9,
+          "p95_us": 21.5,
+          "p99_us": 13151.1
+        },
+        "rename_ops_s": 807.2552876230409,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 9096.2,
+          "p50_us": 271.9,
+          "p95_us": 3285.2,
+          "p99_us": 6365.3
+        },
+        "append_ops_s": 4403.389200599918,
+        "append_sum_ns": 802828700,
+        "elapsed_s": 0.2270978,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 17.20073906484343,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 7628.2,
+          "p50_us": 13.3,
+          "p95_us": 20.6,
+          "p99_us": 5829.2
+        },
+        "rename_ops_s": 880.6778401199836,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 22844.6,
+          "p50_us": 287.5,
+          "p95_us": 2816.2,
+          "p99_us": 6413.1
+        },
+        "append_ops_s": 4923.973843850942,
+        "append_sum_ns": 713786700,
+        "elapsed_s": 0.203088,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 19.234272827542743,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 29740.4,
+          "p50_us": 70.9,
+          "p95_us": 84.3,
+          "p99_us": 3818.7
+        },
+        "rename_ops_s": 984.7947687701883,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 15415.8,
+          "p50_us": 266.9,
+          "p95_us": 2416.8,
+          "p99_us": 6519.8
+        },
+        "append_ops_s": 5004.278658252806,
+        "append_sum_ns": 671341600,
+        "elapsed_s": 0.199829,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 19.547963508800024,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 6341.3,
+          "p50_us": 70.4,
+          "p95_us": 113.8,
+          "p99_us": 3462.7
+        },
+        "rename_ops_s": 1000.8557316505612,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 9564.6,
+          "p50_us": 277.7,
+          "p95_us": 2931.2,
+          "p99_us": 4265.6
+        },
+        "append_ops_s": 5074.228349409334,
+        "append_sum_ns": 718266300,
+        "elapsed_s": 0.1970743,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 19.821204489880213,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 6020.9,
+          "p50_us": 13.5,
+          "p95_us": 22.8,
+          "p99_us": 3860.8
+        },
+        "rename_ops_s": 1014.8456698818668,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-copy-after-2": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 11012.5,
+          "p50_us": 321.7,
+          "p95_us": 2985.1,
+          "p99_us": 7692.4
+        },
+        "append_ops_s": 4199.378072107521,
+        "append_sum_ns": 802897800,
+        "elapsed_s": 0.2381305,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 16.403820594170003,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 3183.9,
+          "p50_us": 68.7,
+          "p95_us": 77.0,
+          "p99_us": 1368.3
+        },
+        "rename_ops_s": 839.8756144215042,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 9299.9,
+          "p50_us": 441.6,
+          "p95_us": 3162.3,
+          "p99_us": 4965.6
+        },
+        "append_ops_s": 3829.655396118491,
+        "append_sum_ns": 942205700,
+        "elapsed_s": 0.2611201,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 14.959591391087855,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 7039.5,
+          "p50_us": 13.4,
+          "p95_us": 16.8,
+          "p99_us": 164.1
+        },
+        "rename_ops_s": 765.9310792236981,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 17540.4,
+          "p50_us": 332.7,
+          "p95_us": 3143.7,
+          "p99_us": 5703.9
+        },
+        "append_ops_s": 4122.229037640897,
+        "append_sum_ns": 890219800,
+        "elapsed_s": 0.2425872,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 16.102457178284755,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 9988.6,
+          "p50_us": 13.7,
+          "p95_us": 25.4,
+          "p99_us": 2218.7
+        },
+        "rename_ops_s": 824.4458075281796,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 11847.1,
+          "p50_us": 294.0,
+          "p95_us": 2486.5,
+          "p99_us": 3926.7
+        },
+        "append_ops_s": 4811.960609290452,
+        "append_sum_ns": 690780300,
+        "elapsed_s": 0.2078155,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 18.79672113004083,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 10535.2,
+          "p50_us": 68.9,
+          "p95_us": 87.9,
+          "p99_us": 2054.6
+        },
+        "rename_ops_s": 962.3921218580905,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 15435.3,
+          "p50_us": 238.4,
+          "p95_us": 2810.2,
+          "p99_us": 7148.8
+        },
+        "append_ops_s": 5035.758924120178,
+        "append_sum_ns": 654052800,
+        "elapsed_s": 0.1985798,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 19.670933297344444,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 4885.1,
+          "p50_us": 73.6,
+          "p95_us": 100.1,
+          "p99_us": 2735.7
+        },
+        "rename_ops_s": 1007.1517848240354,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 10977.3,
+          "p50_us": 299.7,
+          "p95_us": 2572.5,
+          "p99_us": 4905.8
+        },
+        "append_ops_s": 4943.432304143684,
+        "append_sum_ns": 722996700,
+        "elapsed_s": 0.2022886,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 19.310282438061265,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 7819.9,
+          "p50_us": 13.2,
+          "p95_us": 20.8,
+          "p99_us": 42.9
+        },
+        "rename_ops_s": 988.6864608287367,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-copy-after-3": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 11262.5,
+          "p50_us": 318.6,
+          "p95_us": 3176.1,
+          "p99_us": 5782.9
+        },
+        "append_ops_s": 4326.38789442056,
+        "append_sum_ns": 806973600,
+        "elapsed_s": 0.2311397,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 16.899952712580312,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 19631.0,
+          "p50_us": 69.7,
+          "p95_us": 83.5,
+          "p99_us": 2670.4
+        },
+        "rename_ops_s": 865.277578884112,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 10442.0,
+          "p50_us": 371.2,
+          "p95_us": 3293.9,
+          "p99_us": 6194.3
+        },
+        "append_ops_s": 3901.402202965768,
+        "append_sum_ns": 928766900,
+        "elapsed_s": 0.2563181,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 15.239852355335032,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 6894.6,
+          "p50_us": 18.2,
+          "p95_us": 49.6,
+          "p99_us": 2029.0
+        },
+        "rename_ops_s": 780.2804405931536,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 10435.0,
+          "p50_us": 322.8,
+          "p95_us": 3671.8,
+          "p99_us": 6493.6
+        },
+        "append_ops_s": 4056.390315611505,
+        "append_sum_ns": 870350600,
+        "elapsed_s": 0.2465246,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 15.84527467035744,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 18864.7,
+          "p50_us": 13.8,
+          "p95_us": 146.7,
+          "p99_us": 12026.2
+        },
+        "rename_ops_s": 811.278063122301,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 10777.5,
+          "p50_us": 265.5,
+          "p95_us": 3069.7,
+          "p99_us": 5919.5
+        },
+        "append_ops_s": 4475.486418241367,
+        "append_sum_ns": 747441000,
+        "elapsed_s": 0.2234394,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 17.48236882125534,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 17435.3,
+          "p50_us": 77.4,
+          "p95_us": 100.4,
+          "p99_us": 7246.1
+        },
+        "rename_ops_s": 895.0972836482732,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 16543.6,
+          "p50_us": 283.0,
+          "p95_us": 2578.5,
+          "p99_us": 4222.3
+        },
+        "append_ops_s": 4737.291150598012,
+        "append_sum_ns": 693548700,
+        "elapsed_s": 0.2110911,
+        "files": 8193,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 18.505043557023484,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 13741.0,
+          "p50_us": 109.9,
+          "p95_us": 199.1,
+          "p99_us": 2534.3
+        },
+        "rename_ops_s": 947.4582301196024,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 7769.3,
+          "p50_us": 429.7,
+          "p95_us": 2323.2,
+          "p99_us": 4142.9
+        },
+        "append_ops_s": 4909.042800471465,
+        "append_sum_ns": 739230300,
+        "elapsed_s": 0.2037057,
+        "files": 33,
+        "inplace_diagnostic": false,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 19.17594843934166,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 6164.7,
+          "p50_us": 13.6,
+          "p95_us": 17.3,
+          "p99_us": 1798.7
+        },
+        "rename_ops_s": 981.808560094293,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "profile-after-inplace": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 2491.8,
+          "p50_us": 5.0,
+          "p95_us": 130.9,
+          "p99_us": 274.8
+        },
+        "append_ops_s": 43435.58069027825,
+        "append_sum_ns": 27317400,
+        "elapsed_s": 0.0230226,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 169.6702370713994,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 3243800,
+          "total_ns": 16766400,
+          "wait_ns": 12982300
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 2481.9,
+          "p50_us": 71.2,
+          "p95_us": 137.8,
+          "p99_us": 302.8
+        },
+        "rename_ops_s": 8687.11613805565,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 504.7,
+          "p50_us": 4.9,
+          "p95_us": 69.3,
+          "p99_us": 237.9
+        },
+        "append_ops_s": 131499.35565315728,
+        "append_sum_ns": 17000100,
+        "elapsed_s": 0.0076046,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 513.6693580201456,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 3611000,
+          "total_ns": 13537000,
+          "wait_ns": 9281300
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 473.9,
+          "p50_us": 13.3,
+          "p95_us": 21.4,
+          "p99_us": 46.7
+        },
+        "rename_ops_s": 26299.871130631458,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 488.1,
+          "p50_us": 5.2,
+          "p95_us": 70.6,
+          "p99_us": 199.8
+        },
+        "append_ops_s": 143857.98339878873,
+        "append_sum_ns": 15222600,
+        "elapsed_s": 0.0069513,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 561.9452476515185,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 3242500,
+          "total_ns": 12563700,
+          "wait_ns": 8553600
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 218.8,
+          "p50_us": 13.1,
+          "p95_us": 17.2,
+          "p99_us": 67.7
+        },
+        "rename_ops_s": 28771.596679757746,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 2273.1,
+          "p50_us": 5.2,
+          "p95_us": 136.0,
+          "p99_us": 339.2
+        },
+        "append_ops_s": 45724.94615887589,
+        "append_sum_ns": 27359700,
+        "elapsed_s": 0.0218699,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 178.61307093310896,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 3090600,
+          "total_ns": 17296400,
+          "wait_ns": 13632300
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 2548.3,
+          "p50_us": 67.2,
+          "p95_us": 128.7,
+          "p99_us": 232.7
+        },
+        "rename_ops_s": 9144.989231775178,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 1971.1,
+          "p50_us": 4.2,
+          "p95_us": 71.3,
+          "p99_us": 248.1
+        },
+        "append_ops_s": 50047.29469348534,
+        "append_sum_ns": 20522800,
+        "elapsed_s": 0.0199811,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 195.4972448964271,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 2550500,
+          "total_ns": 11654200,
+          "wait_ns": 8610900
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 2011.7,
+          "p50_us": 67.5,
+          "p95_us": 74.0,
+          "p99_us": 233.9
+        },
+        "rename_ops_s": 10009.458938697067,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 517.4,
+          "p50_us": 5.9,
+          "p95_us": 80.1,
+          "p99_us": 254.1
+        },
+        "append_ops_s": 130662.58999385886,
+        "append_sum_ns": 17905400,
+        "elapsed_s": 0.0076533,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 510.40074216351115,
+        "profile": {
+          "calls": 1000,
+          "copied_prefix_bytes": 0,
+          "hold_ns": 3807600,
+          "total_ns": 15105300,
+          "wait_ns": 10602700
+        },
+        "rename": {
+          "count": 200,
+          "max_us": 60.4,
+          "p50_us": 13.1,
+          "p95_us": 19.1,
+          "p99_us": 53.5
+        },
+        "rename_ops_s": 26132.51799877177,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-inplace-after-1": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 1819.8,
+          "p50_us": 5.4,
+          "p95_us": 79.6,
+          "p99_us": 257.2
+        },
+        "append_ops_s": 48576.23067880425,
+        "append_sum_ns": 22193200,
+        "elapsed_s": 0.0205862,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 189.7509010890791,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 2034.9,
+          "p50_us": 68.6,
+          "p95_us": 76.8,
+          "p99_us": 218.2
+        },
+        "rename_ops_s": 9715.24613576085,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 422.0,
+          "p50_us": 5.1,
+          "p95_us": 72.5,
+          "p99_us": 205.0
+        },
+        "append_ops_s": 139985.44151408254,
+        "append_sum_ns": 15223800,
+        "elapsed_s": 0.0071436,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 546.8181309143849,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 65.0,
+          "p50_us": 13.9,
+          "p95_us": 20.3,
+          "p99_us": 50.2
+        },
+        "rename_ops_s": 27997.088302816508,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 655.8,
+          "p50_us": 5.5,
+          "p95_us": 78.4,
+          "p99_us": 354.7
+        },
+        "append_ops_s": 118711.27044801632,
+        "append_sum_ns": 19467100,
+        "elapsed_s": 0.0084238,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 463.71590018756376,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 577.8,
+          "p50_us": 13.7,
+          "p95_us": 18.8,
+          "p99_us": 108.3
+        },
+        "rename_ops_s": 23742.254089603266,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 1920.1,
+          "p50_us": 4.8,
+          "p95_us": 125.6,
+          "p99_us": 256.0
+        },
+        "append_ops_s": 47698.09016846966,
+        "append_sum_ns": 24943300,
+        "elapsed_s": 0.0209652,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 186.3206647205846,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 2106.1,
+          "p50_us": 66.9,
+          "p95_us": 135.8,
+          "p99_us": 256.0
+        },
+        "rename_ops_s": 9539.61803369393,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 3322.6,
+          "p50_us": 5.4,
+          "p95_us": 121.6,
+          "p99_us": 322.5
+        },
+        "append_ops_s": 43075.59767391773,
+        "append_sum_ns": 29263200,
+        "elapsed_s": 0.023215,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 168.26405341374112,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 3681.6,
+          "p50_us": 69.2,
+          "p95_us": 82.7,
+          "p99_us": 470.6
+        },
+        "rename_ops_s": 8615.119534783546,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 397.2,
+          "p50_us": 5.1,
+          "p95_us": 75.1,
+          "p99_us": 214.0
+        },
+        "append_ops_s": 135703.62328674176,
+        "append_sum_ns": 15609000,
+        "elapsed_s": 0.007369,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 530.092278463835,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 381.3,
+          "p50_us": 14.0,
+          "p95_us": 19.8,
+          "p99_us": 41.1
+        },
+        "rename_ops_s": 27140.724657348354,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-inplace-after-2": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 2848.3,
+          "p50_us": 5.6,
+          "p95_us": 100.8,
+          "p99_us": 370.3
+        },
+        "append_ops_s": 40628.77085779524,
+        "append_sum_ns": 29368800,
+        "elapsed_s": 0.0246131,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 158.70613616326267,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 3224.6,
+          "p50_us": 74.3,
+          "p95_us": 105.3,
+          "p99_us": 386.1
+        },
+        "rename_ops_s": 8125.754171559048,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 501.7,
+          "p50_us": 5.7,
+          "p95_us": 59.8,
+          "p99_us": 200.8
+        },
+        "append_ops_s": 139252.49261961787,
+        "append_sum_ns": 15625000,
+        "elapsed_s": 0.0071812,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 543.9550492953823,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 122.8,
+          "p50_us": 13.4,
+          "p95_us": 16.7,
+          "p99_us": 33.0
+        },
+        "rename_ops_s": 27850.498523923576,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 427.7,
+          "p50_us": 5.6,
+          "p95_us": 60.8,
+          "p99_us": 204.6
+        },
+        "append_ops_s": 140682.59193607382,
+        "append_sum_ns": 14351500,
+        "elapsed_s": 0.0071082,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 549.5413747502884,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 359.0,
+          "p50_us": 13.5,
+          "p95_us": 29.4,
+          "p99_us": 94.8
+        },
+        "rename_ops_s": 28136.518387214765,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 3491.5,
+          "p50_us": 5.6,
+          "p95_us": 122.4,
+          "p99_us": 341.7
+        },
+        "append_ops_s": 41754.00212110331,
+        "append_sum_ns": 32427300,
+        "elapsed_s": 0.0239498,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 163.1015707855598,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 3640.9,
+          "p50_us": 68.7,
+          "p95_us": 85.8,
+          "p99_us": 389.2
+        },
+        "rename_ops_s": 8350.80042422066,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 1871.6,
+          "p50_us": 5.0,
+          "p95_us": 77.1,
+          "p99_us": 278.3
+        },
+        "append_ops_s": 48107.9156764454,
+        "append_sum_ns": 23487200,
+        "elapsed_s": 0.0207866,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 187.92154561111485,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 2000.2,
+          "p50_us": 66.7,
+          "p95_us": 83.6,
+          "p99_us": 141.5
+        },
+        "rename_ops_s": 9621.583135289082,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 767.5,
+          "p50_us": 5.0,
+          "p95_us": 72.1,
+          "p99_us": 231.8
+        },
+        "append_ops_s": 128791.2937085453,
+        "append_sum_ns": 17770400,
+        "elapsed_s": 0.0077645,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 503.0909910490051,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 210.4,
+          "p50_us": 13.2,
+          "p95_us": 19.6,
+          "p99_us": 51.2
+        },
+        "rename_ops_s": 25758.25874170906,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ],
+    "paired-inplace-after-3": [
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 1814.7,
+          "p50_us": 5.3,
+          "p95_us": 97.5,
+          "p99_us": 258.1
+        },
+        "append_ops_s": 47553.15253624739,
+        "append_sum_ns": 22264100,
+        "elapsed_s": 0.0210291,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 185.75450209471637,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 2169.3,
+          "p50_us": 68.0,
+          "p95_us": 76.7,
+          "p99_us": 333.5
+        },
+        "rename_ops_s": 9510.630507249478,
+        "streams": 8192,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 535.0,
+          "p50_us": 6.0,
+          "p95_us": 91.0,
+          "p99_us": 169.7
+        },
+        "append_ops_s": 121559.8560731304,
+        "append_sum_ns": 18536400,
+        "elapsed_s": 0.0082264,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 474.84318778566563,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 147.4,
+          "p50_us": 13.6,
+          "p95_us": 18.2,
+          "p99_us": 76.1
+        },
+        "rename_ops_s": 24311.971214626083,
+        "streams": 32,
+        "trial": 1,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 370.7,
+          "p50_us": 5.3,
+          "p95_us": 61.7,
+          "p99_us": 182.0
+        },
+        "append_ops_s": 142409.56992309884,
+        "append_sum_ns": 14451200,
+        "elapsed_s": 0.007022,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 556.2873825121048,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 151.9,
+          "p50_us": 13.6,
+          "p95_us": 17.2,
+          "p99_us": 52.0
+        },
+        "rename_ops_s": 28481.91398461977,
+        "streams": 32,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 1825.7,
+          "p50_us": 5.4,
+          "p95_us": 102.1,
+          "p99_us": 272.6
+        },
+        "append_ops_s": 46967.76132862403,
+        "append_sum_ns": 22201400,
+        "elapsed_s": 0.0212912,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 183.46781768993762,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 1847.6,
+          "p50_us": 68.2,
+          "p95_us": 144.5,
+          "p99_us": 276.0
+        },
+        "rename_ops_s": 9393.552265724808,
+        "streams": 8192,
+        "trial": 2,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 1856.0,
+          "p50_us": 5.4,
+          "p95_us": 67.6,
+          "p99_us": 274.7
+        },
+        "append_ops_s": 48695.21179982372,
+        "append_sum_ns": 21987000,
+        "elapsed_s": 0.0205359,
+        "files": 8193,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 190.21567109306142,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 2171.1,
+          "p50_us": 67.7,
+          "p95_us": 74.4,
+          "p99_us": 209.0
+        },
+        "rename_ops_s": 9739.042359964746,
+        "streams": 8192,
+        "trial": 3,
+        "workers": 4
+      },
+      {
+        "append": {
+          "count": 1000,
+          "max_us": 387.5,
+          "p50_us": 5.3,
+          "p95_us": 70.1,
+          "p99_us": 189.6
+        },
+        "append_ops_s": 137927.2295936664,
+        "append_sum_ns": 15295800,
+        "elapsed_s": 0.0072502,
+        "files": 33,
+        "inplace_diagnostic": true,
+        "kind": "filesystem",
+        "payload_bytes": 4096,
+        "payload_mib_s": 538.7782406002593,
+        "profile": null,
+        "rename": {
+          "count": 200,
+          "max_us": 57.9,
+          "p50_us": 14.0,
+          "p95_us": 18.2,
+          "p99_us": 39.0
+        },
+        "rename_ops_s": 27585.445918733276,
+        "streams": 32,
+        "trial": 3,
+        "workers": 4
+      }
+    ]
+  },
+  "summary": [
+    {
+      "kind": "coordinator",
+      "streams": 1024,
+      "files": 1024,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "before64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 1042211.1812975203,
+          "min": 656075.8259635858,
+          "max": 1645870.4082787281
+        },
+        "registration_ms": {
+          "median": 0.5720999999999999,
+          "min": 0.5519999999999999,
+          "max": 0.9039999999999999
+        },
+        "append.p99_us": {
+          "median": 532.5,
+          "min": 206.8,
+          "max": 714.3
+        },
+        "append.max_us": {
+          "median": 2056.8,
+          "min": 483.2,
+          "max": 2107.1
+        },
+        "rename.p99_us": {
+          "median": 1168.6,
+          "min": 241.5,
+          "max": 1545.2
+        },
+        "rename.max_us": {
+          "median": 1939.1,
+          "min": 398.2,
+          "max": 2002.8
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 8192,
+      "files": 8192,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "before64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 725746.1861470928,
+          "min": 610928.9460998392,
+          "max": 870629.8462794177
+        },
+        "registration_ms": {
+          "median": 5.349600000000001,
+          "min": 4.8145,
+          "max": 9.4433
+        },
+        "append.p99_us": {
+          "median": 1107.1,
+          "min": 958.0,
+          "max": 1388.6
+        },
+        "append.max_us": {
+          "median": 4950.0,
+          "min": 3454.5,
+          "max": 6356.1
+        },
+        "rename.p99_us": {
+          "median": 2205.5,
+          "min": 1584.3,
+          "max": 2776.6
+        },
+        "rename.max_us": {
+          "median": 2776.2,
+          "min": 1714.1,
+          "max": 3222.1
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 8192,
+      "files": 1,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "before64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 97092.85778869802,
+          "min": 86943.75187557371,
+          "max": 110332.13939017702
+        },
+        "registration_ms": {
+          "median": 5.6791,
+          "min": 5.2305,
+          "max": 8.5636
+        },
+        "append.p99_us": {
+          "median": 5481.5,
+          "min": 4487.1,
+          "max": 7578.1
+        },
+        "append.max_us": {
+          "median": 13834.3,
+          "min": 11341.0,
+          "max": 15293.9
+        },
+        "rename.p99_us": {
+          "median": 6847.4,
+          "min": 5240.8,
+          "max": 9809.1
+        },
+        "rename.max_us": {
+          "median": 7220.9,
+          "min": 5557.6,
+          "max": 11234.6
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 8192,
+      "files": 8192,
+      "directory": true,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "before64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 65574.77830089603,
+          "min": 63574.420116853755,
+          "max": 78405.92905635523
+        },
+        "registration_ms": {
+          "median": 4.8552,
+          "min": 4.7202,
+          "max": 5.7733
+        },
+        "append.p99_us": {
+          "median": 7540.6,
+          "min": 6333.1,
+          "max": 8823.8
+        },
+        "append.max_us": {
+          "median": 16909.5,
+          "min": 12755.2,
+          "max": 20021.4
+        },
+        "rename.p99_us": {
+          "median": 10407.3,
+          "min": 7014.9,
+          "max": 10799.6
+        },
+        "rename.max_us": {
+          "median": 12212.9,
+          "min": 7595.4,
+          "max": 16105.9
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 1024,
+      "files": 1024,
+      "directory": false,
+      "service_delay_ms": 1,
+      "workers": 64,
+      "phase": "before64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4089.5528232457955,
+          "min": 4088.0285144587915,
+          "max": 4096.147487524895
+        },
+        "registration_ms": {
+          "median": 0.6658999999999999,
+          "min": 0.6653,
+          "max": 0.8175
+        },
+        "append.p99_us": {
+          "median": 16824.4,
+          "min": 16585.6,
+          "max": 16975.1
+        },
+        "append.max_us": {
+          "median": 31908.2,
+          "min": 31424.3,
+          "max": 32213.3
+        },
+        "rename.p99_us": {
+          "median": 31697.7,
+          "min": 31248.1,
+          "max": 31954.2
+        },
+        "rename.max_us": {
+          "median": 32008.7,
+          "min": 31900.1,
+          "max": 32083.0
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 32,
+      "files": 32,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "before64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 1351573.9501015793,
+          "min": 1262454.4086288759,
+          "max": 1417101.7611917828
+        },
+        "registration_ms": {
+          "median": 0.0315,
+          "min": 0.0208,
+          "max": 0.0586
+        },
+        "append.p99_us": {
+          "median": 249.1,
+          "min": 180.8,
+          "max": 314.0
+        },
+        "append.max_us": {
+          "median": 1960.4,
+          "min": 1422.1,
+          "max": 3299.9
+        },
+        "rename.p99_us": {
+          "median": 507.3,
+          "min": 341.4,
+          "max": 663.8
+        },
+        "rename.max_us": {
+          "median": 1170.5,
+          "min": 1002.3,
+          "max": 1395.8
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 1024,
+      "files": 1024,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "after64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 1299075.626499519,
+          "min": 1113159.6340487702,
+          "max": 1726701.0028355669
+        },
+        "registration_ms": {
+          "median": 0.7843,
+          "min": 0.6716,
+          "max": 1.1456000000000002
+        },
+        "append.p99_us": {
+          "median": 224.1,
+          "min": 195.0,
+          "max": 301.7
+        },
+        "append.max_us": {
+          "median": 1195.9,
+          "min": 993.7,
+          "max": 3190.5
+        },
+        "rename.p99_us": {
+          "median": 252.6,
+          "min": 237.7,
+          "max": 319.2
+        },
+        "rename.max_us": {
+          "median": 737.1,
+          "min": 463.3,
+          "max": 1099.4
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 8192,
+      "files": 8192,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "after64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 1590595.6034943396,
+          "min": 1173168.894160002,
+          "max": 1614612.2407790504
+        },
+        "registration_ms": {
+          "median": 5.7154,
+          "min": 4.4746999999999995,
+          "max": 6.9532
+        },
+        "append.p99_us": {
+          "median": 186.6,
+          "min": 162.3,
+          "max": 258.0
+        },
+        "append.max_us": {
+          "median": 3892.4,
+          "min": 3707.0,
+          "max": 5370.1
+        },
+        "rename.p99_us": {
+          "median": 218.9,
+          "min": 210.0,
+          "max": 525.3
+        },
+        "rename.max_us": {
+          "median": 3788.9,
+          "min": 3623.1,
+          "max": 5303.9
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 8192,
+      "files": 1,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "after64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 96169.11820281556,
+          "min": 90133.72323679777,
+          "max": 101034.54639514264
+        },
+        "registration_ms": {
+          "median": 5.5696,
+          "min": 4.454,
+          "max": 6.3765
+        },
+        "append.p99_us": {
+          "median": 4882.6,
+          "min": 4549.3,
+          "max": 6174.4
+        },
+        "append.max_us": {
+          "median": 13132.4,
+          "min": 10558.0,
+          "max": 24912.7
+        },
+        "rename.p99_us": {
+          "median": 6708.6,
+          "min": 6359.9,
+          "max": 7427.4
+        },
+        "rename.max_us": {
+          "median": 9424.8,
+          "min": 7776.5,
+          "max": 17227.4
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 8192,
+      "files": 8192,
+      "directory": true,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "after64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 65690.45855327234,
+          "min": 58727.62741211112,
+          "max": 69640.98981609338
+        },
+        "registration_ms": {
+          "median": 5.4306,
+          "min": 5.3103,
+          "max": 6.2044
+        },
+        "append.p99_us": {
+          "median": 7342.6,
+          "min": 6636.8,
+          "max": 8830.2
+        },
+        "append.max_us": {
+          "median": 17525.7,
+          "min": 13307.8,
+          "max": 19428.1
+        },
+        "rename.p99_us": {
+          "median": 9292.7,
+          "min": 7086.2,
+          "max": 10034.6
+        },
+        "rename.max_us": {
+          "median": 10422.4,
+          "min": 7519.0,
+          "max": 10956.0
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 1024,
+      "files": 1024,
+      "directory": false,
+      "service_delay_ms": 1,
+      "workers": 64,
+      "phase": "after64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4092.817215780767,
+          "min": 4073.3322255142593,
+          "max": 4102.003337671928
+        },
+        "registration_ms": {
+          "median": 0.9581000000000001,
+          "min": 0.653,
+          "max": 1.0489
+        },
+        "append.p99_us": {
+          "median": 16941.8,
+          "min": 16887.0,
+          "max": 17102.8
+        },
+        "append.max_us": {
+          "median": 32192.4,
+          "min": 31810.5,
+          "max": 32271.8
+        },
+        "rename.p99_us": {
+          "median": 32059.9,
+          "min": 31723.8,
+          "max": 32086.9
+        },
+        "rename.max_us": {
+          "median": 32178.5,
+          "min": 31772.4,
+          "max": 32418.6
+        }
+      }
+    },
+    {
+      "kind": "coordinator",
+      "streams": 32,
+      "files": 32,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 64,
+      "phase": "after64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 1212217.6385242767,
+          "min": 868469.0112616004,
+          "max": 1618061.6127523482
+        },
+        "registration_ms": {
+          "median": 0.0483,
+          "min": 0.0248,
+          "max": 0.0782
+        },
+        "append.p99_us": {
+          "median": 286.9,
+          "min": 163.1,
+          "max": 430.7
+        },
+        "append.max_us": {
+          "median": 2103.7,
+          "min": 1756.9,
+          "max": 4117.8
+        },
+        "rename.p99_us": {
+          "median": 974.3,
+          "min": 318.3,
+          "max": 1320.2
+        },
+        "rename.max_us": {
+          "median": 1888.3,
+          "min": 722.9,
+          "max": 4115.6
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "after64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 3110.412166937065,
+          "min": 2752.4014014126974,
+          "max": 3126.3736504226545
+        },
+        "payload_mib_s": {
+          "median": 12.150047527097911,
+          "min": 10.75156797426835,
+          "max": 12.212397071963494
+        },
+        "append.p99_us": {
+          "median": 7394.0,
+          "min": 6326.3,
+          "max": 9022.5
+        },
+        "append.max_us": {
+          "median": 19938.2,
+          "min": 18017.3,
+          "max": 31950.9
+        },
+        "rename.p99_us": {
+          "median": 5210.7,
+          "min": 3734.2,
+          "max": 11718.2
+        },
+        "rename.max_us": {
+          "median": 27314.5,
+          "min": 17926.6,
+          "max": 28691.6
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "after64",
+      "metrics": {
+        "append_ops_s": {
+          "median": 2621.1117445464492,
+          "min": 2323.766695682767,
+          "max": 3042.3044604442616
+        },
+        "payload_mib_s": {
+          "median": 10.238717752134567,
+          "min": 9.077213655010809,
+          "max": 11.884001798610397
+        },
+        "append.p99_us": {
+          "median": 11144.0,
+          "min": 8608.9,
+          "max": 11680.1
+        },
+        "append.max_us": {
+          "median": 23691.8,
+          "min": 18459.9,
+          "max": 36271.9
+        },
+        "rename.p99_us": {
+          "median": 13666.0,
+          "min": 7713.6,
+          "max": 17792.4
+        },
+        "rename.max_us": {
+          "median": 34173.0,
+          "min": 31322.7,
+          "max": 39380.2
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "profile-before-copy",
+      "metrics": {
+        "append_ops_s": {
+          "median": 1543.9184588729456,
+          "min": 1332.444681560378,
+          "max": 1805.7973317538624
+        },
+        "payload_mib_s": {
+          "median": 6.030931479972444,
+          "min": 5.204862037345227,
+          "max": 7.053895827163525
+        },
+        "append.p99_us": {
+          "median": 9258.9,
+          "min": 8201.4,
+          "max": 13564.0
+        },
+        "append.max_us": {
+          "median": 26886.8,
+          "min": 22739.2,
+          "max": 44470.8
+        },
+        "rename.p99_us": {
+          "median": 9037.0,
+          "min": 1572.7,
+          "max": 21631.2
+        },
+        "rename.max_us": {
+          "median": 26091.8,
+          "min": 24114.6,
+          "max": 31978.4
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "profile-before-copy",
+      "metrics": {
+        "append_ops_s": {
+          "median": 1738.535099893619,
+          "min": 1703.177106574604,
+          "max": 1848.8679843548794
+        },
+        "payload_mib_s": {
+          "median": 6.791152733959449,
+          "min": 6.653035572557047,
+          "max": 7.2221405638862475
+        },
+        "append.p99_us": {
+          "median": 9338.0,
+          "min": 8654.7,
+          "max": 10635.4
+        },
+        "append.max_us": {
+          "median": 19482.8,
+          "min": 14827.2,
+          "max": 42562.7
+        },
+        "rename.p99_us": {
+          "median": 824.1,
+          "min": 254.5,
+          "max": 2667.4
+        },
+        "rename.max_us": {
+          "median": 14828.3,
+          "min": 11269.6,
+          "max": 30246.3
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-before-1",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4454.731905324474,
+          "min": 3889.83368627091,
+          "max": 4856.792613012707
+        },
+        "payload_mib_s": {
+          "median": 17.401296505173725,
+          "min": 15.194662836995743,
+          "max": 18.971846144580887
+        },
+        "append.p99_us": {
+          "median": 4562.4,
+          "min": 3103.7,
+          "max": 4779.9
+        },
+        "append.max_us": {
+          "median": 6693.9,
+          "min": 5581.2,
+          "max": 13372.6
+        },
+        "rename.p99_us": {
+          "median": 4868.4,
+          "min": 3759.4,
+          "max": 5997.2
+        },
+        "rename.max_us": {
+          "median": 10343.7,
+          "min": 9935.0,
+          "max": 12022.5
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-before-1",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4588.456727641139,
+          "min": 3966.286564204264,
+          "max": 5407.688326801747
+        },
+        "payload_mib_s": {
+          "median": 17.9236590923482,
+          "min": 15.493306891422906,
+          "max": 21.123782526569325
+        },
+        "append.p99_us": {
+          "median": 5205.7,
+          "min": 3706.8,
+          "max": 6096.8
+        },
+        "append.max_us": {
+          "median": 18135.5,
+          "min": 13738.6,
+          "max": 19203.3
+        },
+        "rename.p99_us": {
+          "median": 618.4,
+          "min": 88.4,
+          "max": 1800.6
+        },
+        "rename.max_us": {
+          "median": 14697.0,
+          "min": 3964.6,
+          "max": 18943.9
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-before-2",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4447.640815643954,
+          "min": 4067.45797705791,
+          "max": 4677.268475210477
+        },
+        "payload_mib_s": {
+          "median": 17.373596936109195,
+          "min": 15.88850772288246,
+          "max": 18.270579981290926
+        },
+        "append.p99_us": {
+          "median": 5306.7,
+          "min": 3793.9,
+          "max": 5540.8
+        },
+        "append.max_us": {
+          "median": 10649.2,
+          "min": 5758.9,
+          "max": 10729.1
+        },
+        "rename.p99_us": {
+          "median": 5920.0,
+          "min": 5459.9,
+          "max": 19018.1
+        },
+        "rename.max_us": {
+          "median": 20226.7,
+          "min": 9759.1,
+          "max": 22482.3
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-before-2",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4206.558866584779,
+          "min": 3875.6805695080056,
+          "max": 5270.281095712521
+        },
+        "payload_mib_s": {
+          "median": 16.431870572596793,
+          "min": 15.139377224640647,
+          "max": 20.587035530127036
+        },
+        "append.p99_us": {
+          "median": 5120.2,
+          "min": 3943.4,
+          "max": 5233.0
+        },
+        "append.max_us": {
+          "median": 13177.8,
+          "min": 10920.4,
+          "max": 24202.6
+        },
+        "rename.p99_us": {
+          "median": 2394.1,
+          "min": 169.9,
+          "max": 2832.4
+        },
+        "rename.max_us": {
+          "median": 11345.8,
+          "min": 8195.7,
+          "max": 19456.9
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-before-3",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4632.853323400495,
+          "min": 3903.4520177919344,
+          "max": 4684.308083195186
+        },
+        "payload_mib_s": {
+          "median": 18.097083294533185,
+          "min": 15.247859444499744,
+          "max": 18.298078449981194
+        },
+        "append.p99_us": {
+          "median": 4364.8,
+          "min": 3554.1,
+          "max": 7398.7
+        },
+        "append.max_us": {
+          "median": 9125.6,
+          "min": 5073.3,
+          "max": 13611.7
+        },
+        "rename.p99_us": {
+          "median": 4980.3,
+          "min": 1589.7,
+          "max": 10570.9
+        },
+        "rename.max_us": {
+          "median": 10905.7,
+          "min": 4553.7,
+          "max": 13805.4
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-before-3",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4340.782695209338,
+          "min": 3841.0437806011155,
+          "max": 5110.896226318662
+        },
+        "payload_mib_s": {
+          "median": 16.956182403161478,
+          "min": 15.004077267973107,
+          "max": 19.964438384057274
+        },
+        "append.p99_us": {
+          "median": 4948.8,
+          "min": 4462.7,
+          "max": 5199.7
+        },
+        "append.max_us": {
+          "median": 12534.2,
+          "min": 9794.2,
+          "max": 12810.2
+        },
+        "rename.p99_us": {
+          "median": 2193.5,
+          "min": 89.8,
+          "max": 4571.5
+        },
+        "rename.max_us": {
+          "median": 11825.3,
+          "min": 6517.3,
+          "max": 12220.4
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "profile-before-inplace",
+      "metrics": {
+        "append_ops_s": {
+          "median": 9899.774681128258,
+          "min": 8246.456909788709,
+          "max": 14151.437361492808
+        },
+        "payload_mib_s": {
+          "median": 38.67099484815726,
+          "min": 32.212722303862144,
+          "max": 55.27905219333128
+        },
+        "append.p99_us": {
+          "median": 1340.6,
+          "min": 1096.6,
+          "max": 1437.7
+        },
+        "append.max_us": {
+          "median": 2625.0,
+          "min": 2110.2,
+          "max": 3914.4
+        },
+        "rename.p99_us": {
+          "median": 2409.5,
+          "min": 2330.1,
+          "max": 2785.1
+        },
+        "rename.max_us": {
+          "median": 3725.2,
+          "min": 2585.3,
+          "max": 3825.6
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "profile-before-inplace",
+      "metrics": {
+        "append_ops_s": {
+          "median": 66584.98908006179,
+          "min": 51364.23405654175,
+          "max": 75287.03180877095
+        },
+        "payload_mib_s": {
+          "median": 260.09761359399135,
+          "min": 200.6415392833662,
+          "max": 294.0899680030115
+        },
+        "append.p99_us": {
+          "median": 565.4,
+          "min": 508.8,
+          "max": 749.6
+        },
+        "append.max_us": {
+          "median": 1179.2,
+          "min": 953.5,
+          "max": 2405.1
+        },
+        "rename.p99_us": {
+          "median": 116.5,
+          "min": 98.7,
+          "max": 118.9
+        },
+        "rename.max_us": {
+          "median": 313.5,
+          "min": 302.7,
+          "max": 648.5
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-before-1",
+      "metrics": {
+        "append_ops_s": {
+          "median": 29242.4167102866,
+          "min": 27500.55688627695,
+          "max": 29913.877945395205
+        },
+        "payload_mib_s": {
+          "median": 114.22819027455704,
+          "min": 107.42405033701934,
+          "max": 116.85108572420002
+        },
+        "append.p99_us": {
+          "median": 221.2,
+          "min": 217.0,
+          "max": 334.5
+        },
+        "append.max_us": {
+          "median": 656.1,
+          "min": 464.6,
+          "max": 795.8
+        },
+        "rename.p99_us": {
+          "median": 320.2,
+          "min": 281.3,
+          "max": 362.4
+        },
+        "rename.max_us": {
+          "median": 475.7,
+          "min": 360.4,
+          "max": 640.6
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-before-1",
+      "metrics": {
+        "append_ops_s": {
+          "median": 129411.30796008954,
+          "min": 119482.87810356775,
+          "max": 142953.12567009276
+        },
+        "payload_mib_s": {
+          "median": 505.5129217190998,
+          "min": 466.72999259206154,
+          "max": 558.4106471487999
+        },
+        "append.p99_us": {
+          "median": 227.2,
+          "min": 198.2,
+          "max": 299.6
+        },
+        "append.max_us": {
+          "median": 564.7,
+          "min": 414.4,
+          "max": 737.2
+        },
+        "rename.p99_us": {
+          "median": 34.5,
+          "min": 30.5,
+          "max": 40.2
+        },
+        "rename.max_us": {
+          "median": 56.1,
+          "min": 35.6,
+          "max": 61.6
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-before-2",
+      "metrics": {
+        "append_ops_s": {
+          "median": 26953.233444650188,
+          "min": 26132.791165025963,
+          "max": 28894.468731850662
+        },
+        "payload_mib_s": {
+          "median": 105.2860681431648,
+          "min": 102.08121548838267,
+          "max": 112.86901848379165
+        },
+        "append.p99_us": {
+          "median": 252.2,
+          "min": 246.3,
+          "max": 362.7
+        },
+        "append.max_us": {
+          "median": 619.1,
+          "min": 579.0,
+          "max": 739.8
+        },
+        "rename.p99_us": {
+          "median": 374.6,
+          "min": 345.9,
+          "max": 574.3
+        },
+        "rename.max_us": {
+          "median": 718.9,
+          "min": 421.3,
+          "max": 739.2
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-before-2",
+      "metrics": {
+        "append_ops_s": {
+          "median": 137355.09037964945,
+          "min": 108045.03316982518,
+          "max": 139573.18519965943
+        },
+        "payload_mib_s": {
+          "median": 536.5433217955057,
+          "min": 422.0509108196296,
+          "max": 545.2077546861697
+        },
+        "append.p99_us": {
+          "median": 208.6,
+          "min": 165.6,
+          "max": 361.9
+        },
+        "append.max_us": {
+          "median": 454.6,
+          "min": 419.3,
+          "max": 699.2
+        },
+        "rename.p99_us": {
+          "median": 32.7,
+          "min": 32.1,
+          "max": 42.1
+        },
+        "rename.max_us": {
+          "median": 259.5,
+          "min": 203.1,
+          "max": 630.9
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-before-3",
+      "metrics": {
+        "append_ops_s": {
+          "median": 28269.27045493737,
+          "min": 27289.671677960043,
+          "max": 29965.868875350974
+        },
+        "payload_mib_s": {
+          "median": 110.4268377145991,
+          "min": 106.60027999203142,
+          "max": 117.05417529433974
+        },
+        "append.p99_us": {
+          "median": 304.2,
+          "min": 299.2,
+          "max": 323.1
+        },
+        "append.max_us": {
+          "median": 599.6,
+          "min": 563.1,
+          "max": 721.0
+        },
+        "rename.p99_us": {
+          "median": 416.5,
+          "min": 364.7,
+          "max": 417.8
+        },
+        "rename.max_us": {
+          "median": 703.6,
+          "min": 546.6,
+          "max": 824.6
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-before-3",
+      "metrics": {
+        "append_ops_s": {
+          "median": 139318.45412243306,
+          "min": 137725.8704275011,
+          "max": 141410.71327563777
+        },
+        "payload_mib_s": {
+          "median": 544.2127114157541,
+          "min": 537.9916813574262,
+          "max": 552.38559873296
+        },
+        "append.p99_us": {
+          "median": 198.9,
+          "min": 183.4,
+          "max": 219.8
+        },
+        "append.max_us": {
+          "median": 438.1,
+          "min": 359.1,
+          "max": 495.0
+        },
+        "rename.p99_us": {
+          "median": 39.7,
+          "min": 34.9,
+          "max": 49.0
+        },
+        "rename.max_us": {
+          "median": 321.9,
+          "min": 139.2,
+          "max": 481.3
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "profile-after-copy",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4667.326937850808,
+          "min": 4346.797974739888,
+          "max": 5434.782608695652
+        },
+        "payload_mib_s": {
+          "median": 18.231745850979717,
+          "min": 16.979679588827686,
+          "max": 21.22961956521739
+        },
+        "append.p99_us": {
+          "median": 4685.5,
+          "min": 2743.6,
+          "max": 6408.4
+        },
+        "append.max_us": {
+          "median": 9768.7,
+          "min": 5571.4,
+          "max": 11520.1
+        },
+        "rename.p99_us": {
+          "median": 8248.0,
+          "min": 2648.7,
+          "max": 8706.7
+        },
+        "rename.max_us": {
+          "median": 12549.4,
+          "min": 4510.3,
+          "max": 18897.2
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "profile-after-copy",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4433.936999075968,
+          "min": 3690.258860588294,
+          "max": 5468.547920065142
+        },
+        "payload_mib_s": {
+          "median": 17.3200664026405,
+          "min": 14.415073674173023,
+          "max": 21.36151531275446
+        },
+        "append.p99_us": {
+          "median": 5827.2,
+          "min": 4746.5,
+          "max": 6998.2
+        },
+        "append.max_us": {
+          "median": 10666.2,
+          "min": 9651.6,
+          "max": 15978.7
+        },
+        "rename.p99_us": {
+          "median": 386.0,
+          "min": 212.9,
+          "max": 7822.9
+        },
+        "rename.max_us": {
+          "median": 6365.1,
+          "min": 5826.3,
+          "max": 12956.3
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-after-1",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4923.973843850942,
+          "min": 3596.748395580459,
+          "max": 5004.278658252806
+        },
+        "payload_mib_s": {
+          "median": 19.234272827542743,
+          "min": 14.049798420236169,
+          "max": 19.547963508800024
+        },
+        "append.p99_us": {
+          "median": 6519.8,
+          "min": 6413.1,
+          "max": 7340.0
+        },
+        "append.max_us": {
+          "median": 22428.8,
+          "min": 15415.8,
+          "max": 22844.6
+        },
+        "rename.p99_us": {
+          "median": 3818.7,
+          "min": 3462.7,
+          "max": 5408.3
+        },
+        "rename.max_us": {
+          "median": 25275.7,
+          "min": 6341.3,
+          "max": 29740.4
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-after-1",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4403.389200599918,
+          "min": 4036.276438115204,
+          "max": 5074.228349409334
+        },
+        "payload_mib_s": {
+          "median": 17.20073906484343,
+          "min": 15.766704836387516,
+          "max": 19.821204489880213
+        },
+        "append.p99_us": {
+          "median": 6365.3,
+          "min": 4265.6,
+          "max": 11426.7
+        },
+        "append.max_us": {
+          "median": 9564.6,
+          "min": 9096.2,
+          "max": 35217.4
+        },
+        "rename.p99_us": {
+          "median": 5829.2,
+          "min": 3860.8,
+          "max": 13151.1
+        },
+        "rename.max_us": {
+          "median": 7628.2,
+          "min": 6020.9,
+          "max": 26087.8
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-after-2",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4811.960609290452,
+          "min": 4199.378072107521,
+          "max": 5035.758924120178
+        },
+        "payload_mib_s": {
+          "median": 18.79672113004083,
+          "min": 16.403820594170003,
+          "max": 19.670933297344444
+        },
+        "append.p99_us": {
+          "median": 7148.8,
+          "min": 3926.7,
+          "max": 7692.4
+        },
+        "append.max_us": {
+          "median": 11847.1,
+          "min": 11012.5,
+          "max": 15435.3
+        },
+        "rename.p99_us": {
+          "median": 2054.6,
+          "min": 1368.3,
+          "max": 2735.7
+        },
+        "rename.max_us": {
+          "median": 4885.1,
+          "min": 3183.9,
+          "max": 10535.2
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-after-2",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4122.229037640897,
+          "min": 3829.655396118491,
+          "max": 4943.432304143684
+        },
+        "payload_mib_s": {
+          "median": 16.102457178284755,
+          "min": 14.959591391087855,
+          "max": 19.310282438061265
+        },
+        "append.p99_us": {
+          "median": 4965.6,
+          "min": 4905.8,
+          "max": 5703.9
+        },
+        "append.max_us": {
+          "median": 10977.3,
+          "min": 9299.9,
+          "max": 17540.4
+        },
+        "rename.p99_us": {
+          "median": 164.1,
+          "min": 42.9,
+          "max": 2218.7
+        },
+        "rename.max_us": {
+          "median": 7819.9,
+          "min": 7039.5,
+          "max": 9988.6
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-after-3",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4475.486418241367,
+          "min": 4326.38789442056,
+          "max": 4737.291150598012
+        },
+        "payload_mib_s": {
+          "median": 17.48236882125534,
+          "min": 16.899952712580312,
+          "max": 18.505043557023484
+        },
+        "append.p99_us": {
+          "median": 5782.9,
+          "min": 4222.3,
+          "max": 5919.5
+        },
+        "append.max_us": {
+          "median": 11262.5,
+          "min": 10777.5,
+          "max": 16543.6
+        },
+        "rename.p99_us": {
+          "median": 2670.4,
+          "min": 2534.3,
+          "max": 7246.1
+        },
+        "rename.max_us": {
+          "median": 17435.3,
+          "min": 13741.0,
+          "max": 19631.0
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-copy-after-3",
+      "metrics": {
+        "append_ops_s": {
+          "median": 4056.390315611505,
+          "min": 3901.402202965768,
+          "max": 4909.042800471465
+        },
+        "payload_mib_s": {
+          "median": 15.84527467035744,
+          "min": 15.239852355335032,
+          "max": 19.17594843934166
+        },
+        "append.p99_us": {
+          "median": 6194.3,
+          "min": 4142.9,
+          "max": 6493.6
+        },
+        "append.max_us": {
+          "median": 10435.0,
+          "min": 7769.3,
+          "max": 10442.0
+        },
+        "rename.p99_us": {
+          "median": 2029.0,
+          "min": 1798.7,
+          "max": 12026.2
+        },
+        "rename.max_us": {
+          "median": 6894.6,
+          "min": 6164.7,
+          "max": 18864.7
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "profile-after-inplace",
+      "metrics": {
+        "append_ops_s": {
+          "median": 45724.94615887589,
+          "min": 43435.58069027825,
+          "max": 50047.29469348534
+        },
+        "payload_mib_s": {
+          "median": 178.61307093310896,
+          "min": 169.6702370713994,
+          "max": 195.4972448964271
+        },
+        "append.p99_us": {
+          "median": 274.8,
+          "min": 248.1,
+          "max": 339.2
+        },
+        "append.max_us": {
+          "median": 2273.1,
+          "min": 1971.1,
+          "max": 2491.8
+        },
+        "rename.p99_us": {
+          "median": 233.9,
+          "min": 232.7,
+          "max": 302.8
+        },
+        "rename.max_us": {
+          "median": 2481.9,
+          "min": 2011.7,
+          "max": 2548.3
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "profile-after-inplace",
+      "metrics": {
+        "append_ops_s": {
+          "median": 131499.35565315728,
+          "min": 130662.58999385886,
+          "max": 143857.98339878873
+        },
+        "payload_mib_s": {
+          "median": 513.6693580201456,
+          "min": 510.40074216351115,
+          "max": 561.9452476515185
+        },
+        "append.p99_us": {
+          "median": 237.9,
+          "min": 199.8,
+          "max": 254.1
+        },
+        "append.max_us": {
+          "median": 504.7,
+          "min": 488.1,
+          "max": 517.4
+        },
+        "rename.p99_us": {
+          "median": 53.5,
+          "min": 46.7,
+          "max": 67.7
+        },
+        "rename.max_us": {
+          "median": 218.8,
+          "min": 60.4,
+          "max": 473.9
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-after-1",
+      "metrics": {
+        "append_ops_s": {
+          "median": 47698.09016846966,
+          "min": 43075.59767391773,
+          "max": 48576.23067880425
+        },
+        "payload_mib_s": {
+          "median": 186.3206647205846,
+          "min": 168.26405341374112,
+          "max": 189.7509010890791
+        },
+        "append.p99_us": {
+          "median": 257.2,
+          "min": 256.0,
+          "max": 322.5
+        },
+        "append.max_us": {
+          "median": 1920.1,
+          "min": 1819.8,
+          "max": 3322.6
+        },
+        "rename.p99_us": {
+          "median": 256.0,
+          "min": 218.2,
+          "max": 470.6
+        },
+        "rename.max_us": {
+          "median": 2106.1,
+          "min": 2034.9,
+          "max": 3681.6
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-after-1",
+      "metrics": {
+        "append_ops_s": {
+          "median": 135703.62328674176,
+          "min": 118711.27044801632,
+          "max": 139985.44151408254
+        },
+        "payload_mib_s": {
+          "median": 530.092278463835,
+          "min": 463.71590018756376,
+          "max": 546.8181309143849
+        },
+        "append.p99_us": {
+          "median": 214.0,
+          "min": 205.0,
+          "max": 354.7
+        },
+        "append.max_us": {
+          "median": 422.0,
+          "min": 397.2,
+          "max": 655.8
+        },
+        "rename.p99_us": {
+          "median": 50.2,
+          "min": 41.1,
+          "max": 108.3
+        },
+        "rename.max_us": {
+          "median": 381.3,
+          "min": 65.0,
+          "max": 577.8
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-after-2",
+      "metrics": {
+        "append_ops_s": {
+          "median": 41754.00212110331,
+          "min": 40628.77085779524,
+          "max": 48107.9156764454
+        },
+        "payload_mib_s": {
+          "median": 163.1015707855598,
+          "min": 158.70613616326267,
+          "max": 187.92154561111485
+        },
+        "append.p99_us": {
+          "median": 341.7,
+          "min": 278.3,
+          "max": 370.3
+        },
+        "append.max_us": {
+          "median": 2848.3,
+          "min": 1871.6,
+          "max": 3491.5
+        },
+        "rename.p99_us": {
+          "median": 386.1,
+          "min": 141.5,
+          "max": 389.2
+        },
+        "rename.max_us": {
+          "median": 3224.6,
+          "min": 2000.2,
+          "max": 3640.9
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-after-2",
+      "metrics": {
+        "append_ops_s": {
+          "median": 139252.49261961787,
+          "min": 128791.2937085453,
+          "max": 140682.59193607382
+        },
+        "payload_mib_s": {
+          "median": 543.9550492953823,
+          "min": 503.0909910490051,
+          "max": 549.5413747502884
+        },
+        "append.p99_us": {
+          "median": 204.6,
+          "min": 200.8,
+          "max": 231.8
+        },
+        "append.max_us": {
+          "median": 501.7,
+          "min": 427.7,
+          "max": 767.5
+        },
+        "rename.p99_us": {
+          "median": 51.2,
+          "min": 33.0,
+          "max": 94.8
+        },
+        "rename.max_us": {
+          "median": 210.4,
+          "min": 122.8,
+          "max": 359.0
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 8192,
+      "files": 8193,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-after-3",
+      "metrics": {
+        "append_ops_s": {
+          "median": 47553.15253624739,
+          "min": 46967.76132862403,
+          "max": 48695.21179982372
+        },
+        "payload_mib_s": {
+          "median": 185.75450209471637,
+          "min": 183.46781768993762,
+          "max": 190.21567109306142
+        },
+        "append.p99_us": {
+          "median": 272.6,
+          "min": 258.1,
+          "max": 274.7
+        },
+        "append.max_us": {
+          "median": 1825.7,
+          "min": 1814.7,
+          "max": 1856.0
+        },
+        "rename.p99_us": {
+          "median": 276.0,
+          "min": 209.0,
+          "max": 333.5
+        },
+        "rename.max_us": {
+          "median": 2169.3,
+          "min": 1847.6,
+          "max": 2171.1
+        }
+      }
+    },
+    {
+      "kind": "filesystem",
+      "streams": 32,
+      "files": 33,
+      "directory": false,
+      "service_delay_ms": 0,
+      "workers": 4,
+      "phase": "paired-inplace-after-3",
+      "metrics": {
+        "append_ops_s": {
+          "median": 137927.2295936664,
+          "min": 121559.8560731304,
+          "max": 142409.56992309884
+        },
+        "payload_mib_s": {
+          "median": 538.7782406002593,
+          "min": 474.84318778566563,
+          "max": 556.2873825121048
+        },
+        "append.p99_us": {
+          "median": 182.0,
+          "min": 169.7,
+          "max": 189.6
+        },
+        "append.max_us": {
+          "median": 387.5,
+          "min": 370.7,
+          "max": 535.0
+        },
+        "rename.p99_us": {
+          "median": 52.0,
+          "min": 39.0,
+          "max": 76.1
+        },
+        "rename.max_us": {
+          "median": 147.4,
+          "min": 57.9,
+          "max": 151.9
+        }
+      }
+    }
+  ]
+}

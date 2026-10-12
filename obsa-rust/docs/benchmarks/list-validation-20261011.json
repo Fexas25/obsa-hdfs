@@ -1,0 +1,695 @@
+{
+  "date": "2026-10-11",
+  "scope": "Windows release; in-memory mutation object-key validation only, no network/RSS/end-to-end operation timing",
+  "method": "1 warmup + 5 measured rounds, 3 iterations per variant per round, alternating variant order; fixture construction and result checks excluded; hash table allocation and drop included; final reserved variant calls production helper",
+  "runs": [
+    {
+      "log": "list-validation-release.log",
+      "rows": [
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.24656666666666668,
+          "round": 1,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.7239333333333334,
+          "round": 1,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.8300000000000001,
+          "round": 2,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.2753,
+          "round": 2,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.27133333333333337,
+          "round": 3,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.7353666666666666,
+          "round": 3,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.7493333333333334,
+          "round": 4,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.27943333333333337,
+          "round": 4,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.2682666666666667,
+          "round": 5,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.7467,
+          "round": 5,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 0.8008333333333334,
+          "round": 1,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 2.5219666666666667,
+          "round": 1,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 2.282,
+          "round": 2,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 0.8388,
+          "round": 2,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 1.3239333333333334,
+          "round": 3,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 2.3236666666666665,
+          "round": 3,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 2.4619,
+          "round": 4,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 0.9032999999999999,
+          "round": 4,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 0.8502666666666667,
+          "round": 5,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 2.2709333333333332,
+          "round": 5,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 4.418866666666667,
+          "round": 1,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 9.291033333333333,
+          "round": 1,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 10.0587,
+          "round": 2,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 5.622599999999999,
+          "round": 2,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 6.3567,
+          "round": 3,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 11.796999999999999,
+          "round": 3,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 12.449866666666665,
+          "round": 4,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 5.3999999999999995,
+          "round": 4,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 5.364633333333334,
+          "round": 5,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 11.046999999999999,
+          "round": 5,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 13.5511,
+          "round": 1,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 36.601400000000005,
+          "round": 1,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 38.5318,
+          "round": 2,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 13.128633333333333,
+          "round": 2,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 16.80913333333333,
+          "round": 3,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 39.013133333333336,
+          "round": 3,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 40.57063333333333,
+          "round": 4,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 13.409433333333334,
+          "round": 4,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 13.138766666666667,
+          "round": 5,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 37.09226666666667,
+          "round": 5,
+          "variant": "growing"
+        }
+      ]
+    },
+    {
+      "log": "list-validation-release-final.log",
+      "rows": [
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.2332,
+          "round": 1,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.6937666666666665,
+          "round": 1,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.7097333333333333,
+          "round": 2,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.2574666666666667,
+          "round": 2,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.2238,
+          "round": 3,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.7022,
+          "round": 3,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.7204333333333334,
+          "round": 4,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.25756666666666667,
+          "round": 4,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.22829999999999998,
+          "round": 5,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 0.7014,
+          "round": 5,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 0.7562000000000001,
+          "round": 1,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 1.9401333333333335,
+          "round": 1,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 2.1949666666666667,
+          "round": 2,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 0.7649666666666666,
+          "round": 2,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 0.7615666666666668,
+          "round": 3,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 2.0113333333333334,
+          "round": 3,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 2.0175666666666667,
+          "round": 4,
+          "variant": "growing"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 0.7587333333333333,
+          "round": 4,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 0.7599333333333332,
+          "round": 5,
+          "variant": "reserved"
+        },
+        {
+          "entries": 10000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 2.0269666666666666,
+          "round": 5,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 4.345033333333334,
+          "round": 1,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 8.759766666666666,
+          "round": 1,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 9.3112,
+          "round": 2,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 5.1902,
+          "round": 2,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 4.9155,
+          "round": 3,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 8.439300000000001,
+          "round": 3,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 8.6185,
+          "round": 4,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 4.0838,
+          "round": 4,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 4.902866666666667,
+          "round": 5,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 25,
+          "mean_ms": 9.012433333333334,
+          "round": 5,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 13.12,
+          "round": 1,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 34.490766666666666,
+          "round": 1,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 33.2098,
+          "round": 2,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 12.994933333333334,
+          "round": 2,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 13.301699999999999,
+          "round": 3,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 31.553633333333337,
+          "round": 3,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 37.66036666666667,
+          "round": 4,
+          "variant": "growing"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 13.337933333333334,
+          "round": 4,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 12.555633333333335,
+          "round": 5,
+          "variant": "reserved"
+        },
+        {
+          "entries": 100000,
+          "iterations": 3,
+          "key_bytes": 249,
+          "mean_ms": 33.9639,
+          "round": 5,
+          "variant": "growing"
+        }
+      ]
+    }
+  ],
+  "final_summary": [
+    {
+      "entries": 10000,
+      "key_bytes": 25,
+      "median_ms": {
+        "growing": 0.7022,
+        "reserved": 0.2332
+      },
+      "reduction_fraction": 0.6679008829393336
+    },
+    {
+      "entries": 10000,
+      "key_bytes": 249,
+      "median_ms": {
+        "growing": 2.0175666666666667,
+        "reserved": 0.7599333333333332
+      },
+      "reduction_fraction": 0.6233416491813571
+    },
+    {
+      "entries": 100000,
+      "key_bytes": 25,
+      "median_ms": {
+        "growing": 8.759766666666666,
+        "reserved": 4.902866666666667
+      },
+      "reduction_fraction": 0.44029711598101917
+    },
+    {
+      "entries": 100000,
+      "key_bytes": 249,
+      "median_ms": {
+        "growing": 33.9639,
+        "reserved": 13.12
+      },
+      "reduction_fraction": 0.6137074953111981
+    }
+  ]
+}

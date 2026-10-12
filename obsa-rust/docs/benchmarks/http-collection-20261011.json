@@ -1,0 +1,395 @@
+{
+  "date": "2026-10-11",
+  "environment": "Windows x64, release, current-thread Tokio, no concurrent test processes",
+  "method": "Independent frame allocations prepared before timing; cached input reused; strategy order rotates each iteration and round; one warmup round, five measured rounds, sixteen iterations per strategy per round. Excludes source preparation, verification and output drop. Not HTTP/network throughput or RSS.",
+  "before": {
+    "samples": [
+      {
+        "collect_all_ns": 38346900,
+        "frame_bytes": 1,
+        "incremental_ns": 19643200,
+        "iterations": 16,
+        "round": 1,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 39811600,
+        "frame_bytes": 1,
+        "incremental_ns": 20022400,
+        "iterations": 16,
+        "round": 2,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 39784500,
+        "frame_bytes": 1,
+        "incremental_ns": 19978700,
+        "iterations": 16,
+        "round": 3,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 38544500,
+        "frame_bytes": 1,
+        "incremental_ns": 19635600,
+        "iterations": 16,
+        "round": 4,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 39753100,
+        "frame_bytes": 1,
+        "incremental_ns": 19822900,
+        "iterations": 16,
+        "round": 5,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 38027800,
+        "frame_bytes": 1024,
+        "incremental_ns": 69468900,
+        "iterations": 16,
+        "round": 1,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 47531200,
+        "frame_bytes": 1024,
+        "incremental_ns": 82217900,
+        "iterations": 16,
+        "round": 2,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 38109200,
+        "frame_bytes": 1024,
+        "incremental_ns": 68073700,
+        "iterations": 16,
+        "round": 3,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 40346900,
+        "frame_bytes": 1024,
+        "incremental_ns": 70965900,
+        "iterations": 16,
+        "round": 4,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 43427300,
+        "frame_bytes": 1024,
+        "incremental_ns": 77352500,
+        "iterations": 16,
+        "round": 5,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 43398000,
+        "frame_bytes": 65536,
+        "incremental_ns": 69730500,
+        "iterations": 16,
+        "round": 1,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 42344200,
+        "frame_bytes": 65536,
+        "incremental_ns": 76888800,
+        "iterations": 16,
+        "round": 2,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 37796800,
+        "frame_bytes": 65536,
+        "incremental_ns": 73858100,
+        "iterations": 16,
+        "round": 3,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 36667800,
+        "frame_bytes": 65536,
+        "incremental_ns": 67715500,
+        "iterations": 16,
+        "round": 4,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 41870700,
+        "frame_bytes": 65536,
+        "incremental_ns": 80709800,
+        "iterations": 16,
+        "round": 5,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 134100,
+        "frame_bytes": 8388608,
+        "incremental_ns": 17400,
+        "iterations": 16,
+        "round": 1,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 120600,
+        "frame_bytes": 8388608,
+        "incremental_ns": 19400,
+        "iterations": 16,
+        "round": 2,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 107700,
+        "frame_bytes": 8388608,
+        "incremental_ns": 14700,
+        "iterations": 16,
+        "round": 3,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 83900,
+        "frame_bytes": 8388608,
+        "incremental_ns": 12500,
+        "iterations": 16,
+        "round": 4,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 86200,
+        "frame_bytes": 8388608,
+        "incremental_ns": 14500,
+        "iterations": 16,
+        "round": 5,
+        "total_bytes": 8388608
+      }
+    ],
+    "scope": "release cached in-memory frames; excludes source allocation, result verification and drop; no network or RSS",
+    "warmup_rounds": 1
+  },
+  "after": {
+    "samples": [
+      {
+        "collect_all_ns": 60404700,
+        "frame_bytes": 1,
+        "incremental_ns": 26492000,
+        "iterations": 16,
+        "known_length_ns": 26788400,
+        "round": 1,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 45821600,
+        "frame_bytes": 1,
+        "incremental_ns": 20462400,
+        "iterations": 16,
+        "known_length_ns": 21969000,
+        "round": 2,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 40876400,
+        "frame_bytes": 1,
+        "incremental_ns": 19970500,
+        "iterations": 16,
+        "known_length_ns": 19902000,
+        "round": 3,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 39889400,
+        "frame_bytes": 1,
+        "incremental_ns": 19542300,
+        "iterations": 16,
+        "known_length_ns": 19394200,
+        "round": 4,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 41113600,
+        "frame_bytes": 1,
+        "incremental_ns": 19496300,
+        "iterations": 16,
+        "known_length_ns": 19343200,
+        "round": 5,
+        "total_bytes": 65536
+      },
+      {
+        "collect_all_ns": 39139100,
+        "frame_bytes": 1024,
+        "incremental_ns": 65659700,
+        "iterations": 16,
+        "known_length_ns": 36765400,
+        "round": 1,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 36956700,
+        "frame_bytes": 1024,
+        "incremental_ns": 65275500,
+        "iterations": 16,
+        "known_length_ns": 34146200,
+        "round": 2,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 36063100,
+        "frame_bytes": 1024,
+        "incremental_ns": 64070000,
+        "iterations": 16,
+        "known_length_ns": 33682700,
+        "round": 3,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 40073700,
+        "frame_bytes": 1024,
+        "incremental_ns": 68877100,
+        "iterations": 16,
+        "known_length_ns": 38096600,
+        "round": 4,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 39403300,
+        "frame_bytes": 1024,
+        "incremental_ns": 72026700,
+        "iterations": 16,
+        "known_length_ns": 42195100,
+        "round": 5,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 35344900,
+        "frame_bytes": 65536,
+        "incremental_ns": 63105100,
+        "iterations": 16,
+        "known_length_ns": 34704400,
+        "round": 1,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 43465600,
+        "frame_bytes": 65536,
+        "incremental_ns": 89418700,
+        "iterations": 16,
+        "known_length_ns": 41195900,
+        "round": 2,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 43624400,
+        "frame_bytes": 65536,
+        "incremental_ns": 83738900,
+        "iterations": 16,
+        "known_length_ns": 43586800,
+        "round": 3,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 40932800,
+        "frame_bytes": 65536,
+        "incremental_ns": 86375700,
+        "iterations": 16,
+        "known_length_ns": 38749400,
+        "round": 4,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 41100700,
+        "frame_bytes": 65536,
+        "incremental_ns": 83978300,
+        "iterations": 16,
+        "known_length_ns": 39602300,
+        "round": 5,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 97600,
+        "frame_bytes": 8388608,
+        "incremental_ns": 10500,
+        "iterations": 16,
+        "known_length_ns": 11500,
+        "round": 1,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 106700,
+        "frame_bytes": 8388608,
+        "incremental_ns": 14600,
+        "iterations": 16,
+        "known_length_ns": 16000,
+        "round": 2,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 112900,
+        "frame_bytes": 8388608,
+        "incremental_ns": 12600,
+        "iterations": 16,
+        "known_length_ns": 11900,
+        "round": 3,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 111200,
+        "frame_bytes": 8388608,
+        "incremental_ns": 12600,
+        "iterations": 16,
+        "known_length_ns": 11900,
+        "round": 4,
+        "total_bytes": 8388608
+      },
+      {
+        "collect_all_ns": 101200,
+        "frame_bytes": 8388608,
+        "incremental_ns": 12200,
+        "iterations": 16,
+        "known_length_ns": 11500,
+        "round": 5,
+        "total_bytes": 8388608
+      }
+    ],
+    "scope": "release cached in-memory frames; excludes source allocation, result verification and drop; no network or RSS",
+    "warmup_rounds": 1
+  },
+  "summary": [
+    {
+      "frame_bytes": 1,
+      "total_bytes": 65536,
+      "median_round_mean_us": {
+        "collect_all_ns": 2569.6,
+        "incremental_ns": 1248.15625,
+        "known_length_ns": 1243.875
+      }
+    },
+    {
+      "frame_bytes": 1024,
+      "total_bytes": 8388608,
+      "median_round_mean_us": {
+        "collect_all_ns": 2446.19375,
+        "incremental_ns": 4103.73125,
+        "known_length_ns": 2297.8375
+      }
+    },
+    {
+      "frame_bytes": 65536,
+      "total_bytes": 8388608,
+      "median_round_mean_us": {
+        "collect_all_ns": 2568.79375,
+        "incremental_ns": 5248.64375,
+        "known_length_ns": 2475.14375
+      }
+    },
+    {
+      "frame_bytes": 8388608,
+      "total_bytes": 8388608,
+      "median_round_mean_us": {
+        "collect_all_ns": 6.66875,
+        "incremental_ns": 0.7875,
+        "known_length_ns": 0.74375
+      }
+    }
+  ]
+}

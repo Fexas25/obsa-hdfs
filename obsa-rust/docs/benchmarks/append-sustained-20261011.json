@@ -1,0 +1,1028 @@
+{
+  "schema": 1,
+  "binary_sha256": "8605c5635ed1fefa7eb1cd3aeb194bbe92963709005aabb02da6547be831ffdc",
+  "rows": [
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 1047,
+        "max_us": 269365.6,
+        "p50_us": 248906.0,
+        "p95_us": 265506.8,
+        "p99_us": 266665.6
+      },
+      "budget_bytes": 16384,
+      "concurrency": 4,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 16752,
+        "elapsed_ns": 259542609000,
+        "peak": 4
+      },
+      "elapsed_s": 65.1286483,
+      "payload_mib_s": 1.0047421788730722,
+      "requests": 16752,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 263,
+            "max_us": 269365.6,
+            "p50_us": 248709.5,
+            "p95_us": 265380.9,
+            "p99_us": 266523.3
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 26390200
+        },
+        {
+          "batch_latency": {
+            "count": 262,
+            "max_us": 266941.6,
+            "p50_us": 248862.3,
+            "p95_us": 265347.6,
+            "p99_us": 266891.8
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 30134300
+        },
+        {
+          "batch_latency": {
+            "count": 260,
+            "max_us": 267704.0,
+            "p50_us": 249332.0,
+            "p95_us": 265888.4,
+            "p99_us": 267080.6
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 20906200
+        },
+        {
+          "batch_latency": {
+            "count": 262,
+            "max_us": 267546.5,
+            "p50_us": 248812.9,
+            "p95_us": 265151.1,
+            "p99_us": 266727.7
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 23988600
+        }
+      ],
+      "workers": 4,
+      "run": 1,
+      "log": "append-sustained-16384-4-1.log",
+      "actual_mean_delay_ms": 15.493231196275072,
+      "worker_progress_ratio": 0.9885931558935361
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 1047,
+        "max_us": 269517.7,
+        "p50_us": 249047.7,
+        "p95_us": 265729.3,
+        "p99_us": 267295.0
+      },
+      "budget_bytes": 16384,
+      "concurrency": 4,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 16752,
+        "elapsed_ns": 259559680000,
+        "peak": 4
+      },
+      "elapsed_s": 65.1372174,
+      "payload_mib_s": 1.0046100004265766,
+      "requests": 16752,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 263,
+            "max_us": 267708.1,
+            "p50_us": 249039.1,
+            "p95_us": 265825.0,
+            "p99_us": 267315.7
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 16751700
+        },
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 268350.5,
+            "p50_us": 249336.5,
+            "p95_us": 265842.4,
+            "p99_us": 267561.5
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 20371800
+        },
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 269517.7,
+            "p50_us": 249172.3,
+            "p95_us": 265608.6,
+            "p99_us": 266942.6
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 16385900
+        },
+        {
+          "batch_latency": {
+            "count": 262,
+            "max_us": 268917.7,
+            "p50_us": 248934.2,
+            "p95_us": 265254.1,
+            "p99_us": 266971.3
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 24421300
+        }
+      ],
+      "workers": 4,
+      "run": 2,
+      "log": "append-sustained-16384-4-2.log",
+      "actual_mean_delay_ms": 15.49425023877746,
+      "worker_progress_ratio": 0.9923954372623575
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 1045,
+        "max_us": 268777.4,
+        "p50_us": 249313.5,
+        "p95_us": 265988.4,
+        "p99_us": 267389.9
+      },
+      "budget_bytes": 16384,
+      "concurrency": 4,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 16720,
+        "elapsed_ns": 259365387900,
+        "peak": 4
+      },
+      "elapsed_s": 65.0960036,
+      "payload_mib_s": 1.0033258017086628,
+      "requests": 16720,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 262,
+            "max_us": 268777.4,
+            "p50_us": 249334.6,
+            "p95_us": 265895.0,
+            "p99_us": 267389.9
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 22124900
+        },
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 268743.2,
+            "p50_us": 249131.5,
+            "p95_us": 265680.7,
+            "p99_us": 267817.2
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 23578400
+        },
+        {
+          "batch_latency": {
+            "count": 260,
+            "max_us": 268284.0,
+            "p50_us": 249567.9,
+            "p95_us": 266010.2,
+            "p99_us": 268062.8
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 22915800
+        },
+        {
+          "batch_latency": {
+            "count": 262,
+            "max_us": 267602.9,
+            "p50_us": 249226.7,
+            "p95_us": 266009.6,
+            "p99_us": 266868.1
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 23795900
+        }
+      ],
+      "workers": 4,
+      "run": 3,
+      "log": "append-sustained-16384-4-3.log",
+      "actual_mean_delay_ms": 15.512283965311006,
+      "worker_progress_ratio": 0.9923664122137404
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 1043,
+        "max_us": 460790.9,
+        "p50_us": 248989.7,
+        "p95_us": 265539.1,
+        "p99_us": 267251.2
+      },
+      "budget_bytes": 16384,
+      "concurrency": 64,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 16688,
+        "elapsed_ns": 259482356700,
+        "peak": 4
+      },
+      "elapsed_s": 65.1117108,
+      "payload_mib_s": 1.001163987231618,
+      "requests": 16688,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 440335.5,
+            "p50_us": 249086.7,
+            "p95_us": 265539.1,
+            "p99_us": 267055.7
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 18229300
+        },
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 460790.9,
+            "p50_us": 248997.0,
+            "p95_us": 265573.0,
+            "p99_us": 267605.1
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 18522000
+        },
+        {
+          "batch_latency": {
+            "count": 260,
+            "max_us": 455784.2,
+            "p50_us": 249130.0,
+            "p95_us": 265467.6,
+            "p99_us": 267867.4
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 21727100
+        },
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 453827.8,
+            "p50_us": 248885.4,
+            "p95_us": 265500.8,
+            "p99_us": 266736.2
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 16390800
+        }
+      ],
+      "workers": 4,
+      "run": 1,
+      "log": "append-sustained-16384-64-1.log",
+      "actual_mean_delay_ms": 15.549038632550337,
+      "worker_progress_ratio": 0.9961685823754789
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 1047,
+        "max_us": 269064.0,
+        "p50_us": 249008.3,
+        "p95_us": 265820.3,
+        "p99_us": 267082.6
+      },
+      "budget_bytes": 16384,
+      "concurrency": 64,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 16752,
+        "elapsed_ns": 259441216900,
+        "peak": 4
+      },
+      "elapsed_s": 65.0996943,
+      "payload_mib_s": 1.0051890520167928,
+      "requests": 16752,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 262,
+            "max_us": 267481.3,
+            "p50_us": 248795.2,
+            "p95_us": 266147.8,
+            "p99_us": 267177.5
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 23499500
+        },
+        {
+          "batch_latency": {
+            "count": 263,
+            "max_us": 267690.4,
+            "p50_us": 249109.3,
+            "p95_us": 265034.7,
+            "p99_us": 266745.5
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 22324200
+        },
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 268186.7,
+            "p50_us": 249009.8,
+            "p95_us": 265935.2,
+            "p99_us": 267017.9
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 22477900
+        },
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 269064.0,
+            "p50_us": 248956.6,
+            "p95_us": 265818.5,
+            "p99_us": 267274.4
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 27133000
+        }
+      ],
+      "workers": 4,
+      "run": 2,
+      "log": "append-sustained-16384-64-2.log",
+      "actual_mean_delay_ms": 15.487178659264565,
+      "worker_progress_ratio": 0.9923954372623575
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 1047,
+        "max_us": 268737.7,
+        "p50_us": 249020.6,
+        "p95_us": 265623.3,
+        "p99_us": 266989.5
+      },
+      "budget_bytes": 16384,
+      "concurrency": 64,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 16752,
+        "elapsed_ns": 259711154900,
+        "peak": 4
+      },
+      "elapsed_s": 65.1815182,
+      "payload_mib_s": 1.0039272144477298,
+      "requests": 16752,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 262,
+            "max_us": 268737.7,
+            "p50_us": 249177.0,
+            "p95_us": 265725.4,
+            "p99_us": 267243.6
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 16889600
+        },
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 268048.8,
+            "p50_us": 249353.6,
+            "p95_us": 265786.5,
+            "p99_us": 267636.2
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 13793000
+        },
+        {
+          "batch_latency": {
+            "count": 261,
+            "max_us": 267663.1,
+            "p50_us": 249137.9,
+            "p95_us": 265605.1,
+            "p99_us": 266877.9
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 16914300
+        },
+        {
+          "batch_latency": {
+            "count": 263,
+            "max_us": 267950.4,
+            "p50_us": 248358.2,
+            "p95_us": 265331.5,
+            "p99_us": 266951.0
+          },
+          "cancelled_flushes": 16,
+          "epochs": 5,
+          "maintenance_ns": 14881100
+        }
+      ],
+      "workers": 4,
+      "run": 3,
+      "log": "append-sustained-16384-64-3.log",
+      "actual_mean_delay_ms": 15.503292436723974,
+      "worker_progress_ratio": 0.9923954372623575
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 4163,
+        "max_us": 366027.7,
+        "p50_us": 62177.0,
+        "p95_us": 63652.9,
+        "p99_us": 64452.6
+      },
+      "budget_bytes": 67108864,
+      "concurrency": 4,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 66608,
+        "elapsed_ns": 1034722926700,
+        "peak": 16
+      },
+      "elapsed_s": 65.0126571,
+      "payload_mib_s": 4.002105306967987,
+      "requests": 66608,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 1040,
+            "max_us": 365987.9,
+            "p50_us": 62190.5,
+            "p95_us": 63611.5,
+            "p99_us": 64425.9
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 107889500
+        },
+        {
+          "batch_latency": {
+            "count": 1040,
+            "max_us": 365990.6,
+            "p50_us": 62165.3,
+            "p95_us": 63706.9,
+            "p99_us": 64322.0
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 107438400
+        },
+        {
+          "batch_latency": {
+            "count": 1043,
+            "max_us": 366013.7,
+            "p50_us": 62173.6,
+            "p95_us": 63678.6,
+            "p99_us": 64642.4
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 94061900
+        },
+        {
+          "batch_latency": {
+            "count": 1040,
+            "max_us": 366027.7,
+            "p50_us": 62182.4,
+            "p95_us": 63629.6,
+            "p99_us": 64361.4
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 103966900
+        }
+      ],
+      "workers": 4,
+      "run": 1,
+      "log": "append-sustained-67108864-4-1.log",
+      "actual_mean_delay_ms": 15.534514273060294,
+      "worker_progress_ratio": 0.99712368168744
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 4186,
+        "max_us": 105887.9,
+        "p50_us": 62275.4,
+        "p95_us": 63660.6,
+        "p99_us": 64276.4
+      },
+      "budget_bytes": 67108864,
+      "concurrency": 4,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 66976,
+        "elapsed_ns": 1035587843600,
+        "peak": 16
+      },
+      "elapsed_s": 65.0515601,
+      "payload_mib_s": 4.021809770554603,
+      "requests": 66976,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 1047,
+            "max_us": 105887.9,
+            "p50_us": 62285.4,
+            "p95_us": 63616.8,
+            "p99_us": 64303.8
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 94181000
+        },
+        {
+          "batch_latency": {
+            "count": 1046,
+            "max_us": 94054.2,
+            "p50_us": 62259.7,
+            "p95_us": 63756.0,
+            "p99_us": 64391.1
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 97679200
+        },
+        {
+          "batch_latency": {
+            "count": 1046,
+            "max_us": 94171.9,
+            "p50_us": 62251.0,
+            "p95_us": 63684.8,
+            "p99_us": 64310.1
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 100495900
+        },
+        {
+          "batch_latency": {
+            "count": 1047,
+            "max_us": 94523.3,
+            "p50_us": 62308.3,
+            "p95_us": 63595.2,
+            "p99_us": 64160.9
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 91992700
+        }
+      ],
+      "workers": 4,
+      "run": 2,
+      "log": "append-sustained-67108864-4-2.log",
+      "actual_mean_delay_ms": 15.462073632345914,
+      "worker_progress_ratio": 0.9990448901623686
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 4186,
+        "max_us": 65619.7,
+        "p50_us": 62184.1,
+        "p95_us": 63624.1,
+        "p99_us": 64386.3
+      },
+      "budget_bytes": 67108864,
+      "concurrency": 4,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 66976,
+        "elapsed_ns": 1035375999600,
+        "peak": 16
+      },
+      "elapsed_s": 65.0492396,
+      "payload_mib_s": 4.021953240480308,
+      "requests": 66976,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 1046,
+            "max_us": 65445.8,
+            "p50_us": 62188.6,
+            "p95_us": 63679.1,
+            "p99_us": 64368.9
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 88270700
+        },
+        {
+          "batch_latency": {
+            "count": 1047,
+            "max_us": 65619.7,
+            "p50_us": 62161.7,
+            "p95_us": 63626.5,
+            "p99_us": 64497.5
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 90372600
+        },
+        {
+          "batch_latency": {
+            "count": 1047,
+            "max_us": 65035.2,
+            "p50_us": 62180.0,
+            "p95_us": 63570.2,
+            "p99_us": 64398.1
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 83274500
+        },
+        {
+          "batch_latency": {
+            "count": 1046,
+            "max_us": 65472.4,
+            "p50_us": 62201.5,
+            "p95_us": 63615.8,
+            "p99_us": 64270.5
+          },
+          "cancelled_flushes": 62,
+          "epochs": 17,
+          "maintenance_ns": 96512800
+        }
+      ],
+      "workers": 4,
+      "run": 3,
+      "log": "append-sustained-67108864-4-3.log",
+      "actual_mean_delay_ms": 15.45891064859054,
+      "worker_progress_ratio": 0.9990448901623686
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 16983,
+        "max_us": 230510.9,
+        "p50_us": 15497.0,
+        "p95_us": 16561.6,
+        "p99_us": 17281.4
+      },
+      "budget_bytes": 67108864,
+      "concurrency": 64,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 271728,
+        "elapsed_ns": 4054125728700,
+        "peak": 64
+      },
+      "elapsed_s": 65.0215869,
+      "payload_mib_s": 16.32438626317193,
+      "requests": 271728,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 4250,
+            "max_us": 230510.9,
+            "p50_us": 15495.7,
+            "p95_us": 16565.2,
+            "p99_us": 17302.3
+          },
+          "cancelled_flushes": 250,
+          "epochs": 67,
+          "maintenance_ns": 414396300
+        },
+        {
+          "batch_latency": {
+            "count": 4244,
+            "max_us": 230471.0,
+            "p50_us": 15492.4,
+            "p95_us": 16565.5,
+            "p99_us": 17261.6
+          },
+          "cancelled_flushes": 250,
+          "epochs": 67,
+          "maintenance_ns": 397315000
+        },
+        {
+          "batch_latency": {
+            "count": 4245,
+            "max_us": 230101.0,
+            "p50_us": 15492.0,
+            "p95_us": 16550.9,
+            "p99_us": 17264.7
+          },
+          "cancelled_flushes": 250,
+          "epochs": 67,
+          "maintenance_ns": 410576600
+        },
+        {
+          "batch_latency": {
+            "count": 4244,
+            "max_us": 230199.3,
+            "p50_us": 15509.8,
+            "p95_us": 16568.2,
+            "p99_us": 17251.2
+          },
+          "cancelled_flushes": 250,
+          "epochs": 67,
+          "maintenance_ns": 402514400
+        }
+      ],
+      "workers": 4,
+      "run": 1,
+      "log": "append-sustained-67108864-64-1.log",
+      "actual_mean_delay_ms": 14.919793796369898,
+      "worker_progress_ratio": 0.9985882352941177
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 16994,
+        "max_us": 20349.5,
+        "p50_us": 15519.5,
+        "p95_us": 16604.0,
+        "p99_us": 17232.3
+      },
+      "budget_bytes": 67108864,
+      "concurrency": 64,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 271904,
+        "elapsed_ns": 4052484311700,
+        "peak": 64
+      },
+      "elapsed_s": 65.0160228,
+      "payload_mib_s": 16.336357627830782,
+      "requests": 271904,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 4242,
+            "max_us": 19712.4,
+            "p50_us": 15522.1,
+            "p95_us": 16583.7,
+            "p99_us": 17212.8
+          },
+          "cancelled_flushes": 250,
+          "epochs": 67,
+          "maintenance_ns": 416721100
+        },
+        {
+          "batch_latency": {
+            "count": 4255,
+            "max_us": 20349.5,
+            "p50_us": 15523.4,
+            "p95_us": 16594.1,
+            "p99_us": 17238.1
+          },
+          "cancelled_flushes": 251,
+          "epochs": 67,
+          "maintenance_ns": 396021000
+        },
+        {
+          "batch_latency": {
+            "count": 4255,
+            "max_us": 20291.1,
+            "p50_us": 15520.1,
+            "p95_us": 16614.4,
+            "p99_us": 17274.1
+          },
+          "cancelled_flushes": 251,
+          "epochs": 67,
+          "maintenance_ns": 376245700
+        },
+        {
+          "batch_latency": {
+            "count": 4242,
+            "max_us": 19986.7,
+            "p50_us": 15514.0,
+            "p95_us": 16629.1,
+            "p99_us": 17230.2
+          },
+          "cancelled_flushes": 250,
+          "epochs": 67,
+          "maintenance_ns": 402550400
+        }
+      ],
+      "workers": 4,
+      "run": 2,
+      "log": "append-sustained-67108864-64-2.log",
+      "actual_mean_delay_ms": 14.904099651715311,
+      "worker_progress_ratio": 0.9969447708578143
+    },
+    {
+      "batch": 16,
+      "batch_latency": {
+        "count": 17100,
+        "max_us": 20949.7,
+        "p50_us": 15501.2,
+        "p95_us": 16668.8,
+        "p99_us": 17437.7
+      },
+      "budget_bytes": 67108864,
+      "concurrency": 64,
+      "delay_ms": 2,
+      "delay_stats": {
+        "active": 0,
+        "calls": 273600,
+        "elapsed_ns": 4050370142600,
+        "peak": 64
+      },
+      "elapsed_s": 65.0103418,
+      "payload_mib_s": 16.439692061425216,
+      "requests": 273600,
+      "seconds": 65,
+      "worker_stats": [
+        {
+          "batch_latency": {
+            "count": 4269,
+            "max_us": 19614.7,
+            "p50_us": 15499.3,
+            "p95_us": 16683.8,
+            "p99_us": 17434.7
+          },
+          "cancelled_flushes": 252,
+          "epochs": 67,
+          "maintenance_ns": 352036800
+        },
+        {
+          "batch_latency": {
+            "count": 4285,
+            "max_us": 19295.7,
+            "p50_us": 15490.6,
+            "p95_us": 16669.6,
+            "p99_us": 17406.3
+          },
+          "cancelled_flushes": 253,
+          "epochs": 67,
+          "maintenance_ns": 375599400
+        },
+        {
+          "batch_latency": {
+            "count": 4277,
+            "max_us": 19354.2,
+            "p50_us": 15500.1,
+            "p95_us": 16646.3,
+            "p99_us": 17495.8
+          },
+          "cancelled_flushes": 252,
+          "epochs": 67,
+          "maintenance_ns": 396263300
+        },
+        {
+          "batch_latency": {
+            "count": 4269,
+            "max_us": 20949.7,
+            "p50_us": 15509.8,
+            "p95_us": 16667.4,
+            "p99_us": 17534.0
+          },
+          "cancelled_flushes": 252,
+          "epochs": 67,
+          "maintenance_ns": 367794000
+        }
+      ],
+      "workers": 4,
+      "run": 3,
+      "log": "append-sustained-67108864-64-3.log",
+      "actual_mean_delay_ms": 14.803984439327486,
+      "worker_progress_ratio": 0.9962660443407234
+    }
+  ],
+  "summary": [
+    {
+      "budget_bytes": 67108864,
+      "concurrency": 4,
+      "throughput_mib_s": [
+        4.002105306967987,
+        4.021809770554603,
+        4.021953240480308
+      ],
+      "p99_ms": [
+        64.4526,
+        64.2764,
+        64.3863
+      ],
+      "samples": [
+        4163,
+        4186,
+        4186
+      ],
+      "min_progress_ratio": 0.99712368168744,
+      "mean_delay_ms": 15.462073632345914
+    },
+    {
+      "budget_bytes": 67108864,
+      "concurrency": 64,
+      "throughput_mib_s": [
+        16.32438626317193,
+        16.336357627830782,
+        16.439692061425216
+      ],
+      "p99_ms": [
+        17.2814,
+        17.2323,
+        17.4377
+      ],
+      "samples": [
+        16983,
+        16994,
+        17100
+      ],
+      "min_progress_ratio": 0.9962660443407234,
+      "mean_delay_ms": 14.904099651715311
+    },
+    {
+      "budget_bytes": 16384,
+      "concurrency": 4,
+      "throughput_mib_s": [
+        1.0047421788730722,
+        1.0046100004265766,
+        1.0033258017086628
+      ],
+      "p99_ms": [
+        266.6656,
+        267.295,
+        267.3899
+      ],
+      "samples": [
+        1047,
+        1047,
+        1045
+      ],
+      "min_progress_ratio": 0.9885931558935361,
+      "mean_delay_ms": 15.49425023877746
+    },
+    {
+      "budget_bytes": 16384,
+      "concurrency": 64,
+      "throughput_mib_s": [
+        1.001163987231618,
+        1.0051890520167928,
+        1.0039272144477298
+      ],
+      "p99_ms": [
+        267.25120000000004,
+        267.08259999999996,
+        266.9895
+      ],
+      "samples": [
+        1043,
+        1047,
+        1047
+      ],
+      "min_progress_ratio": 0.9923954372623575,
+      "mean_delay_ms": 15.503292436723974
+    }
+  ]
+}
