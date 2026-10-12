@@ -628,3 +628,8 @@ release filesystem 默认 151、诊断 152 项通过，各 4 ignored。详见 [�
 ### 2026-10-12：有延迟追加与重命名混合压力
 
 新增同文件冲突的持续重命名、追加和取消 flush 压力测试，4 组配置各 65 秒×3 次。记录各任务 p99、5 秒完成量、最长进展间隔并逐对象验证数据。默认/诊断 release filesystem 分别 153/154 项通过，各 6 ignored。生产路径与默认配置未改。详见[完整结果和测量边界](docs/APPEND_MIXED.md)。
+
+
+### 2026-10-12：签名和 HTTP 调试输出脱敏
+
+修复 SignedRequest、HttpRequest、HttpResponse 自动 Debug 暴露认证信息、URI 或正文的问题；三个新增回归在旧实现均失败，修复后通过。完整 Rust workspace 307 项通过、0 失败、15 ignored，其中本地 HTTP 46 项通过。签名、传输数据和 JNI 接口未改；未重跑 Hadoop/JVM 或性能基准。详见[验证范围与兼容边界](docs/DEBUG_REDACTION.md)。
