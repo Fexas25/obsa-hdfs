@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = ["obs-rust-core", "obs-jni"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Huawei Cloud OBS Team"]
+
+[workspace.dependencies]
+tokio = { version = "1", features = ["full"] }
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "tokio"] }
+http-body-util = "0.1"
+http = "1"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "ring", "tls12"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8"
+quick-xml = { version = "0.36", features = ["serialize"] }
+hmac = "0.12"
+sha1 = "0.10"
+md-5 = "0.10"
+base64 = "0.22"
+bytes = "1"
+dashmap = "6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+urlencoding = "2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+num_cpus = "1"
+jni = "0.21"
+once_cell = "1"
+parking_lot = "0.12"
+futures = "0.3"
+async-trait = "0.1"
+pin-project-lite = "0.2"

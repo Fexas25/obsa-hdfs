@@ -1,0 +1,23 @@
+/target/
+/hadoop-adapter/target/
+*.log
+
+# Local artifacts and reference images are not project deliverables.
+**/target/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.bmp
+*.ico
+*.exe
+*.dll
+*.pdb

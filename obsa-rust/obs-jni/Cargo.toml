@@ -1,0 +1,20 @@
+[package]
+name = "obs-jni"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "JNI bridge for obs-rust-core Hadoop FileSystem adapter"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+obs-rust-core = { path = "../obs-rust-core" }
+tokio.workspace = true
+jni.workspace = true
+once_cell.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true
+bytes.workspace = true
