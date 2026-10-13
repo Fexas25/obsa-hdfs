@@ -638,3 +638,7 @@ release filesystem 默认 151、诊断 152 项通过，各 4 ignored。详见 [�
 ### 2026-10-12：分片上传响应 ETag 校验
 
 拒绝 UploadPart 成功响应中缺失或空白 ETag，避免空值进入合并段列表。新增三项 HTTP 回归，包含实际上传流 abort、不发送 complete、名额和共享预算复用；旧实现缺失 ETag 时返回空字符串的问题已复现。完整 Rust workspace 310 通过、0 失败、15 ignored，本地 HTTP 49 项通过。详见[修复及验证边界](docs/PART_ETAG.md)。
+
+## 写入结果大小校正（2026-10-13）
+
+PUT 返回实际上传字节数；分片合并不再把 XML 响应长度当成对象大小。完整 Rust 回归 312 通过，0 失败。直接合并 API 的未知大小约定及验证边界见 [WRITE_METADATA.md](docs/WRITE_METADATA.md)。
