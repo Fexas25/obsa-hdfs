@@ -1536,3 +1536,24 @@ async fn multipart_stream_retains_requested_content_type() {
     assert_eq!(requests.len(), 3);
     assert!(requests[0].contains("content-type: text/plain\r\n"));
 }
+
+#[tokio::test]
+async fn upload_part_number_invalid_is_rejected_before_network() {
+    let (store, task) = server(vec![]).await;
+    task.await.unwrap();
+    for number in [i32::MIN, -1, 0, 10001, i32::MAX] {
+        let result = store.upload_part("file", "upload", number, bytes::Bytes::from_static(b"data")).await;
+        assert!(matches!(result, Err(obs_rust_core::ObsError::InvalidArgument(_))), "{result:?}");
+    }
+}
+
+#[tokio::test]
+async fn upload_part_number_boundaries_are_transmitted_unchanged() {
+    for number in [1, 10000] {
+        let (store, task) = server(vec![("200 OK", "ETag: part\r\n", "")]).await;
+        assert_eq!(store.upload_part("file", "upload", number, bytes::Bytes::new()).await.unwrap(), "part");
+        let requests = task.await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with(&format!("PUT /bucket/file?partNumber={number}&uploadId=upload ")));
+    }
+}

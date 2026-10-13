@@ -517,6 +517,9 @@ impl ObjectStore for ObsStore {
         part_number: i32,
         body: Bytes,
     ) -> ObsResult<String> {
+        if !(1..=10_000).contains(&part_number) {
+            return Err(ObsError::InvalidArgument("multipart part number must be 1..=10000".into()));
+        }
         let md5_hash = Md5::digest(&body);
         let content_md5 = BASE64.encode(md5_hash);
 
