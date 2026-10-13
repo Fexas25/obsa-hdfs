@@ -1426,3 +1426,22 @@ async fn batch_fallback_releases_error_body_before_individual_deletes() {
     assert!(requests[1].starts_with("DELETE /bucket/first "));
     assert!(requests[2].starts_with("DELETE /bucket/second "));
 }
+
+#[tokio::test]
+async fn batch_delete_escapes_cr_and_hashes_transmitted_xml() {
+    use base64::Engine;
+    use md5::Digest;
+    let (store, task) = server(vec![("200 OK", "", "<DeleteResult/>")]).await;
+    store.delete_batch(&["dir/a\r\nb&文件".into()]).await.unwrap();
+    let requests = task.await.unwrap();
+    assert_eq!(requests.len(), 1);
+    let (headers, body) = requests[0].split_once("\r\n\r\n").unwrap();
+    assert!(body.contains("<Key>dir/a&#13;\nb&amp;文件</Key>"));
+    assert!(!body.contains('\r'));
+    let md5 = base64::engine::general_purpose::STANDARD.encode(md5::Md5::digest(body.as_bytes()));
+    let sent_md5 = headers.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.eq_ignore_ascii_case("content-md5").then_some(value.trim())
+    }).unwrap();
+    assert_eq!(sent_md5, md5);
+}

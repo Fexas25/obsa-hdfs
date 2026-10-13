@@ -496,6 +496,8 @@ fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+        // Literal CR is normalized to LF by XML parsers; a reference preserves it.
+        .replace('\r', "&#13;")
 }
 
 #[cfg(test)]
@@ -699,5 +701,46 @@ mod validation_tests {
             parse_initiate_mpu_xml("<InitiateMultipartUploadResult><UploadId>x</UploadId>")
                 .is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod outgoing_text_tests {
+    use super::*;
+
+    fn xml_text_after_line_normalization(document: &str, element: &[u8]) -> String {
+        // XML 1.0 section 2.11: normalize literal line endings before parsing
+        // references. quick-xml's raw Text events do not do this for callers.
+        let normalized = document.replace("\r\n", "\n").replace('\r', "\n");
+        let mut reader = Reader::from_str(&normalized);
+        reader.config_mut().trim_text(false);
+        let mut inside = false;
+        let mut text = String::new();
+        loop {
+            match reader.read_event().unwrap() {
+                Event::Start(e) if e.name().as_ref() == element => inside = true,
+                Event::End(e) if e.name().as_ref() == element => inside = false,
+                Event::Text(e) if inside => text.push_str(&e.unescape().unwrap()),
+                Event::Eof => break,
+                _ => {}
+            }
+        }
+        text
+    }
+
+    #[test]
+    fn outgoing_delete_text_preserves_cr_lf_and_markup() {
+        for key in ["a\rb", "a\r\nb", "a\nb", "文件\r<&>\t'\"", "literal&#13;"] {
+            let xml = build_delete_xml(&[key]);
+            assert_eq!(xml_text_after_line_normalization(&xml, b"Key"), key);
+        }
+    }
+
+    #[test]
+    fn outgoing_complete_text_preserves_cr_lf_and_markup() {
+        for etag in ["a\rb", "a\r\nb", "a\nb", "opaque<&>", "literal&#13;"] {
+            let xml = build_complete_mpu_xml(&[(1, etag)]);
+            assert_eq!(xml_text_after_line_normalization(&xml, b"ETag"), format!("\"{etag}\""));
+        }
     }
 }
