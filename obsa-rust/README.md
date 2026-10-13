@@ -660,3 +660,7 @@ PUT、分片初始化与用户元数据更新现共用键名归一化及重复�
 ## 批量删除回退预算（2026-10-13）
 
 501 回退逐个删除前释放原响应体，避免无用缓冲占满共享预算。完整 Rust 回归 323 通过，0 失败。详见 [DELETE_FALLBACK_BUDGET.md](docs/DELETE_FALLBACK_BUDGET.md)。
+
+## 发出 XML 的回车保留（2026-10-13）
+
+批量删除与分片合并的 XML 转义保留回车，避免标准 XML 换行归一化改变字段值；新增请求体 MD5 验证。完整 Rust 回归 326 通过。详见 [XML_OUTGOING_TEXT.md](docs/XML_OUTGOING_TEXT.md)。
