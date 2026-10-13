@@ -100,6 +100,12 @@ impl ObsError {
         matches!(self, Self::NotFound { .. })
     }
 
+    /// Path lookup compatibility: HEAD may report 404 without an XML body.
+    /// Explicit bucket/upload/routing failures must never imply a missing path.
+    pub fn is_path_not_found(&self) -> bool {
+        matches!(self, Self::NotFound { code, .. } if code.is_empty() || code == "NoSuchKey")
+    }
+
     pub fn is_conflict_with_code(&self, expected: &str) -> bool {
         matches!(
             self,
@@ -163,5 +169,20 @@ mod tests {
         };
         assert!(err.is_conflict_with_code("DirectoryNotEmpty"));
         assert!(!err.is_conflict_with_code("FileAlreadyExists"));
+    }
+}
+
+
+#[cfg(test)]
+mod path_missing_tests {
+    use super::*;
+    #[test]
+    fn path_missing_classification_keeps_head_compatibility_without_swallowing_service_errors() {
+        for code in ["", "NoSuchKey", "NoSuchBucket", "NoSuchUpload", "NoSuchCustomDomain", "Unknown"] {
+            let error = ObsError::from_status(404, code.into(), "missing".into(), "request".into());
+            assert!(error.is_not_found()); // Existing public status classifier is unchanged.
+            assert_eq!(error.is_path_not_found(), code.is_empty() || code == "NoSuchKey");
+        }
+        assert!(!ObsError::from_status(403, "NoSuchKey".into(), "".into(), "".into()).is_path_not_found());
     }
 }

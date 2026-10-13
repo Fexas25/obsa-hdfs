@@ -1216,6 +1216,10 @@ struct MemoryStore {
     put_failures: AtomicUsize,
     synthetic_listing: Option<usize>,
     metadata_failure: bool,
+    head_errors: BTreeMap<String, ObsError>,
+    rename_error: Option<ObsError>,
+    delete_errors: BTreeMap<String, ObsError>,
+    folder_error: Option<ObsError>,
     head_control: Option<Arc<AppendControl>>,
     head_pauses: AtomicUsize,
     objects: Mutex<BTreeMap<String, Bytes>>,
@@ -1272,6 +1276,7 @@ impl MemoryStore {
 impl ObjectStore for MemoryStore {
     async fn head(&self, key: &str) -> ObsResult<ObjectMeta> {
         self.record(format!("head:{key}"));
+        if let Some(error) = self.head_errors.get(key) { return Err(error.clone()); }
         let bytes = self.objects.lock().unwrap().get(key).cloned().ok_or_else(Self::missing)?;
         if let Some(control) = &self.head_control {
             if self.head_pauses.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1)).is_ok() {
@@ -1370,6 +1375,7 @@ impl ObjectStore for MemoryStore {
     }
     async fn delete(&self, key: &str, hdfs: bool) -> ObsResult<()> {
         self.record(format!("delete:{key}"));
+        if let Some(error) = self.delete_errors.get(key) { return Err(error.clone()); }
         if self.fail_delete.as_deref() == Some(key) {
             return Err(ObsError::Io("injected delete failure".into()));
         }
@@ -1543,6 +1549,7 @@ impl ObjectStore for MemoryStore {
     }
     async fn posix_rename(&self, src: &str, dst: &str) -> ObsResult<()> {
         self.record(format!("rename:{src}:{dst}"));
+        if let Some(error) = &self.rename_error { return Err(error.clone()); }
         self.copy(src, dst).await?;
         self.delete(src, false).await?;
         if let Some(control) = &self.rename_commit_control {
@@ -1658,6 +1665,7 @@ impl ObjectStore for MemoryStore {
     }
     async fn create_folder(&self, key: &str) -> ObsResult<()> {
         self.record(format!("folder:{key}"));
+        if let Some(error) = &self.folder_error { return Err(error.clone()); }
         self.put_empty(&format!("{}/", key.trim_end_matches('/')))
             .await?;
         Ok(())
@@ -4677,3 +4685,99 @@ async fn append_batch_budget_poll_preserves_large_waiter_reservation() {
     }).await.expect("batched acquisition bypassed a waiter or lost progress");
 }
 
+
+
+fn bucket_missing_for_fs_test() -> ObsError {
+    ObsError::NotFound { code: "NoSuchBucket".into(), message: "bucket unavailable".into(), request_id: "fs-missing".into() }
+}
+
+#[tokio::test]
+async fn classified_404_filesystem_operations_preserve_bucket_errors() {
+    for operation in 0..6 {
+        let store = Arc::new(MemoryStore {
+            head_errors: BTreeMap::from([("file".into(), bucket_missing_for_fs_test())]),
+            ..Default::default()
+        });
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let result = match operation {
+            0 => fs.get_file_status("/file").await.map(|_| ()),
+            1 => fs.exists("/file").await.map(|_| ()),
+            2 => fs.create("/file", CreateOptions::default()).await.map(|_| ()),
+            3 => fs.mkdirs("/file", 0o755).await.map(|_| ()),
+            4 => fs.delete("/file", true).await.map(|_| ()),
+            _ => fs.rename("/file", "/target", false).await.map(|_| ()),
+        };
+        let error = result.expect_err("bucket failure must not become absence or success");
+        assert_eq!(error.code(), Some("NoSuchBucket"), "operation {operation}");
+        assert_eq!(error.request_id(), Some("fs-missing"));
+        assert_eq!(&*store.calls.lock().unwrap(), &["head:file"]);
+        // A service failure must not install a negative path-cache entry.
+        assert_eq!(fs.exists("/file").await.unwrap_err().code(), Some("NoSuchBucket"));
+        assert_eq!(store.count("head:file"), 2);
+    }
+}
+
+#[tokio::test]
+async fn classified_404_rename_destination_and_commit_preserve_errors() {
+    for commit in [false, true] {
+        let store = Arc::new(MemoryStore {
+            pfs: commit,
+            head_errors: if commit { BTreeMap::new() } else {
+                BTreeMap::from([("target".into(), bucket_missing_for_fs_test())])
+            },
+            rename_error: commit.then(bucket_missing_for_fs_test),
+            objects: Mutex::new(BTreeMap::from([("source".into(), Bytes::from_static(b"original"))])),
+            ..Default::default()
+        });
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let error = fs.rename("/source", "/target", false).await.unwrap_err();
+        assert_eq!(error.code(), Some("NoSuchBucket"));
+        assert_eq!(error.request_id(), Some("fs-missing"));
+        assert_eq!(store.objects.lock().unwrap().get("source").unwrap().as_ref(), b"original");
+        assert_eq!(store.count("copy"), 0);
+        assert_eq!(store.count("delete"), 0);
+        assert_eq!(store.count("rename"), usize::from(commit));
+    }
+}
+
+
+#[tokio::test]
+async fn classified_404_pfs_delete_and_mkdir_stop_on_bucket_failure() {
+    for operation in 0..3 {
+        let key = if operation == 0 { "file/" } else { "file" };
+        let store = Arc::new(MemoryStore {
+            pfs: true,
+            delete_errors: BTreeMap::from([(key.into(), bucket_missing_for_fs_test())]),
+            folder_error: Some(bucket_missing_for_fs_test()),
+            ..Default::default()
+        });
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let result = if operation == 2 { fs.mkdirs("/parent/child", 0o755).await }
+            else { fs.delete("/file", true).await };
+        let error = result.unwrap_err();
+        assert_eq!(error.code(), Some("NoSuchBucket"));
+        assert_eq!(error.request_id(), Some("fs-missing"));
+        assert_eq!(store.count("put"), 0);
+        assert_eq!(store.count("folder"), usize::from(operation == 2));
+        assert_eq!(store.count("delete"), if operation == 2 { 0 } else { operation + 1 });
+    }
+}
+
+#[tokio::test]
+async fn classified_404_directory_marker_and_rename_parent_preserve_errors() {
+    for parent in [false, true] {
+        let failed_key = if parent { "parent" } else { "file/" };
+        let store = Arc::new(MemoryStore {
+            head_errors: BTreeMap::from([(failed_key.into(), bucket_missing_for_fs_test())]),
+            objects: Mutex::new(BTreeMap::from([("source".into(), Bytes::from_static(b"data"))])),
+            ..Default::default()
+        });
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let result = if parent { fs.rename("/source", "/parent/target", false).await.map(|_| ()) }
+            else { fs.get_file_status("/file").await.map(|_| ()) };
+        assert_eq!(result.unwrap_err().code(), Some("NoSuchBucket"));
+        assert_eq!(store.count("copy"), 0);
+        assert_eq!(store.count("delete"), 0);
+        assert_eq!(store.count("put"), 0);
+    }
+}

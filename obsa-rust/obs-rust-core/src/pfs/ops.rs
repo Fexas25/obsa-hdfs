@@ -30,13 +30,13 @@ impl PfsOps {
                     "Directory not empty: {dir_key}"
                 )));
             }
-            Err(ObsError::NotFound { .. }) => {}
+            Err(error) if error.is_path_not_found() => {}
             Err(e) => return Err(e),
         }
 
         match self.store.delete(&file_key, true).await {
             Ok(()) => Ok(true),
-            Err(ObsError::NotFound { .. }) => Ok(false),
+            Err(error) if error.is_path_not_found() => Ok(false),
             Err(e) => Err(e),
         }
     }
@@ -93,7 +93,7 @@ impl PfsOps {
     pub async fn mkdirs(&self, key: &str) -> ObsResult<bool> {
         match self.store.create_folder(key).await {
             Ok(()) => Ok(true),
-            Err(ObsError::NotFound { .. }) => {
+            Err(error) if error.is_path_not_found() => {
                 // Parent missing — recursive mkdirs on parent
                 let parent = parent_path(key);
                 if parent.is_empty() {

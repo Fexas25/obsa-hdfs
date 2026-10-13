@@ -223,13 +223,13 @@ impl ObsFileSystem {
         let epoch = self.cache.snapshot_epoch();
         match self.store.head(&key).await {
             Ok(meta) => return Ok(self.remember_at(&key, self.meta_status(&key, meta), epoch)),
-            Err(e) if e.is_not_found() => {}
+            Err(e) if e.is_path_not_found() => {}
             Err(e) => return Err(e),
         }
         if !self.is_pfs() || self.disguise_permissions() {
             match self.store.head(&format!("{key}/")).await {
                 Ok(meta) => return Ok(self.remember_at(&key, self.meta_status(&key, meta), epoch)),
-                Err(e) if e.is_not_found() => {}
+                Err(e) if e.is_path_not_found() => {}
                 Err(e) => return Err(e),
             }
         }
@@ -243,7 +243,7 @@ impl ObsFileSystem {
     pub async fn exists(&self, path: &str) -> ObsResult<bool> {
         match self.get_file_status(path).await {
             Ok(_) => Ok(true),
-            Err(e) if e.is_not_found() => Ok(false),
+            Err(e) if e.is_path_not_found() => Ok(false),
             Err(e) => Err(e),
         }
     }
@@ -313,7 +313,7 @@ impl ObsFileSystem {
                 return Err(ObsError::AlreadyExists(path.into()))
             }
             Ok(_) => {}
-            Err(e) if e.is_not_found() => {}
+            Err(e) if e.is_path_not_found() => {}
             Err(e) => return Err(e),
         }
         if let Some((parent, _)) = key.rsplit_once('/') {
@@ -373,14 +373,14 @@ impl ObsFileSystem {
             match self.get_file_status(path).await {
                 Ok(s) if s.is_dir => return Ok(true),
                 Ok(_) => return Err(ObsError::AlreadyExists(path.into())),
-                Err(e) if e.is_not_found() => {}
+                Err(e) if e.is_path_not_found() => {}
                 Err(e) => return Err(e),
             }
             for (i, _) in key.match_indices('/') {
                 let parent = &key[..i];
                 match self.get_file_status(&self.key_to_path(parent)).await {
                     Ok(s) if !s.is_dir => return Err(ObsError::ParentNotDirectory(parent.into())),
-                    Err(e) if !e.is_not_found() => return Err(e),
+                    Err(e) if !e.is_path_not_found() => return Err(e),
                     _ => {}
                 }
             }
@@ -411,7 +411,7 @@ impl ObsFileSystem {
         if self.disguise_permissions() {
             match self.store.head(&entry.key).await {
                 Ok(meta) => return Ok(self.remember_at(key, self.meta_status(key, meta), epoch)),
-                Err(error) if error.is_not_found() && entry.is_directory() => {},
+                Err(error) if error.is_path_not_found() && entry.is_directory() => {},
                 Err(error) => return Err(error),
             }
         }
@@ -547,7 +547,7 @@ impl ObsFileSystem {
             let marker = format!("{parent}/");
             match self.store.head(&marker).await {
                 Ok(_) => return Ok(()),
-                Err(e) if e.is_not_found() => {}
+                Err(e) if e.is_path_not_found() => {}
                 Err(e) => return Err(e),
             }
             self.store
@@ -588,7 +588,7 @@ impl ObsFileSystem {
                 }
                 let status = match self.get_file_status(path).await {
                     Ok(status) => status,
-                    Err(e) if e.is_not_found() => return Ok(false),
+                    Err(e) if e.is_path_not_found() => return Ok(false),
                     Err(e) => return Err(e),
                 };
                 if status.is_dir && !recursive && !self.list_status(path).await?.is_empty() {
@@ -618,7 +618,7 @@ impl ObsFileSystem {
         } else {
             let status = match self.get_file_status(path).await {
                 Ok(s) => s,
-                Err(e) if e.is_not_found() => return Ok(false),
+                Err(e) if e.is_path_not_found() => return Ok(false),
                 Err(e) => return Err(e),
             };
             if status.is_dir {
@@ -699,7 +699,7 @@ impl ObsFileSystem {
         }
         let status = match self.get_file_status(src).await {
             Ok(s) => s,
-            Err(e) if e.is_not_found() => return Ok(false),
+            Err(e) if e.is_path_not_found() => return Ok(false),
             Err(e) => return Err(e),
         };
         if source == target {
@@ -712,7 +712,7 @@ impl ObsFileSystem {
                     .to_string()
             }
             Ok(_) if !overwrite => return Ok(false),
-            Err(e) if !e.is_not_found() => return Err(e),
+            Err(e) if !e.is_path_not_found() => return Err(e),
             _ => {}
         }
         if source == target {
@@ -727,14 +727,14 @@ impl ObsFileSystem {
         match self.get_file_status(&self.key_to_path(&target)).await {
             Ok(existing) if !overwrite || existing.is_dir || status.is_dir => return Ok(false),
             Ok(_) => {}
-            Err(e) if e.is_not_found() => {}
+            Err(e) if e.is_path_not_found() => {}
             Err(e) => return Err(e),
         }
         if let Some((parent, _)) = target.rsplit_once('/') {
             match self.get_file_status(&self.key_to_path(parent)).await {
                 Ok(s) if s.is_dir => {}
                 Ok(_) => return Ok(false),
-                Err(e) if e.is_not_found() => return Ok(false),
+                Err(e) if e.is_path_not_found() => return Ok(false),
                 Err(e) => return Err(e),
             }
         }
@@ -745,7 +745,7 @@ impl ObsFileSystem {
         if self.is_pfs() {
             match self.rename_pfs(&source, &target, status.is_dir).await {
                 Ok(()) => {}
-                Err(e) if e.is_not_found() || e.is_conflict_with_code("FileAlreadyExists") => {
+                Err(e) if e.is_path_not_found() || e.is_conflict_with_code("FileAlreadyExists") => {
                     return Ok(false)
                 }
                 Err(e) => return Err(e),
