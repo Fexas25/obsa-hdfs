@@ -652,3 +652,5 @@ PUT 返回实际上传字节数；分片合并不再把 XML 响应长度当成�
 混合大小写的用户元数据更新正确覆盖旧值；同批重复键在请求前拒绝。完整 Rust 回归 316 通过。详见 [METADATA_CASE.md](docs/METADATA_CASE.md)。
 
 PUT、分片初始化与用户元数据更新现共用键名归一化及重复键检查；完整 Rust 回归 318 通过。验证范围见 [METADATA_CASE.md](docs/METADATA_CASE.md)。
+
+已补充目录元数据写回、HEAD 服务错误和不存在目录的 HTTP 边界测试；完整 Rust 回归 321 通过。详见 [METADATA_CASE.md](docs/METADATA_CASE.md)。
