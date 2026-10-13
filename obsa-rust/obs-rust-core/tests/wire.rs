@@ -1319,3 +1319,61 @@ async fn metadata_create_normalizes_keys_and_preserves_values() {
         assert!(requests[0].contains("x-obs-meta-x-obs-meta-tag: Nested\r\n"));
     }
 }
+
+#[tokio::test]
+async fn metadata_boundary_directory_patch_targets_resolved_marker() {
+    for explicit_marker in [false, true] {
+        let mut responses = Vec::new();
+        if !explicit_marker { responses.push(("404 Not Found", "", "")); }
+        responses.push(("200 OK", "x-obs-meta-user: old\r\nx-obs-meta-keep: retained\r\n", ""));
+        responses.push(("200 OK", "", ""));
+        let (store, task) = server(responses).await;
+        store.patch_user_metadata(if explicit_marker { "dir/" } else { "dir" },
+            std::collections::HashMap::from([("user".into(), "new".into())])).await.unwrap();
+        let requests = task.await.unwrap();
+        assert_eq!(requests.len(), if explicit_marker { 2 } else { 3 });
+        if !explicit_marker { assert!(requests[0].starts_with("HEAD /bucket/dir ")); }
+        assert!(requests[requests.len()-2].starts_with("HEAD /bucket/dir/ "));
+        let update = requests.last().unwrap().to_ascii_lowercase();
+        assert!(update.starts_with("put /bucket/dir/?metadata "));
+        assert!(update.contains("x-obs-meta-user: new\r\n"));
+        assert!(update.contains("x-obs-meta-keep: retained\r\n"));
+    }
+}
+
+#[tokio::test]
+async fn metadata_boundary_head_errors_prevent_replace() {
+    for patch in [false, true] {
+        for status in ["403 Forbidden", "500 Internal Server Error"] {
+            let (store, task) = server_with_config(vec![(status, "x-obs-request-id: head-error\r\n", "")],
+                ObsConfig { retry_max_attempts: 0, ..Default::default() }).await;
+            let result = if patch {
+                store.patch_user_metadata("file", std::collections::HashMap::from([("user".into(), "new".into())])).await
+            } else { store.set_object_metadata("file", Some(0o600), None, None).await };
+            let error = result.unwrap_err();
+            assert_eq!(error.request_id(), Some("head-error"));
+            assert!(matches!(error, obs_rust_core::ObsError::Http { status: code, .. }
+                if code == if status.starts_with("403") { 403 } else { 500 }));
+            let requests = task.await.unwrap();
+            assert_eq!(requests.len(), 1);
+            assert!(requests[0].starts_with("HEAD /bucket/file "));
+        }
+    }
+}
+
+#[tokio::test]
+async fn metadata_boundary_missing_directory_stops_after_fallback() {
+    for explicit_marker in [false, true] {
+        let mut responses = vec![("404 Not Found", "x-obs-request-id: missing\r\n", "")];
+        if !explicit_marker { responses.push(("404 Not Found", "x-obs-request-id: missing\r\n", "")); }
+        let (store, task) = server(responses).await;
+        let error = store.patch_user_metadata(if explicit_marker { "dir/" } else { "dir" },
+            std::collections::HashMap::from([("user".into(), "new".into())])).await.unwrap_err();
+        assert!(error.is_not_found());
+        assert_eq!(error.request_id(), Some("missing"));
+        let requests = task.await.unwrap();
+        assert_eq!(requests.len(), if explicit_marker { 1 } else { 2 });
+        assert!(requests.iter().all(|request| request.starts_with("HEAD ")));
+        assert!(requests.last().unwrap().starts_with("HEAD /bucket/dir/ "));
+    }
+}
