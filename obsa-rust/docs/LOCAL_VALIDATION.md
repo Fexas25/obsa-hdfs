@@ -1176,3 +1176,19 @@ release filesystem 默认 151、诊断 152 项通过，各 4 ignored。详见 [�
 全部使用本机模拟或内存后端，无真实 OBS/PFS。15 个 Rust ignored 均为需显式运行的手动基准，此次没有重新测量性能。未把历史吞吐数字当作当前发布性能保证。Maven 的已有依赖模型警告及 Windows linker 提示未导致构建失败。
 
 工作区保存 part-number-after.log、integration-refresh-release.log、integration-refresh-features.log、integration-refresh-jni.log、integration-refresh-release-build.log、integration-refresh-release-jni-final.log、integration-refresh-hadoop.log 及解析后的套件摘要；只同步项目源码、测试和文档，不上传日志、产物或图片。
+
+
+### 2026-10-13：404 分类后的跨层复验与修复
+
+本轮首先补跑 e02e876 对应的 release、实际 JVM/JNI 与 Hadoop。Rust release 345 项通过、原有 JNI 冒烟通过，但 Hadoop 报告 291 项中 15 项错误，均涉及 PFS 建目录的 ParentNotFound：上一轮将所有路径分支收紧后漏掉了目录创建的父目录恢复语义。新增 Rust 故障注入先复现，再仅在 PfsOps::mkdirs 中允许 404/ParentNotFound 递归创建父目录；不将它加入通用路径缺失分类。原有桶错误不触发建目录的回归仍通过。
+
+同时，实际 JVM 新测试复现 NoSuchBucket 被 JNI 映射为 FileNotFoundException。JNI guard 现在仅将 is_path_not_found 所识别的错误和既有 IsDirectory 转为 FileNotFoundException，其他明确的服务级 404 保留为 IOException。新增 NativeErrorSmokeTest 使用本机 HTTP 响应，经真实 JNI list 调用检查 NoSuchBucket、NoSuchUpload、NoSuchCustomDomain、NoSuchKey 和空码，断言异常类别、错误码及请求 ID。scripts/test-jni.ps1 已纳入此测试。无错误码 HEAD 的兼容边界没有改变。
+
+最终同一份修复源码的结果：
+
+- 默认 Rust workspace debug / release 各 **346 通过、0 失败、15 ignored**：核心 111、缓存 1、文件系统 158、HTTP 76。
+- debug / release 均显式构建实际 JNI 动态库，真实 JVM 的 NativeSmokeTest 和 NativeErrorSmokeTest 全部通过。
+- Hadoop 3.3.6：**291 项、0 failures、0 errors、12 skipped**，Maven BUILD SUCCESS。12 项跳过仍是既有能力边界，未增加跳过以规避失败。
+- 本轮未重跑 append-diagnostics 和手动性能基准；没有真实 OBS/PFS 或生产作业结论。ParentNotFound 恢复由本地 Hadoop 后端与 Rust 故障注入验证，未据此声称所有云端错误码均已覆盖。
+
+工作区保留 post-fs-* 初始验证日志、parent-missing-before.log、jni-error-before.log 和 cross-layer-final-* 最终日志；仅源码、测试、脚本及本说明上传，不提交日志、图片和构建产物。
