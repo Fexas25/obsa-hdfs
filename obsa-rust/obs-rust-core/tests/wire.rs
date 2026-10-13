@@ -1377,3 +1377,35 @@ async fn metadata_boundary_missing_directory_stops_after_fallback() {
         assert!(requests.last().unwrap().starts_with("HEAD /bucket/dir/ "));
     }
 }
+
+#[tokio::test]
+async fn metadata_invalid_fields_are_rejected_before_network() {
+    let (store, task) = server(vec![]).await;
+    task.await.unwrap();
+    for operation in [2, 0, 1] {
+        for (name, value, category) in [
+            ("bad name", "private-value", "name"),
+            ("bad:name", "private-value", "name"),
+            ("bad\r\nname", "private-value", "name"),
+            ("valid", "private\r\nvalue", "value"),
+            ("valid", "private\0value", "value"),
+        ] {
+            let entries = vec![(name.to_string(), value.to_string())];
+            let result = match operation {
+                0 => store.put("file", bytes::Bytes::new(), obs_rust_core::store::PutHeaders {
+                    user_meta: entries, ..Default::default()
+                }).await.map(|_| ()),
+                1 => store.initiate_multipart_upload_with_headers("file", obs_rust_core::store::PutHeaders {
+                    user_meta: entries, ..Default::default()
+                }).await.map(|_| ()),
+                _ => store.patch_user_metadata("file", entries.into_iter().collect()).await,
+            };
+            match result {
+                Err(obs_rust_core::ObsError::InvalidArgument(message)) => {
+                    assert!(!message.contains("private"));
+                }
+                other => panic!("operation={operation}, category={category}: {other:?}"),
+            }
+        }
+    }
+}

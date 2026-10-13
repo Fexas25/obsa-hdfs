@@ -151,6 +151,12 @@ impl ObsStore {
         let entries = metadata.into_iter();
         let mut normalized = std::collections::HashMap::with_capacity(entries.size_hint().0);
         for (name, value) in entries {
+            // Validate before a metadata patch reads remote state. Keep errors
+            // independent of user names/values, which may contain private data.
+            http::HeaderName::from_bytes(format!("x-obs-meta-{name}").as_bytes())
+                .map_err(|_| ObsError::InvalidArgument("invalid metadata name".into()))?;
+            http::HeaderValue::from_str(&value)
+                .map_err(|_| ObsError::InvalidArgument("invalid metadata value".into()))?;
             if normalized.insert(name.to_ascii_lowercase(), value).is_some() {
                 return Err(ObsError::InvalidArgument("duplicate metadata key (case-insensitive)".into()));
             }
