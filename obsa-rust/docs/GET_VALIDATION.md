@@ -18,3 +18,12 @@ HTTP 正文可以采用 chunked 编码或连接关闭定界，不一定提供 Co
 完整 GET 的长度是返回对象正文长度；范围 GET 延续已有 Content-Length 语义，报告返回范围的字节数，不将 Content-Range 中的对象总长度混入该字段。HEAD 仍使用服务端头部对象长度，不受此修复影响。响应大小、统一预算、范围校验和 ETag 一致性检查保持不变。
 
 新增本机 HTTP 回归覆盖完整/范围条件读取，分别使用 chunked、连接关闭定界和固定长度，共六种组合；同时断言正文内容和 EOF。修复前 chunked 正文 4 字节却得到元数据长度 0；修复后完整默认 debug workspace **337 通过、0 失败、15 ignored**（核心 110、缓存 1、文件系统 153、HTTP 73）。本地日志 get-length-before.log、get-length-after.log 不上传。本轮未重跑 release/JVM/Hadoop/诊断特性，也未验证真实云环境或生产性能。
+
+
+## 完整 GET 的成功状态白名单（2026-10-13）
+
+完整对象 GET 现在仅接受 200；范围 GET 继续由传输层要求匹配的 206/Content-Range。依据 [OBS GetObject](https://support.huaweicloud.com/api-obs/obs_04_0083.html) 的完整与范围下载响应约定，不能把任意 2xx 都解释为完整对象。旧代码只排除了无 Range 的 206，201/202/204 等仍可能被当作有效内容或空对象返回。错误状态仍先走原有映射，不改变 404/412 等语义。
+
+新增回归在修复前复现 201 被错误接受；修复后检查 201、202、203、204、205、207、226，分别覆盖有/无 If-Match。每次失败后在同一个 4 字节共享预算下读取 4 字节对象，再读取合法的 200 空对象；断言三次请求，防止异常状态造成预算泄漏或自动重试。完整默认 debug Rust workspace **338 通过、0 失败、15 ignored**，其中 HTTP 74 项。日志 get-status-before.log 和 get-status-after.log 仅保存在工作区。本轮未重跑 release、JVM/Hadoop、诊断特性和性能基准。
+
+检查在传输层收集响应之后进行，不能据此声称异常正文完全不占用内存；现有响应大小和预算限制仍然适用。
