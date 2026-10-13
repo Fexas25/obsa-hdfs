@@ -29,3 +29,12 @@
 依据同一华为 UploadPart 文档规定的 1..=10000，ObsStore::upload_part 现在在计算 MD5 和发送请求之前拒绝范围外的段号。上层上传流已有段数限制，本轮补齐直接调用入口。新增测试覆盖负数、0、10001、i32 两端以及合法端点 1/10000；合法端点仍允许空尾段。
 
 修改前非法段号测试返回连接错误，合法端点测试通过；修改后完整默认 Rust 回归 **334 通过、0 失败、15 ignored**。本地失败日志 part-number-before.log，最终日志 part-number-after.log。后续扩展的 debug/release/JNI/Hadoop 验证见 LOCAL_VALIDATION.md 中的 2026-10-13 综合复验记录。本轮未扩展 CompleteMultipartUpload 入参校验或改变远端段大小规则。
+
+
+## 2026-10-13：完成上传的分片列表预检
+
+对照 [CompleteMultipartUpload API](https://support.huaweicloud.com/api-obs/obs_04_0102.html)，直接调用 ObsStore::complete_multipart_upload 现在在构建 XML 和发送提交请求前拒绝空列表、越界段号、重复或非递增段号，以及空白 ETag。检查仅顺序扫描一次，不排序、不克隆 ETag；允许合法的不连续段号，不要求从 1 开始，也不把不透明 ETag 强制解释为 MD5。
+
+新增本地 HTTP 回归覆盖上述非法输入，合法的 1/10000 稀疏列表、XML 特殊字符和非空 ETag 空白保留。原有响应解析测试改为提供合法的单段请求，继续验证响应错误处理，不因前置校验而失去覆盖。空列表在修复前返回连接错误，修复后全部非法列表返回 InvalidArgument；完整默认 debug Rust workspace **336 通过、0 失败、15 ignored**（核心 110、缓存 1、文件系统 153、HTTP 72）。本次未重跑 release、诊断特性、JVM/Hadoop 和性能基准，前一轮综合结果仍是历史验证证据。
+
+本地日志 complete-parts-before.log 与 complete-parts-after.log 不提交到仓库。此检查无法验证服务端是否存在这些段、ETag 是否匹配或实际段大小；这些仍由服务端确认。上层失败清理策略和完成请求不自动重试的语义保持不变。
