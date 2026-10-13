@@ -335,6 +335,8 @@ impl ObjectStore for ObsStore {
         let resp = self.map_response(resp)?;
         let mut meta = Self::meta_from_headers(key, &resp.headers);
         meta.content_length = content_length;
+        // The response describes its own entity, not the uploaded object.
+        meta.content_type = headers.content_type;
         Ok(meta)
     }
 
@@ -476,6 +478,7 @@ impl ObjectStore for ObsStore {
         let etag = xml::parse_result_etag(text, "CopyObjectResult")?;
         let mut meta = Self::meta_from_headers(dst_key, &resp.headers);
         meta.content_length = 0; // Response XML length is not copied object length.
+        meta.content_type = None; // XML response type is not the copied object type.
         meta.etag = Some(etag);
         Ok(meta)
     }
@@ -572,6 +575,7 @@ impl ObjectStore for ObsStore {
         // Part sizes are unavailable here; the output stream supplies the total.
         // As with copy, never expose the response XML length as object size.
         meta.content_length = 0;
+        meta.content_type = None; // The result XML does not report object Content-Type.
         meta.etag = Some(etag);
         Ok(meta)
     }

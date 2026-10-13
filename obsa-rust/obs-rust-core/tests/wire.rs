@@ -1494,3 +1494,45 @@ async fn inverted_get_range_is_rejected_before_network() {
             "inverted range must fail locally");
     }
 }
+
+#[tokio::test]
+async fn write_content_type_does_not_inherit_response_document_type() {
+    for operation in 0..3 {
+        let response = match operation {
+            0 => "",
+            1 => "<CopyObjectResult><ETag>tag</ETag></CopyObjectResult>",
+            _ => "<CompleteMultipartUploadResult><ETag>tag</ETag></CompleteMultipartUploadResult>",
+        };
+        let (store, task) = server(vec![("200 OK", "Content-Type: application/xml\r\n", response)]).await;
+        let meta = match operation {
+            0 => store.put("file", bytes::Bytes::from_static(b"data"), obs_rust_core::store::PutHeaders {
+                content_type: Some("text/plain".into()), ..Default::default()
+            }).await.unwrap(),
+            1 => store.copy("source", "file").await.unwrap(),
+            _ => store.complete_multipart_upload("file", "upload", &[]).await.unwrap(),
+        };
+        assert_eq!(meta.content_type.as_deref(), if operation == 0 { Some("text/plain") } else { None });
+        assert_eq!(task.await.unwrap().len(), 1);
+    }
+}
+
+#[tokio::test]
+async fn multipart_stream_retains_requested_content_type() {
+    let config = ObsConfig { multipart_threshold: 1, ..Default::default() };
+    let (store, task) = server_with_config(vec![
+        ("200 OK", "", "<InitiateMultipartUploadResult><UploadId>upload</UploadId></InitiateMultipartUploadResult>"),
+        ("200 OK", "ETag: part\r\n", ""),
+        ("200 OK", "Content-Type: application/xml\r\n", "<CompleteMultipartUploadResult><ETag>final</ETag></CompleteMultipartUploadResult>"),
+    ], config.clone()).await;
+    let mut output = obs_rust_core::io::ObsOutputStream::new(std::sync::Arc::new(store), &config,
+        "file".into(), std::sync::Arc::new(tokio::sync::Semaphore::new(1)))
+        .with_headers(obs_rust_core::store::PutHeaders { content_type: Some("text/plain".into()), ..Default::default() });
+    output.write(b"data").await.unwrap();
+    let meta = output.close().await.unwrap();
+    assert_eq!(meta.content_type.as_deref(), Some("text/plain"));
+    assert_eq!(meta.content_length, 4);
+    assert_eq!(meta.etag.as_deref(), Some("final"));
+    let requests = task.await.unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(requests[0].contains("content-type: text/plain\r\n"));
+}

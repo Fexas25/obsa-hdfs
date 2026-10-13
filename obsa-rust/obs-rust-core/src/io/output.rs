@@ -372,6 +372,9 @@ impl ObsOutputStream {
             .store
             .complete_multipart_upload(&self.key, self.upload_id.as_deref().unwrap(), &parts)
             .await?;
+        if let Some(content_type) = &self.headers.content_type {
+            meta.content_type = Some(content_type.clone());
+        }
         meta.content_length = self.total_written;
         self.upload_id = None;
         self.clear_journal().await;
