@@ -654,3 +654,5 @@ PUT 返回实际上传字节数；分片合并不再把 XML 响应长度当成�
 PUT、分片初始化与用户元数据更新现共用键名归一化及重复键检查；完整 Rust 回归 318 通过。验证范围见 [METADATA_CASE.md](docs/METADATA_CASE.md)。
 
 已补充目录元数据写回、HEAD 服务错误和不存在目录的 HTTP 边界测试；完整 Rust 回归 321 通过。详见 [METADATA_CASE.md](docs/METADATA_CASE.md)。
+
+非法元数据名称和值现于远端读取前拒绝，错误不回显私有值；完整 Rust 回归 322 通过。详见 [METADATA_CASE.md](docs/METADATA_CASE.md)。

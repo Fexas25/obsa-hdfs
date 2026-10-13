@@ -23,3 +23,11 @@
 - 目录回退仍然 404 时返回原类错误；显式目录标记只读一次，均不写回。
 
 现有实现通过全部新增边界检查；完整 Windows Rust 回归 **321 通过、0 失败、15 ignored**，HTTP 测试 60。工作区日志为 metadata-boundary-tests.log。跨客户端 HEAD/REPLACE 竞争及真实服务兼容性仍未由这些本地测试证明。
+
+## 非法输入在读取远端之前拒绝
+
+同日第四批在共享入口使用与 HTTP 传输层相同的 HeaderName/HeaderValue 解析规则校验用户元数据。普通 PUT 之前已能在请求构造时拒绝非法头；本轮关键修复是元数据补丁不再先发 HEAD，避免输入错误被服务连接失败掩盖。对三个入口返回 InvalidArgument，错误不回显元数据名称或值。
+
+新增一项测试，循环验证三个入口和五类非法输入（含空格、冒号或 CR/LF 的名称，以及含 CR/LF 或 NUL 的值）。使用已关闭的本地监听端点，仍必须返回参数错误。修复前补丁返回 Connect 传输错误；修复后所有组合通过。测试不依赖具体错误措辞。最初测试草稿曾仅因 PUT 报错措辞不同失败，已改为类型及隐私断言后再复现补丁错误。
+
+完整 Windows Rust workspace 回归 **322 通过、0 失败、15 ignored**，HTTP 测试 61。有效失败复现日志 metadata-input-red.log，最终日志 metadata-input-after.log。未对元数据增加新编码、远端长度限制或 Unicode 转码规则，也未修改通用 HTTP 校验规则。
