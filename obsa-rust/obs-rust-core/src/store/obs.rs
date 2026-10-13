@@ -357,11 +357,14 @@ impl ObjectStore for ObsStore {
         }
 
         let resp = self.signed_execute(builder, "", "").await?;
-        let status = resp.status.as_u16();
-        if status == 204 || (status == 404 && !hdfs_header) {
-            return Ok(());
+        match self.map_response(resp) {
+            Ok(_) => Ok(()),
+            // A missing bucket (or an unclassified 404) is not proof that
+            // deletion of the requested object succeeded.
+            Err(error) if !hdfs_header && error.is_not_found()
+                && error.code() == Some("NoSuchKey") => Ok(()),
+            Err(error) => Err(error),
         }
-        self.map_response(resp).map(|_| ())
     }
 
     async fn delete_batch(&self, keys: &[String]) -> ObsResult<()> {
@@ -392,7 +395,7 @@ impl ObjectStore for ObsStore {
             for key in keys {
                 match self.delete(key, self.is_pfs()).await {
                     Ok(()) => {}
-                    Err(e) if e.is_not_found() => {}
+                    Err(e) if e.is_not_found() && e.code() == Some("NoSuchKey") => {}
                     Err(e) => return Err(e),
                 }
             }

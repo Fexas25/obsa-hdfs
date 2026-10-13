@@ -1661,3 +1661,50 @@ async fn full_get_rejects_non_object_success_status_and_releases_budget() {
         }
     }
 }
+
+
+#[tokio::test]
+async fn delete_missing_errors_preserve_non_key_failures() {
+    for batch in [false, true] {
+        for pfs in [false, true] {
+            for (body, code) in [
+                ("<Error><Code>NoSuchBucket</Code></Error>", "NoSuchBucket"),
+                ("<Error><Code>NoSuchUpload</Code></Error>", "NoSuchUpload"),
+                ("", ""),
+            ] {
+                let mut responses = Vec::new();
+                if batch { responses.push(("501 Not Implemented", "", "")); }
+                responses.push(("404 Not Found", "x-obs-request-id: missing-request\r\n", body));
+                let (mut config, task) = mock_endpoint(responses, ObsConfig::default()).await;
+                config.bucket_mode = if pfs { BucketMode::Pfs } else { BucketMode::Object };
+                let mut store = ObsStore::new(config, CredentialChain::new(Credentials::new("AK", "SK")));
+                store.init_bucket_mode().await.unwrap();
+                let result = if batch { store.delete_batch(&["file".into()]).await }
+                    else { store.delete("file", pfs).await };
+                let error = result.expect_err("non-key 404 must remain an error");
+                assert_eq!(error.code(), Some(code));
+                assert_eq!(error.request_id(), Some("missing-request"));
+                assert_eq!(task.await.unwrap().len(), if batch { 2 } else { 1 });
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn delete_missing_key_remains_idempotent_in_object_and_batch_paths() {
+    for batch in [false, true] {
+        for pfs in [false, true] {
+            if !batch && pfs { continue; } // PFS direct delete preserves NotFound.
+            let mut responses = Vec::new();
+            if batch { responses.push(("501 Not Implemented", "", "")); }
+            responses.push(("404 Not Found", "", "<Error><Code>NoSuchKey</Code></Error>"));
+            let (mut config, task) = mock_endpoint(responses, ObsConfig::default()).await;
+            config.bucket_mode = if pfs { BucketMode::Pfs } else { BucketMode::Object };
+            let mut store = ObsStore::new(config, CredentialChain::new(Credentials::new("AK", "SK")));
+            store.init_bucket_mode().await.unwrap();
+            if batch { store.delete_batch(&["file".into()]).await.unwrap(); }
+            else { store.delete("file", false).await.unwrap(); }
+            assert_eq!(task.await.unwrap().len(), if batch { 2 } else { 1 });
+        }
+    }
+}
