@@ -93,7 +93,10 @@ impl PfsOps {
     pub async fn mkdirs(&self, key: &str) -> ObsResult<bool> {
         match self.store.create_folder(key).await {
             Ok(()) => Ok(true),
-            Err(error) if error.is_path_not_found() => {
+            Err(error) if error.is_path_not_found()
+                || (error.is_not_found() && error.code() == Some("ParentNotFound")) => {
+                // ParentNotFound is specific to directory creation, not a
+                // general signal that an arbitrary source object is missing.
                 // Parent missing — recursive mkdirs on parent
                 let parent = parent_path(key);
                 if parent.is_empty() {

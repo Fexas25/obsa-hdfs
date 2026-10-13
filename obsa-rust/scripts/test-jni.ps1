@@ -9,3 +9,8 @@ New-Item -ItemType Directory -Force -Path $classes | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Java smoke compilation failed' }
 & $java "-Djava.library.path=$projectRoot\target\debug" -cp $classes NativeSmokeTest
 if ($LASTEXITCODE -ne 0) { throw 'JNI smoke test failed' }
+
+& $javac -encoding UTF-8 -cp $classes -d $classes (Join-Path $projectRoot 'java\tests\NativeErrorSmokeTest.java')
+if ($LASTEXITCODE -ne 0) { throw 'JNI error smoke compilation failed' }
+& $java "-Djava.library.path=$projectRoot\target\debug" -cp $classes NativeErrorSmokeTest
+if ($LASTEXITCODE -ne 0) { throw 'JNI error smoke failed' }

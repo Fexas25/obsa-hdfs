@@ -1220,6 +1220,7 @@ struct MemoryStore {
     rename_error: Option<ObsError>,
     delete_errors: BTreeMap<String, ObsError>,
     folder_error: Option<ObsError>,
+    folder_requires_parent: bool,
     head_control: Option<Arc<AppendControl>>,
     head_pauses: AtomicUsize,
     objects: Mutex<BTreeMap<String, Bytes>>,
@@ -1666,6 +1667,14 @@ impl ObjectStore for MemoryStore {
     async fn create_folder(&self, key: &str) -> ObsResult<()> {
         self.record(format!("folder:{key}"));
         if let Some(error) = &self.folder_error { return Err(error.clone()); }
+        if self.folder_requires_parent {
+            if let Some((parent, _)) = key.rsplit_once('/') {
+                if !self.objects.lock().unwrap().contains_key(&format!("{parent}/")) {
+                    return Err(ObsError::NotFound { code: "ParentNotFound".into(),
+                        message: "parent missing".into(), request_id: "parent-request".into() });
+                }
+            }
+        }
         self.put_empty(&format!("{}/", key.trim_end_matches('/')))
             .await?;
         Ok(())
@@ -4780,4 +4789,16 @@ async fn classified_404_directory_marker_and_rename_parent_preserve_errors() {
         assert_eq!(store.count("delete"), 0);
         assert_eq!(store.count("put"), 0);
     }
+}
+
+
+#[tokio::test]
+async fn classified_404_pfs_mkdir_recovers_missing_parent_only() {
+    let store = Arc::new(MemoryStore { pfs: true, folder_requires_parent: true, ..Default::default() });
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    assert!(fs.mkdirs("/a/b/c", 0o755).await.unwrap());
+    for key in ["a/", "a/b/", "a/b/c/"] {
+        assert!(store.objects.lock().unwrap().contains_key(key));
+    }
+    assert_eq!(store.count("folder:"), 5); // child, parent, ancestor, parent, child
 }

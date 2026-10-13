@@ -131,9 +131,8 @@ fn guard<T: Default>(env: &mut JNIEnv, f: impl FnOnce(&mut JNIEnv) -> ObsResult<
         Ok(value) => value,
         Err(e) => {
             let class = match &e {
-                ObsError::NotFound { .. } | ObsError::IsDirectory(_) => {
-                    "java/io/FileNotFoundException"
-                }
+                error if error.is_path_not_found() => "java/io/FileNotFoundException",
+                ObsError::IsDirectory(_) => "java/io/FileNotFoundException",
                 ObsError::InvalidArgument(_) | ObsError::BadRequest { .. } => {
                     "java/lang/IllegalArgumentException"
                 }
