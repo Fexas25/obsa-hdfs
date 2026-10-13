@@ -416,7 +416,7 @@ async fn complete_multipart_is_never_retried() {
     )])
     .await;
     assert!(store
-        .complete_multipart_upload("key", "id", &[])
+        .complete_multipart_upload("key", "id", &[CompletedPart { part_number: 1, etag: "part".into() }])
         .await
         .is_err());
     assert_eq!(server.await.unwrap().len(), 1);
@@ -430,7 +430,7 @@ async fn complete_multipart_embedded_error_is_not_success() {
     )])
     .await;
     let error = store
-        .complete_multipart_upload("key", "id", &[])
+        .complete_multipart_upload("key", "id", &[CompletedPart { part_number: 1, etag: "part".into() }])
         .await
         .unwrap_err();
     assert_eq!(error.code(), Some("InternalError"));
@@ -804,7 +804,7 @@ async fn copy_and_complete_preserve_fragmented_etags() {
         };
         let (store, task) = server(vec![("200 OK", "", body)]).await;
         let meta = if copy { store.copy("source", "target").await }
-            else { store.complete_multipart_upload("file", "upload", &[]).await }.unwrap();
+            else { store.complete_multipart_upload("file", "upload", &[CompletedPart { part_number: 1, etag: "part".into() }]).await }.unwrap();
         assert_eq!(meta.etag.as_deref(), Some("ab&amp;cd"));
         assert_eq!(task.await.unwrap().len(), 1);
     }
@@ -824,7 +824,7 @@ async fn copy_and_complete_reject_ambiguous_etags() {
         for body in if copy { responses!("CopyObjectResult") } else { responses!("CompleteMultipartUploadResult") } {
             let (store, task) = server(vec![("200 OK", "", body)]).await;
             let result = if copy { store.copy("source", "target").await }
-                else { store.complete_multipart_upload("file", "upload", &[]).await };
+                else { store.complete_multipart_upload("file", "upload", &[CompletedPart { part_number: 1, etag: "part".into() }]).await };
             assert!(matches!(result, Err(obs_rust_core::ObsError::Io(_))));
             assert_eq!(task.await.unwrap().len(), 1);
         }
@@ -851,7 +851,7 @@ async fn cdata_embedded_errors_override_success_etags() {
         };
         let (store, task) = server(vec![("200 OK", "", body)]).await;
         let result = if copy { store.copy("source", "target").await }
-            else { store.complete_multipart_upload("file", "upload", &[]).await };
+            else { store.complete_multipart_upload("file", "upload", &[CompletedPart { part_number: 1, etag: "part".into() }]).await };
         assert!(matches!(result, Err(obs_rust_core::ObsError::Http { status: 200, ref code, ref message, .. })
             if code == if copy { "CopyFailed" } else { "CompleteFailed" } && message == "rejected"));
         assert_eq!(task.await.unwrap().len(), 1);
@@ -896,7 +896,7 @@ async fn multipart_complete_rejects_truncated_success_xml() {
     )])
     .await;
     assert!(store
-        .complete_multipart_upload("file", "upload", &[])
+        .complete_multipart_upload("file", "upload", &[CompletedPart { part_number: 1, etag: "part".into() }])
         .await
         .is_err());
     assert_eq!(task.await.unwrap().len(), 1);
@@ -1194,7 +1194,7 @@ async fn put_metadata_uses_uploaded_size_not_response_length() {
 async fn complete_metadata_does_not_report_xml_length_as_object_size() {
     let (store, task) = server(vec![("200 OK", "",
         "<CompleteMultipartUploadResult><ETag>final-etag</ETag></CompleteMultipartUploadResult>")]).await;
-    let meta = store.complete_multipart_upload("file", "upload", &[]).await.unwrap();
+    let meta = store.complete_multipart_upload("file", "upload", &[CompletedPart { part_number: 1, etag: "part".into() }]).await.unwrap();
     // The direct API has no part lengths; zero follows the existing copy convention.
     assert_eq!(meta.content_length, 0);
     assert_eq!(meta.etag.as_deref(), Some("final-etag"));
@@ -1509,7 +1509,7 @@ async fn write_content_type_does_not_inherit_response_document_type() {
                 content_type: Some("text/plain".into()), ..Default::default()
             }).await.unwrap(),
             1 => store.copy("source", "file").await.unwrap(),
-            _ => store.complete_multipart_upload("file", "upload", &[]).await.unwrap(),
+            _ => store.complete_multipart_upload("file", "upload", &[CompletedPart { part_number: 1, etag: "part".into() }]).await.unwrap(),
         };
         assert_eq!(meta.content_type.as_deref(), if operation == 0 { Some("text/plain") } else { None });
         assert_eq!(task.await.unwrap().len(), 1);
@@ -1556,4 +1556,38 @@ async fn upload_part_number_boundaries_are_transmitted_unchanged() {
         assert_eq!(requests.len(), 1);
         assert!(requests[0].starts_with(&format!("PUT /bucket/file?partNumber={number}&uploadId=upload ")));
     }
+}
+
+#[tokio::test]
+async fn complete_parts_invalid_is_rejected_before_network() {
+    let (store, task) = server(vec![]).await;
+    task.await.unwrap();
+    let mut cases = vec![vec![], vec![(2, "a"), (1, "b")], vec![(1, "a"), (1, "b")]];
+    for number in [i32::MIN, -1, 0, 10001, i32::MAX] {
+        cases.push(vec![(number, "part")]);
+    }
+    for etag in ["", " ", "\t\r\n"] { cases.push(vec![(1, etag)]); }
+    for case in cases {
+        let parts: Vec<_> = case.iter().map(|(part_number, etag)| CompletedPart {
+            part_number: *part_number, etag: (*etag).into(),
+        }).collect();
+        let result = store.complete_multipart_upload("file", "upload", &parts).await;
+        assert!(matches!(result, Err(obs_rust_core::ObsError::InvalidArgument(_))),
+            "invalid parts {case:?} must fail locally: {result:?}");
+    }
+}
+
+#[tokio::test]
+async fn complete_parts_preserves_sparse_order_and_opaque_etags() {
+    let (store, task) = server(vec![("200 OK", "",
+        "<CompleteMultipartUploadResult><ETag>final</ETag></CompleteMultipartUploadResult>")]).await;
+    let parts = [CompletedPart { part_number: 1, etag: "a&b".into() },
+        CompletedPart { part_number: 10000, etag: " opaque ".into() }];
+    let meta = store.complete_multipart_upload("file", "upload", &parts).await.unwrap();
+    assert_eq!(meta.etag.as_deref(), Some("final"));
+    let requests = task.await.unwrap();
+    assert_eq!(requests.len(), 1);
+    let body = requests[0].split_once("\r\n\r\n").unwrap().1;
+    assert!(body.contains("<PartNumber>1</PartNumber><ETag>\"a&amp;b\"</ETag>"));
+    assert!(body.contains("<PartNumber>10000</PartNumber><ETag>\" opaque \"</ETag>"));
 }

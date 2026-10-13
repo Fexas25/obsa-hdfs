@@ -547,6 +547,21 @@ impl ObjectStore for ObsStore {
         upload_id: &str,
         parts: &[CompletedPart],
     ) -> ObsResult<ObjectMeta> {
+        // Reject malformed manifests before allocating XML or sending a commit request.
+        if parts.is_empty() {
+            return Err(ObsError::InvalidArgument("multipart completion requires at least one part".into()));
+        }
+        let mut previous = 0;
+        for part in parts {
+            if !(1..=10_000).contains(&part.part_number) || part.part_number <= previous {
+                return Err(ObsError::InvalidArgument(
+                    "multipart completion part numbers must be strictly increasing in 1..=10000".into()));
+            }
+            if part.etag.trim().is_empty() {
+                return Err(ObsError::InvalidArgument("multipart completion requires non-empty ETags".into()));
+            }
+            previous = part.part_number;
+        }
         let part_tuples: Vec<(i32, &str)> = parts
             .iter()
             .map(|p| (p.part_number, p.etag.as_str()))
