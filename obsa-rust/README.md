@@ -646,3 +646,7 @@ PUT 返回实际上传字节数；分片合并不再把 XML 响应长度当成�
 ## 自定义元数据键保留（2026-10-13）
 
 修复重复 `x-obs-meta-` 前缀被多次删除导致的键名碰撞与写回丢失。完整 Rust 回归 314 通过，0 失败。详见 [METADATA_PREFIX.md](docs/METADATA_PREFIX.md)。
+
+## 元数据更新大小写（2026-10-13）
+
+混合大小写的用户元数据更新正确覆盖旧值；同批重复键在请求前拒绝。完整 Rust 回归 316 通过。详见 [METADATA_CASE.md](docs/METADATA_CASE.md)。
