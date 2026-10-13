@@ -156,11 +156,9 @@ impl ObsStore {
         let mut user_meta = std::collections::HashMap::new();
         for (k, v) in headers {
             let lower = k.to_ascii_lowercase();
-            if lower.starts_with("x-obs-meta-") {
-                user_meta.insert(
-                    lower.trim_start_matches("x-obs-meta-").to_string(),
-                    v.clone(),
-                );
+            // Remove only the protocol prefix: the user key can start with it too.
+            if let Some(name) = lower.strip_prefix("x-obs-meta-") {
+                user_meta.insert(name.to_string(), v.clone());
             }
         }
 

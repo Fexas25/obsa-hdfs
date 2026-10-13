@@ -1200,3 +1200,47 @@ async fn complete_metadata_does_not_report_xml_length_as_object_size() {
     assert_eq!(meta.etag.as_deref(), Some("final-etag"));
     assert_eq!(task.await.unwrap().len(), 1); // No extra HEAD request.
 }
+
+#[tokio::test]
+async fn metadata_prefix_is_removed_exactly_once_on_read() {
+    let (store, task) = server(vec![("200 OK",
+        "x-obs-meta-mode: 100644\r\nX-Obs-Meta-X-Obs-Meta-Mode: custom\r\nx-obs-meta-x-obs-meta-x-obs-meta-tag: deep\r\n", "")]).await;
+    let meta = store.head("file").await.unwrap();
+    assert_eq!(task.await.unwrap().len(), 1);
+    assert_eq!(meta.mode, Some(0o100644));
+    assert_eq!(meta.user_meta.len(), 3);
+    assert_eq!(meta.user_meta.get("mode").map(String::as_str), Some("100644"));
+    assert_eq!(meta.user_meta.get("x-obs-meta-mode").map(String::as_str), Some("custom"));
+    assert_eq!(meta.user_meta.get("x-obs-meta-x-obs-meta-tag").map(String::as_str), Some("deep"));
+}
+
+#[tokio::test]
+async fn metadata_prefix_survives_permission_and_user_metadata_replace() {
+    for permission in [true, false] {
+        let (store, task) = server(vec![
+            ("200 OK", "x-obs-meta-mode: 100644\r\nX-Obs-Meta-X-Obs-Meta-Mode: custom\r\nx-obs-meta-x-obs-meta-x-obs-meta-tag: deep\r\n", ""),
+            ("200 OK", "", ""),
+        ]).await;
+        if permission {
+            store.set_object_metadata("file", Some(0o600), None, None).await.unwrap();
+        } else {
+            store.patch_user_metadata("file", std::collections::HashMap::from([
+                ("project".into(), "updated".into()),
+            ])).await.unwrap();
+        }
+        let requests = task.await.unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].starts_with("HEAD /bucket/file "));
+        let update = requests[1].to_ascii_lowercase();
+        assert!(update.starts_with("put /bucket/file?metadata "));
+        assert!(update.contains("x-obs-meta-x-obs-meta-mode: custom\r\n"));
+        assert!(update.contains("x-obs-meta-x-obs-meta-x-obs-meta-tag: deep\r\n"));
+        assert!(!update.contains("\r\nx-obs-meta-tag:"));
+        assert!(update.contains(if permission {
+            "x-obs-meta-mode: 100600\r\n"
+        } else {
+            "x-obs-meta-mode: 100644\r\n"
+        }));
+        if !permission { assert!(update.contains("x-obs-meta-project: updated\r\n")); }
+    }
+}
