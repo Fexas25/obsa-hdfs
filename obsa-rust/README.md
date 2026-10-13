@@ -63,7 +63,7 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 
 ## 当前本地验证（2026-10-13）
 
-- 最新默认 Rust workspace debug：**336 通过、0 失败、15 ignored**；包含完成上传的分片列表预检。
+- 最新默认 Rust workspace debug：**337 通过、0 失败、15 ignored**；包含完成上传的分片列表预检和 GET 正文长度修复。
 - 下列综合结果来自该预检之前的版本：release **334 通过、0 失败、15 ignored**。
 - `append-diagnostics`：**336 通过、0 失败、15 ignored**。
 - 真实 JVM：debug 与 release JNI 冒烟均通过。

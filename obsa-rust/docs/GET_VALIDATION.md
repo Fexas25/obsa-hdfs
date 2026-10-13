@@ -9,3 +9,12 @@
 完整 Windows Rust workspace 构建及回归 **330 通过、0 失败、15 ignored**：核心 110、缓存 1、文件系统 153、HTTP 66。工作区保留 full-get-before.log、get-range-before.log 与 get-validation-after.log，不上传日志或构建产物。未运行真实 OBS/PFS、JVM/Hadoop 或性能基准。
 
 无 Range 206 的拒绝发生在响应体收集后，沿用传输层原有大小和预算限制，不宣称提前停止所有异常响应。服务端错误、已知范围读取以及其他响应码的既有处理不变。
+
+
+## 缺少 Content-Length 的 GET 元数据（2026-10-13）
+
+HTTP 正文可以采用 chunked 编码或连接关闭定界，不一定提供 Content-Length（见 [RFC 9112 §6.3](https://www.rfc-editor.org/rfc/rfc9112.html#section-6.3)）。旧 ObsStore::get_with_etag 仅从头部读取长度，缺少该头时返回 0，即使实际已收到非空正文。现在从传输层已完整收集、解码并校验的 body 获取长度，无需复制或再次读取数据。
+
+完整 GET 的长度是返回对象正文长度；范围 GET 延续已有 Content-Length 语义，报告返回范围的字节数，不将 Content-Range 中的对象总长度混入该字段。HEAD 仍使用服务端头部对象长度，不受此修复影响。响应大小、统一预算、范围校验和 ETag 一致性检查保持不变。
+
+新增本机 HTTP 回归覆盖完整/范围条件读取，分别使用 chunked、连接关闭定界和固定长度，共六种组合；同时断言正文内容和 EOF。修复前 chunked 正文 4 字节却得到元数据长度 0；修复后完整默认 debug workspace **337 通过、0 失败、15 ignored**（核心 110、缓存 1、文件系统 153、HTTP 73）。本地日志 get-length-before.log、get-length-after.log 不上传。本轮未重跑 release/JVM/Hadoop/诊断特性，也未验证真实云环境或生产性能。
