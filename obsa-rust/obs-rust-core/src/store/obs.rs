@@ -302,12 +302,16 @@ impl ObjectStore for ObsStore {
         let content_md5 = BASE64.encode(md5_hash);
         builder = builder.header("Content-MD5", content_md5.clone());
 
+        // PUT response Content-Length describes the response, not the object.
+        let content_length = body.len() as u64;
         let ct = headers.content_type.as_deref().unwrap_or("");
         let resp = self
             .signed_execute(builder.body(body), &content_md5, ct)
             .await?;
         let resp = self.map_response(resp)?;
-        Ok(Self::meta_from_headers(key, &resp.headers))
+        let mut meta = Self::meta_from_headers(key, &resp.headers);
+        meta.content_length = content_length;
+        Ok(meta)
     }
 
     async fn put_empty(&self, key: &str) -> ObsResult<ObjectMeta> {
@@ -537,6 +541,9 @@ impl ObjectStore for ObsStore {
         }
         let etag = xml::parse_result_etag(text, "CompleteMultipartUploadResult")?;
         let mut meta = Self::meta_from_headers(key, &resp.headers);
+        // Part sizes are unavailable here; the output stream supplies the total.
+        // As with copy, never expose the response XML length as object size.
+        meta.content_length = 0;
         meta.etag = Some(etag);
         Ok(meta)
     }

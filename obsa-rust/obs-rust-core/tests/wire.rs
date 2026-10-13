@@ -1177,3 +1177,26 @@ async fn upload_part_etag_failure_aborts_stream_without_complete() {
     assert_eq!(gate.available_permits(), 1);
     assert!(requests[3].starts_with("GET /bucket/probe "));
 }
+
+#[tokio::test]
+async fn put_metadata_uses_uploaded_size_not_response_length() {
+    for body in [bytes::Bytes::new(), bytes::Bytes::from_static(b"uploaded data")] {
+        let size = body.len() as u64;
+        let (store, task) = server(vec![("200 OK", "ETag: \"put-etag\"\r\n", "")]).await;
+        let meta = store.put("file", body, obs_rust_core::store::PutHeaders::default()).await.unwrap();
+        assert_eq!(meta.content_length, size);
+        assert_eq!(meta.etag.as_deref(), Some("put-etag"));
+        assert_eq!(task.await.unwrap().len(), 1);
+    }
+}
+
+#[tokio::test]
+async fn complete_metadata_does_not_report_xml_length_as_object_size() {
+    let (store, task) = server(vec![("200 OK", "",
+        "<CompleteMultipartUploadResult><ETag>final-etag</ETag></CompleteMultipartUploadResult>")]).await;
+    let meta = store.complete_multipart_upload("file", "upload", &[]).await.unwrap();
+    // The direct API has no part lengths; zero follows the existing copy convention.
+    assert_eq!(meta.content_length, 0);
+    assert_eq!(meta.etag.as_deref(), Some("final-etag"));
+    assert_eq!(task.await.unwrap().len(), 1); // No extra HEAD request.
+}
