@@ -4802,3 +4802,27 @@ async fn classified_404_pfs_mkdir_recovers_missing_parent_only() {
     }
     assert_eq!(store.count("folder:"), 5); // child, parent, ancestor, parent, child
 }
+
+
+#[tokio::test]
+async fn append_after_service_404_rename_requires_reopen_only_for_affected_file() {
+    let store = Arc::new(MemoryStore {
+        pfs: true, rename_error: Some(bucket_missing_for_fs_test()),
+        objects: Mutex::new(BTreeMap::from([("source".into(), Bytes::new()), ("other".into(), Bytes::new())])),
+        ..Default::default()
+    });
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    let mut affected = fs.append_stream("/source", 0).await.unwrap();
+    let mut other = fs.append_stream("/other", 0).await.unwrap();
+    assert_eq!(fs.rename("/source", "/target", false).await.unwrap_err().code(), Some("NoSuchBucket"));
+    assert!(affected.write(b"unsafe").await.is_err());
+    assert!(affected.close().await.is_err());
+    other.write(b"safe").await.unwrap();
+    other.close().await.unwrap();
+    assert_eq!(store.count("append:source"), 0);
+    assert_eq!(store.objects.lock().unwrap().get("other").unwrap().as_ref(), b"safe");
+    let mut reopened = fs.append_stream("/source", 0).await.unwrap();
+    reopened.write(b"fresh").await.unwrap();
+    reopened.close().await.unwrap();
+    assert_eq!(store.objects.lock().unwrap().get("source").unwrap().as_ref(), b"fresh");
+}

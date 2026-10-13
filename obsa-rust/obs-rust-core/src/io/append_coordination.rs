@@ -354,7 +354,7 @@ impl RenameGuard {
     pub fn finish(mut self, result: &ObsResult<()>) {
         match result {
             Ok(()) => self.update(true),
-            Err(error) if error.is_not_found() || error.is_conflict_with_code("FileAlreadyExists") => {},
+            Err(error) if error.is_path_not_found() || error.is_conflict_with_code("FileAlreadyExists") => {},
             Err(_) => self.update(false),
         }
         self.armed = false;
@@ -709,6 +709,29 @@ mod tests {
             assert!(destination.key().is_err());
             assert_eq!(unrelated.key().unwrap(), "other");
             assert!(coordinator.state.lock().unwrap().queue.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn rename_service_404_invalidates_only_affected_append_targets() {
+        for directory in [false, true] {
+            for code in ["NoSuchBucket", "NoSuchUpload", "NoSuchCustomDomain", "NoSuchKey", ""] {
+                let coordinator = Arc::new(AppendCoordinator::default());
+                let suffix = if directory { "/file" } else { "" };
+                let source = coordinator.register(format!("source{suffix}")).await;
+                let destination = coordinator.register(format!("destination{suffix}")).await;
+                let sibling = coordinator.register("source-sibling".into()).await;
+                coordinator.rename("source", "destination", directory).await.finish(&Err(ObsError::NotFound {
+                    code: code.into(), message: "missing".into(), request_id: "request".into(),
+                }));
+                let missing_path = code.is_empty() || code == "NoSuchKey";
+                assert_eq!(source.key().is_ok(), missing_path, "{code}");
+                assert_eq!(destination.key().is_ok(), missing_path, "{code}");
+                assert_eq!(sibling.key().unwrap(), "source-sibling");
+                assert!(coordinator.state.lock().unwrap().queue.is_empty());
+                let (_permit, key) = coordinator.append(&sibling).await.unwrap();
+                assert_eq!(key, "source-sibling");
+            }
         }
     }
 
