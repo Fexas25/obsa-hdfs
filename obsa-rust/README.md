@@ -63,10 +63,10 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 
 ## 当前本地验证（2026-10-13）
 
-- 最新默认 Rust workspace debug / release 各 **346 通过、0 失败、15 ignored**。
-- 真实 JVM：debug / release 的基础 JNI 冒烟和新增异常分类测试均通过。
-- Hadoop 3.3.6：报告 **291 项、0 失败、0 错误、12 跳过**。跳过对应普通桶不支持 append 和新建文件 close 才可见的能力边界。
-- `append-diagnostics` 上次验证为 **336 通过、0 失败、15 ignored**；此结果早于近期 404 分类修复，本轮未重跑。
+- 最新默认 Rust workspace debug：**348 通过、0 失败、15 ignored**；`append-diagnostics`：**350 通过、0 失败、15 ignored**。
+- 以下跨层结果来自上一轮、早于追加流服务级 404 隔离修复：release **346 通过、0 失败、15 ignored**。
+- 上一轮真实 JVM：debug / release 的基础 JNI 冒烟和新增异常分类测试均通过。
+- 上一轮 Hadoop 3.3.6：报告 **291 项、0 失败、0 错误、12 跳过**。跳过对应普通桶不支持 append 和新建文件 close 才可见的能力边界。
 
 Rust ignored 项是手动基准，未混入上述通过数。全部使用内存或本机 HTTP 模拟；没有真实云桶、生产作业或跨平台验收结论。详细运行证据见 [LOCAL_VALIDATION.md](docs/LOCAL_VALIDATION.md)。
 

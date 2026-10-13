@@ -1192,3 +1192,12 @@ release filesystem 默认 151、诊断 152 项通过，各 4 ignored。详见 [�
 - 本轮未重跑 append-diagnostics 和手动性能基准；没有真实 OBS/PFS 或生产作业结论。ParentNotFound 恢复由本地 Hadoop 后端与 Rust 故障注入验证，未据此声称所有云端错误码均已覆盖。
 
 工作区保留 post-fs-* 初始验证日志、parent-missing-before.log、jni-error-before.log 和 cross-layer-final-* 最终日志；仅源码、测试、脚本及本说明上传，不提交日志、图片和构建产物。
+
+
+### 2026-10-13：追加流在服务级重命名错误后的隔离
+
+RenameGuard::finish 的最后一处宽泛 is_not_found 判断会让 NoSuchBucket 等服务级 404 走“确定路径缺失”的分支，保留已有追加流。改用 is_path_not_found 后，这些错误沿用其他非确定拒绝的保守策略：源和目标范围内的旧流要求重新打开，无关流继续工作。不改变公平队列、取消处理、重命名成功后的路径迁移或 FileAlreadyExists 的既有处理；NoSuchKey 和无错误码 404 仍保留路径缺失兼容行为。这是本地保守处理策略，不宣称服务端已经发生了部分提交。
+
+新增协调器测试覆盖文件/目录范围、五种 404 错误码、源目标和相邻无关路径、队列释放；新增文件系统测试验证源流后续 write/close 失败且不发送追加，无关流正常写入，并能重新打开源流恢复写入。修复前 NoSuchBucket 用例复现旧流仍可用。
+
+最终默认 Rust debug workspace **348 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 159、HTTP 76）；append-diagnostics **350 通过、0 失败、15 ignored**（核心 113、缓存 1、文件系统 160、HTTP 76）。未运行手动性能基准，没有吞吐改善结论。本轮未重跑 release/JVM/Hadoop，它们上一轮通过的结果对应此修复之前的版本。工作区日志 append-missing-before.log、append-missing-after.log、append-missing-diagnostics.log 不提交。
