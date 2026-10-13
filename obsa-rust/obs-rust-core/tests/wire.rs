@@ -1244,3 +1244,33 @@ async fn metadata_prefix_survives_permission_and_user_metadata_replace() {
         if !permission { assert!(update.contains("x-obs-meta-project: updated\r\n")); }
     }
 }
+
+#[tokio::test]
+async fn metadata_update_case_replaces_existing_header_once() {
+    let (store, task) = server(vec![
+        ("200 OK", "x-obs-meta-project: old\r\nx-obs-meta-keep: retained\r\n", ""),
+        ("200 OK", "", ""),
+    ]).await;
+    store.patch_user_metadata("file", std::collections::HashMap::from([
+        ("PrOjEcT".into(), "new".into()),
+    ])).await.unwrap();
+    let requests = task.await.unwrap();
+    assert_eq!(requests.len(), 2);
+    let update = requests[1].to_ascii_lowercase();
+    let values: Vec<_> = update.lines().filter_map(|line| line.strip_prefix("x-obs-meta-project: ")).collect();
+    assert_eq!(values, vec!["new"]);
+    assert!(update.contains("x-obs-meta-keep: retained\r\n"));
+}
+
+#[tokio::test]
+async fn metadata_update_case_conflict_is_rejected_before_head() {
+    let (store, task) = server(vec![]).await;
+    task.await.unwrap(); // Listener closed; validation must succeed without using it.
+    for values in [("one", "two"), ("same", "same")] {
+        let result = store.patch_user_metadata("file", std::collections::HashMap::from([
+            ("Project".into(), values.0.into()), ("project".into(), values.1.into()),
+        ])).await;
+        assert!(matches!(result, Err(obs_rust_core::ObsError::InvalidArgument(ref message))
+            if message.contains("duplicate metadata key")), "{result:?}");
+    }
+}

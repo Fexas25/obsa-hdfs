@@ -669,12 +669,20 @@ impl ObjectStore for ObsStore {
         key: &str,
         updates: std::collections::HashMap<String, String>,
     ) -> ObsResult<()> {
+        // HTTP metadata names are case-insensitive. Normalize before merging
+        // with HEAD, and reject ambiguous input before any network operation.
+        let mut normalized = std::collections::HashMap::with_capacity(updates.len());
+        for (name, value) in updates {
+            if normalized.insert(name.to_ascii_lowercase(), value).is_some() {
+                return Err(ObsError::InvalidArgument("duplicate metadata key (case-insensitive)".into()));
+            }
+        }
         let current = match self.head(key).await {
             Err(error) if error.is_not_found() && !key.ends_with('/') => self.head(&format!("{key}/")).await?,
             result => result?,
         };
         let mut metadata = current.user_meta;
-        metadata.extend(updates);
+        metadata.extend(normalized);
         let mut builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::PUT)
             .key(&current.key)
             .sub_resource("metadata", None)
