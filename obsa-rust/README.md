@@ -642,3 +642,7 @@ release filesystem 默认 151、诊断 152 项通过，各 4 ignored。详见 [�
 ## 写入结果大小校正（2026-10-13）
 
 PUT 返回实际上传字节数；分片合并不再把 XML 响应长度当成对象大小。完整 Rust 回归 312 通过，0 失败。直接合并 API 的未知大小约定及验证边界见 [WRITE_METADATA.md](docs/WRITE_METADATA.md)。
+
+## 自定义元数据键保留（2026-10-13）
+
+修复重复 `x-obs-meta-` 前缀被多次删除导致的键名碰撞与写回丢失。完整 Rust 回归 314 通过，0 失败。详见 [METADATA_PREFIX.md](docs/METADATA_PREFIX.md)。
