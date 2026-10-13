@@ -1634,3 +1634,30 @@ async fn get_metadata_length_matches_decoded_body_without_content_length() {
         }
     }
 }
+
+
+#[tokio::test]
+async fn full_get_rejects_non_object_success_status_and_releases_budget() {
+    use futures::StreamExt;
+    for conditional in [false, true] {
+        for status in ["201 Created", "202 Accepted", "203 Non-Authoritative Information",
+            "204 No Content", "205 Reset Content", "207 Multi-Status", "226 IM Used"] {
+            let body = if status.starts_with("204") || status.starts_with("205") { "" } else { "oops" };
+            let (store, task) = server_with_config(vec![
+                (status, "ETag: version\r\n", body),
+                ("200 OK", "ETag: version\r\n", "data"),
+                ("200 OK", "ETag: version\r\n", ""),
+            ], ObsConfig { buffer_total_bytes: 4, retry_max_attempts: 0, ..Default::default() }).await;
+            let etag = conditional.then_some("version");
+            let result = store.get_with_etag("file", None, None, etag).await;
+            assert!(matches!(result, Err(obs_rust_core::ObsError::Io(_))),
+                "{status} must not become successful object data");
+            let mut next = store.get_with_etag("file", None, None, etag).await.unwrap();
+            assert_eq!(next.body.next().await.unwrap().unwrap().as_ref(), b"data");
+            drop(next);
+            let empty = store.get_with_etag("empty", None, None, etag).await.unwrap();
+            assert_eq!(empty.meta.content_length, 0);
+            assert_eq!(task.await.unwrap().len(), 3);
+        }
+    }
+}

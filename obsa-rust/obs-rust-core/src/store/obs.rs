@@ -291,8 +291,9 @@ impl ObjectStore for ObsStore {
         }
         let resp = self.map_response(resp)?;
 
-        if range.is_none() && resp.status == http::StatusCode::PARTIAL_CONTENT {
-            return Err(ObsError::Io("unexpected partial response to full object GET".into()));
+        if range.is_none() && resp.status != http::StatusCode::OK {
+            return Err(ObsError::Io(format!(
+                "unexpected status {} for full object GET (expected 200)", resp.status.as_u16())));
         }
         let mut meta = Self::meta_from_headers(key, &resp.headers);
         // The transport has already decoded and collected the complete body.
