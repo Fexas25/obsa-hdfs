@@ -1274,3 +1274,48 @@ async fn metadata_update_case_conflict_is_rejected_before_head() {
             if message.contains("duplicate metadata key")), "{result:?}");
     }
 }
+
+#[tokio::test]
+async fn metadata_create_case_collisions_fail_before_network() {
+    let (store, task) = server(vec![]).await;
+    task.await.unwrap();
+    for multipart in [false, true] {
+        for second in ["Project", "project"] {
+            let headers = obs_rust_core::store::PutHeaders {
+                user_meta: vec![("Project".into(), "one".into()), (second.into(), "two".into())],
+                ..Default::default()
+            };
+            let result = if multipart {
+                store.initiate_multipart_upload_with_headers("file", headers).await.map(|_| ())
+            } else {
+                store.put("file", bytes::Bytes::from_static(b"data"), headers).await.map(|_| ())
+            };
+            assert!(matches!(result, Err(obs_rust_core::ObsError::InvalidArgument(ref message))
+                if message.contains("duplicate metadata key")), "{result:?}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn metadata_create_normalizes_keys_and_preserves_values() {
+    for multipart in [false, true] {
+        let response = if multipart {
+            "<InitiateMultipartUploadResult><UploadId>upload</UploadId></InitiateMultipartUploadResult>"
+        } else { "" };
+        let (store, task) = server(vec![("200 OK", "", response)]).await;
+        let headers = obs_rust_core::store::PutHeaders {
+            user_meta: vec![("PrOjEcT".into(), "Mixed Value".into()),
+                ("X-Obs-Meta-Tag".into(), "Nested".into())],
+            ..Default::default()
+        };
+        if multipart {
+            store.initiate_multipart_upload_with_headers("file", headers).await.unwrap();
+        } else {
+            store.put("file", bytes::Bytes::from_static(b"data"), headers).await.unwrap();
+        }
+        let requests = task.await.unwrap();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].contains("x-obs-meta-project: Mixed Value\r\n"));
+        assert!(requests[0].contains("x-obs-meta-x-obs-meta-tag: Nested\r\n"));
+    }
+}

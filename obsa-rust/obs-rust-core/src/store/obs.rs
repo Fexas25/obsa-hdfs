@@ -145,6 +145,19 @@ impl ObsStore {
         ))
     }
 
+    fn normalize_user_metadata(
+        metadata: impl IntoIterator<Item = (String, String)>,
+    ) -> ObsResult<std::collections::HashMap<String, String>> {
+        let entries = metadata.into_iter();
+        let mut normalized = std::collections::HashMap::with_capacity(entries.size_hint().0);
+        for (name, value) in entries {
+            if normalized.insert(name.to_ascii_lowercase(), value).is_some() {
+                return Err(ObsError::InvalidArgument("duplicate metadata key (case-insensitive)".into()));
+            }
+        }
+        Ok(normalized)
+    }
+
     fn meta_from_headers(key: &str, headers: &BTreeMap<String, String>) -> ObjectMeta {
         let get = |name: &str| -> Option<String> {
             headers
@@ -282,6 +295,7 @@ impl ObjectStore for ObsStore {
     }
 
     async fn put(&self, key: &str, body: Bytes, headers: PutHeaders) -> ObsResult<ObjectMeta> {
+        let metadata = Self::normalize_user_metadata(headers.user_meta)?;
         let mut builder =
             RequestBuilder::new(&self.config, &self.config.bucket, Method::PUT).key(key);
 
@@ -291,7 +305,7 @@ impl ObjectStore for ObsStore {
         if let Some(ct) = &headers.content_type {
             builder = builder.header("Content-Type", ct.clone());
         }
-        for (k, v) in &headers.user_meta {
+        for (k, v) in &metadata {
             builder = builder.obs_header(format!("x-obs-meta-{k}"), v.clone());
         }
 
@@ -460,6 +474,7 @@ impl ObjectStore for ObsStore {
         key: &str,
         headers: PutHeaders,
     ) -> ObsResult<String> {
+        let metadata = Self::normalize_user_metadata(headers.user_meta)?;
         let mut builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::POST)
             .key(key)
             .sub_resource("uploads", None)
@@ -467,7 +482,7 @@ impl ObjectStore for ObsStore {
         if headers.hdfs_client {
             builder = builder.obs_header("x-obs-hdfs", "true");
         }
-        for (key, value) in &headers.user_meta {
+        for (key, value) in &metadata {
             builder = builder.obs_header(format!("x-obs-meta-{key}"), value);
         }
         let resp = self
@@ -669,14 +684,7 @@ impl ObjectStore for ObsStore {
         key: &str,
         updates: std::collections::HashMap<String, String>,
     ) -> ObsResult<()> {
-        // HTTP metadata names are case-insensitive. Normalize before merging
-        // with HEAD, and reject ambiguous input before any network operation.
-        let mut normalized = std::collections::HashMap::with_capacity(updates.len());
-        for (name, value) in updates {
-            if normalized.insert(name.to_ascii_lowercase(), value).is_some() {
-                return Err(ObsError::InvalidArgument("duplicate metadata key (case-insensitive)".into()));
-            }
-        }
+        let normalized = Self::normalize_user_metadata(updates)?;
         let current = match self.head(key).await {
             Err(error) if error.is_not_found() && !key.ends_with('/') => self.head(&format!("{key}/")).await?,
             result => result?,
