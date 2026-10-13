@@ -1464,3 +1464,33 @@ async fn object_key_leading_slash_matches_signed_wire_path() {
         &urlencoding::decode(path).unwrap(), &Credentials::new("AK", "SK"));
     assert_eq!(headers["authorization"], expected.authorization);
 }
+
+#[tokio::test]
+async fn full_get_rejects_unsolicited_partial_response_and_releases_budget() {
+    use futures::StreamExt;
+    for conditional in [false, true] {
+        let (store, task) = server_with_config(vec![
+            ("206 Partial Content", "Content-Range: bytes 0-3/8\r\nETag: version\r\n", "part"),
+            ("200 OK", "", "full"),
+        ], ObsConfig { buffer_total_bytes: 4, retry_max_attempts: 0, ..Default::default() }).await;
+        let result = store.get_with_etag("file", None, None, conditional.then_some("version")).await;
+        assert!(matches!(result, Err(obs_rust_core::ObsError::Io(_))),
+            "a partial object must not be returned as a successful full GET");
+        let mut next = store.get("probe", None, None).await.unwrap();
+        assert_eq!(next.body.next().await.unwrap().unwrap().as_ref(), b"full");
+        let requests = task.await.unwrap();
+        assert_eq!(requests.len(), 2);
+        assert!(!requests[0].to_ascii_lowercase().contains("\r\nrange:"));
+    }
+}
+
+#[tokio::test]
+async fn inverted_get_range_is_rejected_before_network() {
+    let (store, task) = server(vec![]).await;
+    task.await.unwrap();
+    for range in [(1, 0), (u64::MAX, 0), (u64::MAX, u64::MAX-1)] {
+        let result = store.get("file", Some(range), None).await;
+        assert!(matches!(result, Err(obs_rust_core::ObsError::InvalidArgument(_))),
+            "inverted range must fail locally");
+    }
+}

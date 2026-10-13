@@ -274,6 +274,9 @@ impl ObjectStore for ObsStore {
         }
 
         if let Some((start, end)) = range {
+            if end < start {
+                return Err(ObsError::InvalidArgument("GET range end precedes start".into()));
+            }
             builder = builder.header("Range", format!("bytes={start}-{end}"));
         }
 
@@ -288,6 +291,9 @@ impl ObjectStore for ObsStore {
         }
         let resp = self.map_response(resp)?;
 
+        if range.is_none() && resp.status == http::StatusCode::PARTIAL_CONTENT {
+            return Err(ObsError::Io("unexpected partial response to full object GET".into()));
+        }
         let meta = Self::meta_from_headers(key, &resp.headers);
         let body_bytes = resp.body;
         let stream = stream::once(async move { Ok(body_bytes) });
