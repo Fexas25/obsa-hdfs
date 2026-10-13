@@ -1591,3 +1591,46 @@ async fn complete_parts_preserves_sparse_order_and_opaque_etags() {
     assert!(body.contains("<PartNumber>1</PartNumber><ETag>\"a&amp;b\"</ETag>"));
     assert!(body.contains("<PartNumber>10000</PartNumber><ETag>\" opaque \"</ETag>"));
 }
+
+
+#[tokio::test]
+async fn get_metadata_length_matches_decoded_body_without_content_length() {
+    use futures::StreamExt;
+    for ranged in [false, true] {
+        for (framing, payload, expected) in [
+            ("Transfer-Encoding: chunked\r\n", "2\r\nab\r\n2\r\ncd\r\n0\r\n\r\n", "abcd"),
+            ("", "abcd", "abcd"),
+            ("Content-Length: 4\r\n", "abcd", "abcd"),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let task = tokio::spawn(async move {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                let mut chunk = [0; 1024];
+                while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+                    let n = socket.read(&mut chunk).await.unwrap();
+                    assert!(n > 0);
+                    request.extend_from_slice(&chunk[..n]);
+                }
+                let (status, range) = if ranged {
+                    ("206 Partial Content", "Content-Range: bytes 2-5/9\r\n")
+                } else { ("200 OK", "") };
+                let response = format!("HTTP/1.1 {status}\r\n{framing}{range}ETag: version\r\nConnection: close\r\n\r\n{payload}");
+                socket.write_all(response.as_bytes()).await.unwrap();
+            });
+            let store = ObsStore::new(ObsConfig {
+                endpoint: format!("http://{address}"), secure: false,
+                addressing_style: AddressingStyle::Path, bucket: "bucket".into(),
+                bucket_mode: BucketMode::Pfs, retry_max_attempts: 0,
+                ..Default::default()
+            }, CredentialChain::new(Credentials::new("AK", "SK")));
+            let mut result = store.get_with_etag("file", ranged.then_some((2, 5)), None, Some("version"))
+                .await.unwrap();
+            assert_eq!(result.meta.content_length, expected.len() as u64, "ranged={ranged}, framing={framing:?}");
+            assert_eq!(result.body.next().await.unwrap().unwrap().as_ref(), expected.as_bytes());
+            assert!(result.body.next().await.is_none());
+            task.await.unwrap();
+        }
+    }
+}

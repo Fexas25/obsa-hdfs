@@ -294,7 +294,10 @@ impl ObjectStore for ObsStore {
         if range.is_none() && resp.status == http::StatusCode::PARTIAL_CONTENT {
             return Err(ObsError::Io("unexpected partial response to full object GET".into()));
         }
-        let meta = Self::meta_from_headers(key, &resp.headers);
+        let mut meta = Self::meta_from_headers(key, &resp.headers);
+        // The transport has already decoded and collected the complete body.
+        // Content-Length may be absent for chunked or close-delimited responses.
+        meta.content_length = resp.body.len() as u64;
         let body_bytes = resp.body;
         let stream = stream::once(async move { Ok(body_bytes) });
 
