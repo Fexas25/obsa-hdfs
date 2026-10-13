@@ -672,3 +672,7 @@ PUT、分片初始化与用户元数据更新现共用键名归一化及重复�
 ## 读取边界校验（2026-10-13）
 
 完整 GET 拒绝意外 206 部分响应，倒置范围在网络请求前拒绝；新增失败后预算释放验证。完整 Rust 回归 330 通过。详见 [GET_VALIDATION.md](docs/GET_VALIDATION.md)。
+
+## 写入结果类型校正（2026-10-13）
+
+对象 Content-Type 不再继承 XML 响应类型，分片上传流保留已知请求类型。完整 Rust 回归 332 通过。详见 [WRITE_METADATA.md](docs/WRITE_METADATA.md)。
