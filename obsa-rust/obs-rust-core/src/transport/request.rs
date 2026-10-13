@@ -101,9 +101,10 @@ impl RequestBuilder {
         let host = endpoint
             .trim_start_matches("https://")
             .trim_start_matches("http://");
+        // Object keys are opaque. Filesystem paths are normalized by the FS
+        // layer; stripping here would disagree with the signed resource.
         let key = self
             .key
-            .trim_start_matches('/')
             .split('/')
             .map(|part| urlencoding::encode(part).into_owned())
             .collect::<Vec<_>>()
@@ -205,5 +206,23 @@ mod debug_tests {
         }
         assert_eq!(request.body.as_deref(), Some(b"private-body".as_slice()));
         assert_eq!(request.headers["aUtHoRiZaTiOn"], "private-auth");
+    }
+}
+
+#[cfg(test)]
+mod key_path_tests {
+    use super::*;
+    #[test]
+    fn object_key_leading_slashes_survive_all_addressing_styles() {
+        for style in [AddressingStyle::Path, AddressingStyle::Vhost, AddressingStyle::Cname] {
+            let config = ObsConfig { endpoint: "example.invalid".into(), addressing_style: style,
+                ..Default::default() };
+            for (key, encoded) in [("/file", "/file"), ("//a b/文件", "//a%20b/%E6%96%87%E4%BB%B6"),
+                ("/", "/"), ("plain", "plain"), ("", "")] {
+                let uri = RequestBuilder::new(&config, "bucket", Method::GET).key(key).build_uri().unwrap();
+                let prefix = if matches!(style, AddressingStyle::Path) { "/bucket/" } else { "/" };
+                assert_eq!(uri.path(), format!("{prefix}{encoded}"));
+            }
+        }
     }
 }

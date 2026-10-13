@@ -1445,3 +1445,22 @@ async fn batch_delete_escapes_cr_and_hashes_transmitted_xml() {
     }).unwrap();
     assert_eq!(sent_md5, md5);
 }
+
+#[tokio::test]
+async fn object_key_leading_slash_matches_signed_wire_path() {
+    let (store, task) = server(vec![("200 OK", "", "")]).await;
+    store.head("//a b/文件").await.unwrap();
+    let requests = task.await.unwrap();
+    let request = &requests[0];
+    let path = request.lines().next().unwrap().split_whitespace().nth(1).unwrap();
+    assert_eq!(path, "/bucket///a%20b/%E6%96%87%E4%BB%B6");
+    let headers: BTreeMap<String, String> = request.lines().skip(1).filter_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        Some((name.to_ascii_lowercase(), value.trim().to_string()))
+    }).collect();
+    let signed_headers = headers.iter().filter(|(name, _)| name.starts_with("x-obs-"))
+        .map(|(name, value)| (name.clone(), value.clone())).collect();
+    let expected = ObsSigner::sign("HEAD", "", "", &headers["date"], &signed_headers,
+        &urlencoding::decode(path).unwrap(), &Credentials::new("AK", "SK"));
+    assert_eq!(headers["authorization"], expected.authorization);
+}
