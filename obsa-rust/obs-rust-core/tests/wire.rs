@@ -1409,3 +1409,20 @@ async fn metadata_invalid_fields_are_rejected_before_network() {
         }
     }
 }
+
+#[tokio::test]
+async fn batch_fallback_releases_error_body_before_individual_deletes() {
+    let body = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    let (store, task) = server_with_config(vec![
+        ("501 Not Implemented", "", body),
+        ("200 OK", "", body),
+        ("200 OK", "", body),
+    ], ObsConfig { buffer_total_bytes: 128, retry_max_attempts: 0, ..Default::default() }).await;
+    let result = store.delete_batch(&["first".into(), "second".into()]).await;
+    assert!(result.is_ok(), "fallback must release the 501 response budget: {result:?}");
+    let requests = task.await.unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(requests[0].starts_with("POST /bucket/?delete "));
+    assert!(requests[1].starts_with("DELETE /bucket/first "));
+    assert!(requests[2].starts_with("DELETE /bucket/second "));
+}

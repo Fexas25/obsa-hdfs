@@ -374,6 +374,9 @@ impl ObjectStore for ObsStore {
             .signed_execute(builder, &content_md5, "application/xml")
             .await?;
         if resp.status.as_u16() == 501 {
+            // The fallback no longer needs this response. Return its shared
+            // body budget before issuing any individual delete requests.
+            drop(resp);
             for key in keys {
                 match self.delete(key, self.is_pfs()).await {
                     Ok(()) => {}
