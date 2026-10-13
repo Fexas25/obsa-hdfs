@@ -23,3 +23,9 @@
 失败不代表服务端没有保存该分片。已知 MPU 的清理继续沿用原有 abort/日志机制；本轮只验证本地模拟的清理成功路径，不新增断点续传、提交结果确认或远端无残留保证。尚未验证真实 OBS/PFS，不宣称生产吞吐改善。
 
 本地工作区保留 part-etag-before-tests.log、part-etag-after-tests.log 和 part-etag-full-tests.log；GitHub 仅提交源码、测试及项目文档，不提交日志、图片或构建产物。
+
+## 2026-10-13：直接上传段的段号预检
+
+依据同一华为 UploadPart 文档规定的 1..=10000，ObsStore::upload_part 现在在计算 MD5 和发送请求之前拒绝范围外的段号。上层上传流已有段数限制，本轮补齐直接调用入口。新增测试覆盖负数、0、10001、i32 两端以及合法端点 1/10000；合法端点仍允许空尾段。
+
+修改前非法段号测试返回连接错误，合法端点测试通过；修改后完整默认 Rust 回归 **334 通过、0 失败、15 ignored**。本地失败日志 part-number-before.log，最终日志 part-number-after.log。后续扩展的 debug/release/JNI/Hadoop 验证见 LOCAL_VALIDATION.md 中的 2026-10-13 综合复验记录。本轮未扩展 CompleteMultipartUpload 入参校验或改变远端段大小规则。

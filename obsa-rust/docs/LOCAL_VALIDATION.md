@@ -1161,3 +1161,18 @@ release filesystem 默认 151、诊断 152 项通过，各 4 ignored。详见 [�
 ### 2026-10-12：分片上传响应 ETag 校验
 
 拒绝 UploadPart 成功响应中缺失或空白 ETag，避免空值进入合并段列表。新增三项 HTTP 回归，包含实际上传流 abort、不发送 complete、名额和共享预算复用；旧实现缺失 ETag 时返回空字符串的问题已复现。完整 Rust workspace 310 通过、0 失败、15 ignored，本地 HTTP 49 项通过。详见[修复及验证边界](PART_ETAG.md)。
+
+
+### 2026-10-13：近期协议修复的综合复验
+
+在 XML 回车保真、对象键路径、GET 边界、写入对象类型和段号入口修复后的同一份源码上执行：
+
+- 默认 Rust workspace debug 构建与测试：334 通过、0 失败、15 ignored；核心 110、缓存 1、文件系统 153、HTTP 70。
+- 默认 Rust workspace release 构建与测试：334 通过、0 失败、15 ignored。另用 cargo build --release 构建实际 JNI 动态库；cargo test 自身不保证生成可加载的顶层 DLL。
+- append-diagnostics 特性：336 通过、0 失败、15 ignored；核心 111、缓存 1、文件系统 154、HTTP 70。此特性没有带入默认 JNI 库。
+- 真实 JVM JNI smoke：debug 与 release DLL 均通过创建/写入/关闭/状态/打开/读取/EOF/seek/非法边界/句柄清理。
+- Hadoop 3.3.6 本地适配器与契约测试：Maven BUILD SUCCESS，报告 291 项、0 failures、0 errors、12 skipped，即 279 项非跳过；跳过来自 ObsAppendContractTest 的 8 项和 ObsCreateContractTest 的 4 项。
+
+全部使用本机模拟或内存后端，无真实 OBS/PFS。15 个 Rust ignored 均为需显式运行的手动基准，此次没有重新测量性能。未把历史吞吐数字当作当前发布性能保证。Maven 的已有依赖模型警告及 Windows linker 提示未导致构建失败。
+
+工作区保存 part-number-after.log、integration-refresh-release.log、integration-refresh-features.log、integration-refresh-jni.log、integration-refresh-release-build.log、integration-refresh-release-jni-final.log、integration-refresh-hadoop.log 及解析后的套件摘要；只同步项目源码、测试和文档，不上传日志、产物或图片。
