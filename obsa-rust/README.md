@@ -656,3 +656,7 @@ PUT、分片初始化与用户元数据更新现共用键名归一化及重复�
 已补充目录元数据写回、HEAD 服务错误和不存在目录的 HTTP 边界测试；完整 Rust 回归 321 通过。详见 [METADATA_CASE.md](docs/METADATA_CASE.md)。
 
 非法元数据名称和值现于远端读取前拒绝，错误不回显私有值；完整 Rust 回归 322 通过。详见 [METADATA_CASE.md](docs/METADATA_CASE.md)。
+
+## 批量删除回退预算（2026-10-13）
+
+501 回退逐个删除前释放原响应体，避免无用缓冲占满共享预算。完整 Rust 回归 323 通过，0 失败。详见 [DELETE_FALLBACK_BUDGET.md](docs/DELETE_FALLBACK_BUDGET.md)。
