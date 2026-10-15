@@ -1292,3 +1292,12 @@ etag-quotes-before.log、etag-quotes-after.log 及 protocol-final-* 日志仅保
 Rust OpenOptions.status_hint 可以提供已有状态以避免查询，但根目录始终是目录。修复前伪造 FileStatus::file("/") 可使 open("/") 返回输入流；现在在读取提示之前拒绝根目录，返回 IsDirectory。普通桶和 PFS 回归均验证该错误且后端请求数为零。
 
 默认 Rust workspace debug/release 各 **370 通过、0 失败、16 ignored**。未重跑 JNI/Hadoop/append-diagnostics 或手动基准；对应的上批结果不是本次修改的新增验收。root-open-hint-* 日志仅保存在工作区。
+
+
+### 2026-10-15：目录批量修改前拒绝隐藏对象冲突
+
+普通桶递归删除和目录重命名先完成全量分页与重复项验证，再以借用键集合检查文件前缀冲突。发现 a 与 a/b 或 a/ 共存时返回 Io，尚未执行复制、删除或父目录标记写入；保留原始对象供底层 ObjectStore 单独处理。PFS 保持原有路径。预检没有增加 HEAD，但需要 O(文件数) 的辅助元数据空间；不保证枚举期间或预检之后外部并发修改的一致性，也没有把 copy/delete 变成原子操作。
+
+修复前确定性测试重现冲突目录操作返回成功。新增测试覆盖删除/重命名、子文件/目录标记、跨页及相反页序，断言对象快照不变且 PUT/COPY/DELETE 均为零。另测中文完整路径段：文件“文件”不阻断“文件夹/child”，合法目录仍可完整移动或删除。Hadoop 本机 HTTP/JNI 回归覆盖两种冲突和两类操作，逐个校验所有对象的键与字节内容均保留。
+
+默认 Rust workspace debug/release 各 **372 通过、0 失败、16 ignored**（核心 112、缓存 1、文件系统 180、HTTP 79）；append-diagnostics **374 通过、0 失败、16 ignored**。显式构建 debug/release 动态库后，真实 JVM 基础与异常分类冒烟均通过。Hadoop **297 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。未执行新的性能基准或真实云验收；bulk-namespace-* 日志与补丁仅保存在工作区。
