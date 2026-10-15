@@ -1230,3 +1230,14 @@ etag-quotes-before.log、etag-quotes-after.log 及 protocol-final-* 日志仅保
 本节仅描述直接请求冲突路径的处理，不代表父目录跨页列举中所有潜在冲突或外部写入一致性已全面验收。无真实云服务或性能改善结论。
 
 最终源码的默认 Rust workspace debug / release 各 **354 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 162、HTTP 79）；显式构建 debug JNI 动态库后，NativeSmokeTest 与 NativeErrorSmokeTest 通过；Hadoop **292 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。release JVM、append-diagnostics 和手动性能基准本批未重跑。file-precedence-* 及早期 summary/listing-collision-* 日志仅保存在工作区。
+
+
+### 2026-10-15：父目录前缀冲突与缓存回填
+
+进一步发现父目录 LIST 先返回 CommonPrefixes 时，同名对象可能被同页去重跳过，并将目录状态写入缓存。普通桶的目录前缀/斜杠标记现在在返回与缓存前确认无斜杠的同名对象；命中文件时以文件状态返回。分页 files-only 过滤移到状态解析之后，避免把已解析为文件的前缀漏掉。跨页去重仍由无状态分页接口的调用方负责，Java 迭代器保留原有去重机制。
+
+新增 Rust 回归覆盖父目录普通/分页列举、前缀先于文件的跨页返回、files-only 过滤、服务级 404 与 PFS 零新增 HEAD。确定性并发测试让前缀 HEAD 返回旧快照前删除对象，验证旧快照可返回但不得重新污染缓存。Hadoop 新增父目录 listStatus/listStatusIterator/listFiles(false) 端到端测试，检查后续 status 和内容统计仍按文件处理。修复前已复现父目录将文件返回为目录。
+
+代价是普通桶未缓存的目录列表项增加同名对象 HEAD；文件列表项与 PFS 不增加此请求。该批为一致性修复，没有声称目录密集负载吞吐改善。未对所有外部并发写入及递归祖先遮蔽语义作全面验收。
+
+最终源码默认 Rust workspace debug / release 各 **358 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 166、HTTP 79）。显式构建两种 JNI 动态库后，debug/release 的 NativeSmokeTest 与 NativeErrorSmokeTest 均通过。Hadoop **293 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。未重跑 append-diagnostics 或性能基准。parent-collision-before.log、parent-collision-after.log 和 parent-probe-* 日志仅保留在工作区。
