@@ -1252,3 +1252,14 @@ etag-quotes-before.log、etag-quotes-after.log 及 protocol-final-* 日志仅保
 祖先探测增加普通桶未缓存祖先的 HEAD；完整扫描的祖先表按不同祖先数增长，无状态分页按当前页涉及的祖先数增长，属于元数据开销，不计入数据缓冲预算。目录密集负载的真实服务吞吐尚未测量。该批验证列举与容量统计的可见性，不承诺外部并发修改下的一致快照，也未声明所有显式子路径操作已经拒绝被遮蔽对象。
 
 额外验证连续多个完全隐藏的页不会使 Hadoop 迭代提前 EOF；确定性取消测试验证祖先 HEAD 等待期间取消后，StatusCursor 重试相同 marker，不跳页。最终默认 Rust debug / release 各 **363 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 171、HTTP 79）；append-diagnostics **365 通过、0 失败、15 ignored**。debug/release 实际 JNI 动态库的基础和异常分类 JVM 测试通过；Hadoop **294 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。没有新增跳过项，未运行性能基准或真实云验证。recursive-shadow-* 日志仅保留在工作区。
+
+
+### 2026-10-15：显式隐藏路径的文件系统入口保护
+
+按确认规则，普通桶存在文件 a 时，显式 /a/b 也不可通过文件系统访问。祖先检查在子路径缓存命中之前执行；状态提示 open 与带 marker 的列举续页同样检查。查询/打开/列举/统计返回本地 NoSuchKey，Hadoop 映射 FileNotFoundException；exists 返回 false，delete 和源路径缺失的 rename 沿用 false。创建、mkdir 和元数据入口也不能绕过该保护。PFS 不增加此类祖先 HEAD；ObjectStore 原始对象接口不变。
+
+新增 Rust 测试验证已缓存子对象、open 状态提示、创建/覆盖、权限/所有者、重命名源目标和续页；断言隐藏对象内容不变，且无 GET、PUT、COPY、DELETE 等访问/修改请求。服务级祖先错误继续传播，不能变成 exists=false。Hadoop 新增冷/热缓存端到端回归，检查隐藏查询、打开、列举、统计、删除、重命名及覆盖失败后对象仍保留。
+
+未缓存或被失效的普通桶祖先会增加 HEAD，即使子文件状态已缓存；原有权限/长度缓存仍保留。缓存 TTL 与外部修改限制仍适用，不承诺即时发现绕过文件系统的并发修改，也不撤销已经打开的流。该批未改变父目录批量删除/重命名对前缀内原始对象的处理规则。
+
+最终默认 Rust workspace debug / release 各 **367 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 175、HTTP 79）。显式构建 debug JNI 动态库后，基础与异常分类 JVM 冒烟通过；Hadoop **295 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。release JVM、append-diagnostics 和性能基准本批未重跑。explicit-shadow-* 日志仅保存在工作区。
