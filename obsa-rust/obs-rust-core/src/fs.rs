@@ -250,6 +250,8 @@ impl ObsFileSystem {
     }
     pub async fn open(&self, path: &str, options: OpenOptions) -> ObsResult<ObsInputStream> {
         let key = self.key(path)?;
+        // Root is always a directory, including when a caller supplies a hint.
+        if key.is_empty() { return Err(ObsError::IsDirectory(path.into())); }
         let status = match options.status_hint {
             Some(s) if self.key(&s.path)? == key => {
                 self.ensure_visible_path(&key).await?;

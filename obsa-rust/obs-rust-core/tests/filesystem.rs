@@ -5319,3 +5319,15 @@ async fn recursive_cursor_ancestor_latency_benchmark() {
             stateless[SAMPLES / 2], cached[SAMPLES / 2]);
     }
 }
+
+#[tokio::test]
+async fn root_open_cannot_be_overridden_by_file_status_hint() {
+    for pfs in [false, true] {
+        let store = Arc::new(MemoryStore { pfs, ..Default::default() });
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let hint = obs_rust_core::types::FileStatus::file("/", 1, 0o644);
+        assert!(matches!(fs.open("/", OpenOptions { status_hint: Some(hint), ..Default::default() }).await,
+            Err(ObsError::IsDirectory(_))));
+        assert!(store.calls.lock().unwrap().is_empty());
+    }
+}
