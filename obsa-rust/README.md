@@ -53,6 +53,7 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 核心支持状态查询、读写、目录、分页列举、删除、重命名、追加、截断、容量统计与权限元数据，并提供缓存、有界预读、分片上传和已知 MPU 恢复。
 
 - 普通桶读取默认检查 ETag，避免混合不同修订的数据。PFS 使用可变文件语义，不承诺快照读取。
+- 普通桶列举与容量统计按文件优先：同时存在 `a` 与 `a/b` 时，父目录递归结果隐藏 `a/b`，统计也不计入它。未缓存目录与祖先可能增加 HEAD；不保证外部并发修改下的一致快照。
 - 新建上传文件在 close 时提交，`hflush/hsync` 不提供即时可见性；PFS append 同步等待已提交写入。普通桶 rename 是 copy/delete，不具备 HDFS 原子重命名保证。
 - 上传初始化/完成及 PFS rename 不自动重试；已发往服务端的写入不能靠本地取消回滚。
 - 可选 `fs.obs.buffer.total.bytes`（默认 0，关闭）统一计费受控数据缓冲；不包含所有 TLS/Hyper/分配器及元数据开销，不能当作进程 RSS 上限。
@@ -63,10 +64,10 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 
 ## 当前本地验证（2026-10-15）
 
-- 最新默认 Rust workspace debug / release 各 **358 通过、0 失败、15 ignored**。
+- 最新默认 Rust workspace debug / release 各 **363 通过、0 失败、15 ignored**。
 - 真实 JVM：debug / release 的基础 JNI 冒烟和异常分类测试均通过。
-- Hadoop 3.3.6：**293 项、0 失败、0 错误、12 跳过**。跳过对应普通桶不支持 append 和新建文件 close 才可见的能力边界。
-- `append-diagnostics` 上次为 **350 通过、0 失败、15 ignored**，早于此次 LIST/ETag 与文件优先修复，本轮未重跑。
+- Hadoop 3.3.6：**294 项、0 失败、0 错误、12 跳过**。跳过对应普通桶不支持 append 和新建文件 close 才可见的能力边界。
+- 最新 `append-diagnostics`：**365 通过、0 失败、15 ignored**。
 
 Rust ignored 项是手动基准，未混入上述通过数。全部使用内存或本机 HTTP 模拟；没有真实云桶、生产作业或跨平台验收结论。详细运行证据见 [LOCAL_VALIDATION.md](docs/LOCAL_VALIDATION.md)。
 

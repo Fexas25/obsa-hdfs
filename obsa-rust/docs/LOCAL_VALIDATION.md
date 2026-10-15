@@ -1241,3 +1241,14 @@ etag-quotes-before.log、etag-quotes-after.log 及 protocol-final-* 日志仅保
 代价是普通桶未缓存的目录列表项增加同名对象 HEAD；文件列表项与 PFS 不增加此请求。该批为一致性修复，没有声称目录密集负载吞吐改善。未对所有外部并发写入及递归祖先遮蔽语义作全面验收。
 
 最终源码默认 Rust workspace debug / release 各 **358 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 166、HTTP 79）。显式构建两种 JNI 动态库后，debug/release 的 NativeSmokeTest 与 NativeErrorSmokeTest 均通过。Hadoop **293 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。未重跑 append-diagnostics 或性能基准。parent-collision-before.log、parent-collision-after.log 和 parent-probe-* 日志仅保留在工作区。
+
+
+### 2026-10-15：递归列举与容量统计中的文件遮蔽
+
+按确认的文件系统可见性规则，普通桶同时存在 a 与 a/b 时，父目录递归列举不返回 a/b，容量统计不计入它；冲突的 a/ 标记也不计为目录。递归列表和汇总逐条检查路径段祖先，遇到文件即停止；因此不依赖 LIST 页序，也不会把 a 与 ab 混淆。完整列表/汇总扫描复用祖先判断；无状态分页入口只在当页保留这些判断，后续页仍可复用已存在的状态缓存。PFS 不进行此类探测。
+
+新增 Rust 测试覆盖对象、标记及多层后代、跨页子对象先返回、相邻路径名、祖先服务级 404，以及 PFS 零新增 HEAD。原有跨页重复对象检查仍处理隐藏条目；不可用遮蔽规则掩盖畸形分页。Hadoop 端到端验证根目录递归迭代和汇总长度/文件数/目录数，仍使用每页 3 项的本机 HTTP 模拟。
+
+祖先探测增加普通桶未缓存祖先的 HEAD；完整扫描的祖先表按不同祖先数增长，无状态分页按当前页涉及的祖先数增长，属于元数据开销，不计入数据缓冲预算。目录密集负载的真实服务吞吐尚未测量。该批验证列举与容量统计的可见性，不承诺外部并发修改下的一致快照，也未声明所有显式子路径操作已经拒绝被遮蔽对象。
+
+额外验证连续多个完全隐藏的页不会使 Hadoop 迭代提前 EOF；确定性取消测试验证祖先 HEAD 等待期间取消后，StatusCursor 重试相同 marker，不跳页。最终默认 Rust debug / release 各 **363 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 171、HTTP 79）；append-diagnostics **365 通过、0 失败、15 ignored**。debug/release 实际 JNI 动态库的基础和异常分类 JVM 测试通过；Hadoop **294 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。没有新增跳过项，未运行性能基准或真实云验证。recursive-shadow-* 日志仅保留在工作区。
