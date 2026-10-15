@@ -423,6 +423,34 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void explicitHiddenChildCannotBeReadOrMutatedEvenAfterCaching() throws Exception {
+    for (boolean warm : new boolean[] {false, true}) {
+      open(false);
+      data.clear();
+      data.put("a/b", new byte[6]);
+      Path child = new Path("/a/b");
+      if (warm) assertTrue(fs.getFileStatus(child).isFile());
+      data.put("a", new byte[3]);
+      assertFalse(fs.exists(child));
+      try { fs.getFileStatus(child); fail("hidden status"); }
+      catch (FileNotFoundException expected) { }
+      try (FSDataInputStream ignored = fs.open(child)) { fail("hidden open"); }
+      catch (FileNotFoundException expected) { }
+      try { fs.listStatus(child); fail("hidden listing"); }
+      catch (FileNotFoundException expected) { }
+      try { fs.getContentSummary(child); fail("hidden summary"); }
+      catch (FileNotFoundException expected) { }
+      assertFalse(fs.delete(child, true));
+      assertFalse(fs.rename(child, new Path("/target")));
+      try (FSDataOutputStream ignored = fs.create(child, true)) { fail("hidden overwrite"); }
+      catch (IOException expected) { }
+      assertEquals(6, data.get("a/b").length);
+      assertEquals(3, data.get("a").length);
+      assertFalse(data.containsKey("target"));
+    }
+  }
+
+  @Test
   public void directoryIteratorFetchesOnlyConsumedPages() throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
       open(pfs);

@@ -217,6 +217,7 @@ impl ObsFileSystem {
             status.block_size = self.default_block_size();
             return Ok(status);
         }
+        self.ensure_visible_path(&key).await?;
         if let Some(cached) = self.cache.get(&key) {
             return cached.ok_or_else(|| Self::not_found(&key));
         }
@@ -250,7 +251,10 @@ impl ObsFileSystem {
     pub async fn open(&self, path: &str, options: OpenOptions) -> ObsResult<ObsInputStream> {
         let key = self.key(path)?;
         let status = match options.status_hint {
-            Some(s) if self.key(&s.path)? == key => s,
+            Some(s) if self.key(&s.path)? == key => {
+                self.ensure_visible_path(&key).await?;
+                s
+            },
             _ => self.get_file_status(path).await?,
         };
         if status.is_dir {
@@ -303,6 +307,7 @@ impl ObsFileSystem {
     pub async fn create(&self, path: &str, options: CreateOptions) -> ObsResult<ObsOutputStream> {
         let journal = self.upload_journal().await?;
         let key = self.key(path)?;
+        self.ensure_visible_path(&key).await?;
         if key.is_empty() {
             return Err(ObsError::AlreadyExists("root directory".into()));
         }
@@ -357,6 +362,7 @@ impl ObsFileSystem {
     }
     pub async fn mkdirs(&self, path: &str, permission: u32) -> ObsResult<bool> {
         let key = self.key(path)?;
+        self.ensure_visible_path(&key).await?;
         if key.is_empty() {
             return Ok(true);
         }
@@ -411,7 +417,7 @@ impl ObsFileSystem {
         // A common prefix or slash marker does not prove that the unsuffixed
         // object is absent. Do not cache a directory over a colliding file.
         if !self.is_pfs() && entry.is_directory() {
-            if let Some(status) = self.listed_file_status(key).await? {
+            if let Some(status) = self.direct_file_status(key).await? {
                 return Ok(self.remember_at(key, status, epoch));
             }
         }
@@ -440,7 +446,23 @@ impl ObsFileSystem {
     // Ordinary buckets may contain both `file` and `file/child`. Resolve the
     // requested object before listing its prefix, matching get_file_status.
     // Cached status avoids another HEAD; PFS has no file/prefix ambiguity.
+    async fn ensure_visible_path(&self, key: &str) -> ObsResult<()> {
+        if !self.is_pfs() {
+            for (end, _) in key.match_indices('/') {
+                if end > 0 && self.direct_file_status(&key[..end]).await?.is_some() {
+                    return Err(Self::not_found(key));
+                }
+            }
+        }
+        Ok(())
+    }
+
     async fn listed_file_status(&self, key: &str) -> ObsResult<Option<FileStatus>> {
+        self.ensure_visible_path(key).await?;
+        self.direct_file_status(key).await
+    }
+
+    async fn direct_file_status(&self, key: &str) -> ObsResult<Option<FileStatus>> {
         if key.is_empty() { return Ok(None); }
         let status = match self.cache.get_positive(key) {
             Some(status) => Some(status),
@@ -472,7 +494,7 @@ impl ObsFileSystem {
             let file = match ancestors.get(ancestor) {
                 Some(file) => *file,
                 None => {
-                    let file = self.listed_file_status(ancestor).await?.is_some();
+                    let file = self.direct_file_status(ancestor).await?.is_some();
                     ancestors.insert(ancestor.to_owned(), file);
                     file
                 }
@@ -484,8 +506,9 @@ impl ObsFileSystem {
 
     async fn list_page(&self, path: &str, marker: Option<&str>, recursive: bool, files_only: bool) -> ObsResult<FileStatusPage> {
         let key = self.key(path)?;
+        self.ensure_visible_path(&key).await?;
         if marker.is_none() {
-            if let Some(status) = self.listed_file_status(&key).await? {
+            if let Some(status) = self.direct_file_status(&key).await? {
                 return Ok(FileStatusPage { entries: vec![status], next_marker: None });
             }
         }
@@ -897,10 +920,11 @@ impl ObsFileSystem {
         Ok(summary)
     }
     pub async fn set_permission(&self, path: &str, mode: u32) -> ObsResult<()> {
+        let key = self.key(path)?;
+        self.ensure_visible_path(&key).await?;
         if !self.is_pfs() {
             return Ok(());
         }
-        let key = self.key(path)?;
         let _invalidation = MutationInvalidation { cache: self.cache.clone(), keys: vec![key.clone()] };
         self.store
             .set_object_metadata(&key, Some(mode), None, None)
@@ -910,6 +934,7 @@ impl ObsFileSystem {
     /// Hadoop names are descriptive metadata, not numeric POSIX identities or ACLs.
     pub async fn set_hadoop_owner(&self, path: &str, owner: Option<&str>, group: Option<&str>) -> ObsResult<()> {
         let key = self.key(path)?;
+        self.ensure_visible_path(&key).await?;
         if owner.is_none() && group.is_none() {
             return Err(ObsError::InvalidArgument("owner and group cannot both be null".into()));
         }
@@ -930,15 +955,17 @@ impl ObsFileSystem {
 
     pub async fn set_hadoop_permission(&self, path: &str, mode: u32) -> ObsResult<()> {
         let key = self.key(path)?;
+        self.ensure_visible_path(&key).await?;
         if !self.disguise_permissions() { return Ok(()); }
         let _invalidation = MutationInvalidation { cache: self.cache.clone(), keys: vec![key.clone()] };
         self.store.patch_user_metadata(&key, std::collections::HashMap::from([("permission".into(), (mode & 0o7777).to_string())])).await
     }
     pub async fn set_owner(&self, path: &str, uid: u32, gid: u32) -> ObsResult<()> {
+        let key = self.key(path)?;
+        self.ensure_visible_path(&key).await?;
         if !self.is_pfs() {
             return Ok(());
         }
-        let key = self.key(path)?;
         let _invalidation = MutationInvalidation { cache: self.cache.clone(), keys: vec![key.clone()] };
         self.store
             .set_object_metadata(&key, None, Some(uid), Some(gid))

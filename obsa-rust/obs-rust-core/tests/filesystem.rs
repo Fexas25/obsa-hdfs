@@ -966,7 +966,7 @@ async fn uncontended_mutations_keep_status_cache_and_permissions() {
         let status = fs.get_file_status("/dir/file").await.unwrap();
         assert_eq!(status.length, 4);
         assert_eq!(status.permission, 0o600);
-        assert_eq!(store.count("head:"), heads);
+        assert_eq!(store.count("head:"), heads + usize::from(!pfs)); // Invalidated ancestor is checked; child metadata stays cached.
     }
 }
 
@@ -5124,4 +5124,90 @@ async fn cancelled_recursive_ancestor_probe_retries_same_cursor_page() {
     assert_eq!(last.entries[0].path, "/a");
     assert!(last.next_marker.is_none());
     assert_eq!(*store.list_markers.lock().unwrap(), vec![None, None, Some("next".into())]);
+}
+
+#[tokio::test]
+async fn file_ancestor_blocks_explicit_hidden_path_operations() {
+    for operation in 0..10 {
+        let store = Arc::new(MemoryStore::default());
+        store.objects.lock().unwrap().insert("a".into(), Bytes::from_static(b"parent"));
+        store.objects.lock().unwrap().insert("a/b".into(), Bytes::from_static(b"hidden"));
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        match operation {
+            0 => assert!(fs.get_file_status("/a/b").await.unwrap_err().is_path_not_found()),
+            1 => assert!(!fs.exists("/a/b").await.unwrap()),
+            2 => assert!(matches!(fs.open("/a/b", OpenOptions::default()).await, Err(e) if e.is_path_not_found())),
+            3 => assert!(!fs.delete("/a/b", true).await.unwrap()),
+            4 => assert!(!fs.rename("/a/b", "/target", false).await.unwrap()),
+            5 => assert!(fs.list_status("/a/b").await.unwrap_err().is_path_not_found()),
+            6 => assert!(fs.list_files_recursive("/a/b").await.unwrap_err().is_path_not_found()),
+            7 => assert!(fs.list_status_page("/a/b", Some("continued")).await.unwrap_err().is_path_not_found()),
+            8 => assert!(fs.get_content_summary("/a/b").await.unwrap_err().is_path_not_found()),
+            _ => {
+                let hint = obs_rust_core::types::FileStatus::file("/a/b", 6, 0o644);
+                let options = OpenOptions { status_hint: Some(hint), ..Default::default() };
+                assert!(matches!(fs.open("/a/b", options).await, Err(e) if e.is_path_not_found()));
+            }
+        }
+        assert_eq!(store.objects.lock().unwrap().get("a/b").unwrap().as_ref(), b"hidden");
+        assert_eq!(store.count("head:a/b"), 0);
+        assert_eq!(store.count("get:"), 0);
+        assert_eq!(store.count("delete:"), 0);
+        assert_eq!(store.count("copy"), 0);
+        assert_eq!(store.count("list:"), 0);
+        assert_eq!(store.head("a/b").await.unwrap().content_length, 6); // Raw store access remains available.
+    }
+}
+
+#[tokio::test]
+async fn cached_child_does_not_bypass_new_file_ancestor() {
+    let store = Arc::new(MemoryStore::default());
+    store.objects.lock().unwrap().insert("a/b".into(), Bytes::from_static(b"hidden"));
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    let hint = fs.get_file_status("/a/b").await.unwrap();
+    store.objects.lock().unwrap().insert("a".into(), Bytes::from_static(b"parent"));
+    assert!(fs.get_file_status("/a/b").await.unwrap_err().is_path_not_found());
+    assert!(matches!(fs.open("/a/b", OpenOptions { status_hint: Some(hint), ..Default::default() }).await,
+        Err(e) if e.is_path_not_found()));
+    assert_eq!(store.count("get:"), 0);
+}
+
+#[tokio::test]
+async fn hidden_path_writes_and_metadata_leave_raw_objects_unchanged() {
+    for operation in 0..8 {
+        let store = Arc::new(MemoryStore::default());
+        store.objects.lock().unwrap().insert("a".into(), Bytes::from_static(b"parent"));
+        store.objects.lock().unwrap().insert("a/b".into(), Bytes::from_static(b"hidden"));
+        store.objects.lock().unwrap().insert("source".into(), Bytes::from_static(b"source"));
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        match operation {
+            0 => assert!(matches!(fs.create("/a/b", CreateOptions::default()).await, Err(e) if e.is_path_not_found())),
+            1 => assert!(fs.mkdirs("/a/new", 0o755).await.unwrap_err().is_path_not_found()),
+            2 => assert!(fs.set_permission("/a/b", 0o600).await.unwrap_err().is_path_not_found()),
+            3 => assert!(fs.set_owner("/a/b", 1, 2).await.unwrap_err().is_path_not_found()),
+            4 => assert!(fs.set_hadoop_permission("/a/b", 0o600).await.unwrap_err().is_path_not_found()),
+            5 => assert!(fs.set_hadoop_owner("/a/b", Some("owner"), None).await.unwrap_err().is_path_not_found()),
+            6 => assert!(!fs.rename("/source", "/a/b", true).await.unwrap()),
+            _ => assert!(fs.list_files_page("/a/b", None, true).await.unwrap_err().is_path_not_found()),
+        }
+        assert_eq!(store.objects.lock().unwrap().get("a/b").unwrap().as_ref(), b"hidden");
+        assert_eq!(store.objects.lock().unwrap().len(), 3);
+        assert_eq!(store.count("put"), 0);
+        assert_eq!(store.count("copy"), 0);
+        assert_eq!(store.count("delete:"), 0);
+    }
+}
+
+#[tokio::test]
+async fn explicit_ancestor_service_errors_are_not_path_misses() {
+    let store = Arc::new(MemoryStore {
+        head_errors: BTreeMap::from([("a".into(), bucket_missing_for_fs_test())]),
+        ..Default::default()
+    });
+    store.objects.lock().unwrap().insert("a/b".into(), Bytes::new());
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    assert_eq!(fs.exists("/a/b").await.unwrap_err().code(), Some("NoSuchBucket"));
+    assert_eq!(fs.delete("/a/b", true).await.unwrap_err().code(), Some("NoSuchBucket"));
+    assert_eq!(store.count("head:a/b"), 0);
+    assert_eq!(store.count("delete:"), 0);
 }
