@@ -325,6 +325,46 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void directFileWinsOverChildPrefixAcrossListingAndSummary() throws Exception {
+    for (boolean warm : new boolean[] {false, true}) {
+      for (int operation = 0; operation < 5; operation++) {
+        open(false);
+        data.clear();
+        data.put("file", new byte[6]);
+        data.put("file/child", new byte[5]);
+        Path path = new Path("/file");
+        if (warm) assertTrue(fs.getFileStatus(path).isFile());
+        int lists = server.lists.get();
+        if (operation == 0) {
+          ContentSummary summary = fs.getContentSummary(path);
+          assertEquals(6, summary.getLength());
+          assertEquals(1, summary.getFileCount());
+          assertEquals(0, summary.getDirectoryCount());
+        } else if (operation == 1) {
+          FileStatus[] entries = fs.listStatus(path);
+          assertEquals(1, entries.length);
+          assertTrue(entries[0].isFile());
+          assertEquals(6, entries[0].getLen());
+          assertEquals("/file", entries[0].getPath().toUri().getPath());
+          assertEquals(64L * 1024 * 1024, entries[0].getBlockSize());
+        } else {
+          RemoteIterator<? extends FileStatus> entries = operation == 2
+              ? fs.listStatusIterator(path) : fs.listFiles(path, operation == 4);
+          assertTrue(entries.hasNext());
+          FileStatus status = entries.next();
+          assertTrue(status.isFile());
+          assertEquals(6, status.getLen());
+          assertEquals("/file", status.getPath().toUri().getPath());
+          assertEquals(64L * 1024 * 1024, status.getBlockSize());
+          assertFalse(entries.hasNext());
+        }
+        assertEquals(lists, server.lists.get());
+        assertTrue(fs.getFileStatus(path).isFile());
+      }
+    }
+  }
+
+  @Test
   public void directoryIteratorFetchesOnlyConsumedPages() throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
       open(pfs);
@@ -349,7 +389,7 @@ public class HadoopLocalTest {
       }
       assertEquals(10, found.size());
       assertEquals(before + 4, server.lists.get());
-      assertEquals(headBefore, heads.get());
+      assertEquals(headBefore + (pfs ? 0 : 1), heads.get());
       assertFalse(iterator.hasNext());
       try {
         iterator.next();
@@ -379,7 +419,7 @@ public class HadoopLocalTest {
       assertEquals(10, paths.size());
       assertEquals(lists + 4, server.lists.get());
       assertEquals(flat + 4, server.flatLists.get());
-      assertEquals(beforeHeads, heads.get());
+      assertEquals(beforeHeads + (pfs ? 0 : 1), heads.get());
       RemoteIterator<LocatedFileStatus> abandoned = fs.listFiles(new Path("/tree"), true);
       int afterFirst = server.lists.get();
       ((Closeable) abandoned).close();

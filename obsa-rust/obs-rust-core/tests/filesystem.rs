@@ -1815,8 +1815,9 @@ async fn list_backfill_opens_without_head_and_keeps_zero_byte_file() {
             .unwrap()
             .is_dir
     );
+    assert_eq!(store.count("head:"), 1); // Resolve the requested ordinary-bucket directory.
     fs.open("/dir/empty", OpenOptions::default()).await.unwrap();
-    assert_eq!(store.count("head:"), 0);
+    assert_eq!(store.count("head:"), 1); // Opening the listed file still needs no HEAD.
 }
 #[tokio::test]
 async fn pfs_delete_probes_directory_before_file_without_head() {
@@ -3795,7 +3796,7 @@ async fn stateless_status_pages_resume_and_reject_stalled_markers() {
         *store.list_markers.lock().unwrap(),
         vec![None, Some("first".into())]
     );
-    assert_eq!(store.count("head:"), 0);
+    assert_eq!(store.count("head:"), 1); // Only the initial page resolves the path.
 }
 
 #[tokio::test]
@@ -3878,7 +3879,7 @@ async fn content_summary_rejects_cross_page_object_duplicates() {
                 Err(ObsError::Io(ref message)) if message.contains("duplicate object keys")),
                 "pfs={pfs}, case={case}");
             assert_eq!(store.count("list:"), 3);
-            assert_eq!(store.count("head:"), 0);
+            assert_eq!(store.count("head:"), if pfs { 0 } else { 1 });
         }
     }
 }
@@ -3904,7 +3905,7 @@ async fn content_summary_allows_repeated_common_prefixes() {
     assert_eq!(summary.length, 8);
     assert_eq!(summary.space_consumed, 8);
     assert_eq!(store.count("list:"), 2);
-    assert_eq!(store.count("head:"), 0);
+    assert_eq!(store.count("head:"), 1);
 }
 
 #[tokio::test]
@@ -4825,4 +4826,80 @@ async fn append_after_service_404_rename_requires_reopen_only_for_affected_file(
     reopened.write(b"fresh").await.unwrap();
     reopened.close().await.unwrap();
     assert_eq!(store.objects.lock().unwrap().get("source").unwrap().as_ref(), b"fresh");
+}
+
+
+#[tokio::test]
+async fn content_summary_file_prefix_collision_matches_file_status() {
+    for warm in [false, true] {
+        let store = Arc::new(MemoryStore::default());
+        store.objects.lock().unwrap().insert("file".into(), Bytes::from_static(b"direct"));
+        store.objects.lock().unwrap().insert("file/child".into(), Bytes::from_static(b"child"));
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        if warm {
+            let status = fs.get_file_status("/file").await.unwrap();
+            assert!(!status.is_dir);
+        }
+        let summary = fs.get_content_summary("/file").await.unwrap();
+        assert_eq!(summary.length, 6);
+        assert_eq!(summary.file_count, 1);
+        assert_eq!(summary.directory_count, 0);
+        assert_eq!(store.count("list:"), 0);
+        assert_eq!(store.count("head:"), 1);
+    }
+}
+
+#[tokio::test]
+async fn listing_file_prefix_collision_matches_file_status() {
+    for warm in [false, true] {
+        for operation in 0..5 {
+            let store = Arc::new(MemoryStore::default());
+            store.objects.lock().unwrap().insert("file".into(), Bytes::from_static(b"direct"));
+            store.objects.lock().unwrap().insert("file/child".into(), Bytes::from_static(b"child"));
+            let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+            if warm { fs.get_file_status("/file").await.unwrap(); }
+            let entries = match operation {
+                0 => fs.list_status("/file").await.unwrap(),
+                1 => fs.list_files_recursive("/file").await.unwrap(),
+                _ => {
+                    let page = match operation {
+                        2 => fs.list_status_page("/file", None).await.unwrap(),
+                        3 => fs.list_files_page("/file", None, false).await.unwrap(),
+                        _ => fs.list_files_page("/file", None, true).await.unwrap(),
+                    };
+                    assert!(page.next_marker.is_none());
+                    page.entries
+                }
+            };
+            assert_eq!(entries.len(), 1);
+            assert!(!entries[0].is_dir);
+            assert_eq!(entries[0].length, 6);
+            assert_eq!(entries[0].path, "/file");
+            assert_eq!(entries[0].block_size, fs.default_block_size());
+
+            assert_eq!(store.count("list:"), 0);
+            assert_eq!(store.count("head:"), 1);
+            assert!(!fs.get_file_status("/file").await.unwrap().is_dir);
+        }
+    }
+}
+
+#[tokio::test]
+async fn listing_file_precedence_propagates_service_head_errors() {
+    for operation in 0..4 {
+        let store = Arc::new(MemoryStore {
+            head_errors: BTreeMap::from([("dir".into(), bucket_missing_for_fs_test())]),
+            ..Default::default()
+        });
+        store.objects.lock().unwrap().insert("dir/child".into(), Bytes::new());
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let result = match operation {
+            0 => fs.list_status("/dir").await.map(|_| ()),
+            1 => fs.list_files_recursive("/dir").await.map(|_| ()),
+            2 => fs.list_status_page("/dir", None).await.map(|_| ()),
+            _ => fs.get_content_summary("/dir").await.map(|_| ()),
+        };
+        assert_eq!(result.unwrap_err().code(), Some("NoSuchBucket"));
+        assert_eq!(store.count("list:"), 0);
+    }
 }

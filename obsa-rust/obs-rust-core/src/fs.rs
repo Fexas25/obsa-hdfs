@@ -430,16 +430,33 @@ impl ObsFileSystem {
         self.list_page(path, marker, recursive, true).await
     }
 
+    // Ordinary buckets may contain both `file` and `file/child`. Resolve the
+    // requested object before listing its prefix, matching get_file_status.
+    // Cached status avoids another HEAD; PFS has no file/prefix ambiguity.
+    async fn listed_file_status(&self, key: &str) -> ObsResult<Option<FileStatus>> {
+        if key.is_empty() { return Ok(None); }
+        let status = match self.cache.get_positive(key) {
+            Some(status) => Some(status),
+            None if !self.is_pfs() => match self.store.head(key).await {
+                Ok(meta) => {
+                    let mut status = self.meta_status(key, meta);
+                    status.path = self.key_to_path(key);
+                    status.block_size = self.default_block_size();
+                    Some(status)
+                },
+                Err(error) if error.is_path_not_found() => None,
+                Err(error) => return Err(error),
+            },
+            None => None,
+        };
+        Ok(status.filter(|status| !status.is_dir))
+    }
+
     async fn list_page(&self, path: &str, marker: Option<&str>, recursive: bool, files_only: bool) -> ObsResult<FileStatusPage> {
         let key = self.key(path)?;
         if marker.is_none() {
-            if let Some(status) = self.cache.get_positive(&key) {
-                if !status.is_dir {
-                    return Ok(FileStatusPage {
-                        entries: vec![status],
-                        next_marker: None,
-                    });
-                }
+            if let Some(status) = self.listed_file_status(&key).await? {
+                return Ok(FileStatusPage { entries: vec![status], next_marker: None });
             }
         }
         let epoch = self.cache.snapshot_epoch();
@@ -484,10 +501,8 @@ impl ObsFileSystem {
 
     pub async fn list_status(&self, path: &str) -> ObsResult<Vec<FileStatus>> {
         let key = self.key(path)?;
-        if let Some(status) = self.cache.get_positive(&key) {
-            if !status.is_dir {
-                return Ok(vec![status]);
-            }
+        if let Some(status) = self.listed_file_status(&key).await? {
+            return Ok(vec![status]);
         }
         let epoch = self.cache.snapshot_epoch();
         let prefix = if key.is_empty() {
@@ -522,6 +537,9 @@ impl ObsFileSystem {
     }
     pub async fn list_files_recursive(&self, path: &str) -> ObsResult<Vec<FileStatus>> {
         let key = self.key(path)?;
+        if let Some(status) = self.listed_file_status(&key).await? {
+            return Ok(vec![status]);
+        }
         let epoch = self.cache.snapshot_epoch();
         let prefix = if key.is_empty() {
             String::new()
@@ -780,6 +798,10 @@ impl ObsFileSystem {
     }
     pub async fn get_content_summary(&self, path: &str) -> ObsResult<ContentSummary> {
         let key = self.key(path)?;
+        if let Some(status) = self.listed_file_status(&key).await? {
+            return Ok(ContentSummary { file_count: 1, directory_count: 0,
+                length: status.length, space_consumed: status.length });
+        }
         let prefix = if key.is_empty() {
             String::new()
         } else {
