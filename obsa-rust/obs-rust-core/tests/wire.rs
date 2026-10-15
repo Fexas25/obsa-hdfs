@@ -1152,30 +1152,32 @@ async fn upload_part_etag_preserves_nonempty_opaque_value() {
 
 #[tokio::test]
 async fn upload_part_etag_failure_aborts_stream_without_complete() {
-    let config = ObsConfig { multipart_threshold: 1, buffer_total_bytes: 128,
-        retry_max_attempts: 0, ..Default::default() };
-    let (store, server) = server_with_config(vec![
-        ("200 OK", "", "<InitiateMultipartUploadResult><UploadId>upload</UploadId></InitiateMultipartUploadResult>"),
-        ("200 OK", "", ""),
-        ("204 No Content", "", ""),
-        ("200 OK", "", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
-    ], config.clone()).await;
-    let store = std::sync::Arc::new(store);
-    let gate = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
-    let mut output = obs_rust_core::io::ObsOutputStream::new(store.clone(), &config, "file".into(), gate.clone());
-    output.write(b"data").await.unwrap();
-    let result = output.close().await;
-    // An exact-budget GET succeeds only after the failed upload releases its buffer.
-    let response = store.get("probe", None, None).await.unwrap();
-    drop(response);
-    let requests = server.await.unwrap();
-    assert_eq!(requests.len(), 4);
-    assert!(requests[0].starts_with("POST /bucket/file?uploads "));
-    assert!(requests[1].starts_with("PUT /bucket/file?partNumber=1&uploadId=upload "));
-    assert!(requests[2].starts_with("DELETE /bucket/file?uploadId=upload "), "must abort, not complete");
-    assert!(matches!(result, Err(obs_rust_core::ObsError::Io(ref message)) if message.contains("ETag")));
-    assert_eq!(gate.available_permits(), 1);
-    assert!(requests[3].starts_with("GET /bucket/probe "));
+    for part_header in ["", "ETag: \"broken\r\n"] {
+        let config = ObsConfig { multipart_threshold: 1, buffer_total_bytes: 128,
+            retry_max_attempts: 0, ..Default::default() };
+        let (store, server) = server_with_config(vec![
+            ("200 OK", "", "<InitiateMultipartUploadResult><UploadId>upload</UploadId></InitiateMultipartUploadResult>"),
+            ("200 OK", part_header, ""),
+            ("204 No Content", "", ""),
+            ("200 OK", "", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
+        ], config.clone()).await;
+        let store = std::sync::Arc::new(store);
+        let gate = std::sync::Arc::new(tokio::sync::Semaphore::new(1));
+        let mut output = obs_rust_core::io::ObsOutputStream::new(store.clone(), &config, "file".into(), gate.clone());
+        output.write(b"data").await.unwrap();
+        let result = output.close().await;
+        // An exact-budget GET succeeds only after the failed upload releases its buffer.
+        let response = store.get("probe", None, None).await.unwrap();
+        drop(response);
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 4);
+        assert!(requests[0].starts_with("POST /bucket/file?uploads "));
+        assert!(requests[1].starts_with("PUT /bucket/file?partNumber=1&uploadId=upload "));
+        assert!(requests[2].starts_with("DELETE /bucket/file?uploadId=upload "), "must abort, not complete");
+        assert!(matches!(result, Err(obs_rust_core::ObsError::Io(ref message)) if message.contains("ETag")));
+        assert_eq!(gate.available_permits(), 1);
+        assert!(requests[3].starts_with("GET /bucket/probe "));
+    }
 }
 
 #[tokio::test]
@@ -1740,6 +1742,18 @@ async fn list_empty_scalar_validation_preserves_zero_and_missing_compatibility()
         assert!(!page.is_truncated);
         assert_eq!(page.contents.len(), 1);
         assert_eq!(page.contents[0].size, 0);
+        assert_eq!(task.await.unwrap().len(), 1);
+    }
+}
+
+
+#[tokio::test]
+async fn upload_part_etag_rejects_malformed_quotes_without_rewriting_identity() {
+    for header in ["ETag: \"part\r\n", "ETag: part\"\r\n",
+        "ETag: \"\"part\"\"\r\n", "ETag: pa\"rt\r\n", "ETag: W/\"part\"\r\n"] {
+        let (store, task) = server(vec![("200 OK", header, "")]).await;
+        assert!(matches!(store.upload_part("file", "upload", 1, bytes::Bytes::new()).await,
+            Err(obs_rust_core::ObsError::Io(_))), "malformed ETag accepted: {header}");
         assert_eq!(task.await.unwrap().len(), 1);
     }
 }
