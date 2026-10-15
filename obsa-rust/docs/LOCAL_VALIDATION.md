@@ -1301,3 +1301,12 @@ Rust OpenOptions.status_hint 可以提供已有状态以避免查询，但根目
 修复前确定性测试重现冲突目录操作返回成功。新增测试覆盖删除/重命名、子文件/目录标记、跨页及相反页序，断言对象快照不变且 PUT/COPY/DELETE 均为零。另测中文完整路径段：文件“文件”不阻断“文件夹/child”，合法目录仍可完整移动或删除。Hadoop 本机 HTTP/JNI 回归覆盖两种冲突和两类操作，逐个校验所有对象的键与字节内容均保留。
 
 默认 Rust workspace debug/release 各 **372 通过、0 失败、16 ignored**（核心 112、缓存 1、文件系统 180、HTTP 79）；append-diagnostics **374 通过、0 失败、16 ignored**。显式构建 debug/release 动态库后，真实 JVM 基础与异常分类冒烟均通过。Hadoop **297 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。未执行新的性能基准或真实云验收；bulk-namespace-* 日志与补丁仅保存在工作区。
+
+
+### 2026-10-15：批量预检取消与异常分组响应
+
+补充确定性取消回归：普通桶目录删除/重命名读取第一页后，在第二页阻塞时丢弃操作，原始对象不变、PUT/COPY/DELETE 为零。随后插入新的隐藏后代并重新操作，必须从无 marker 的第一页重新扫描并拒绝新冲突，不能复用已取消预检的部分结果。
+
+另修复递归批量枚举收到 CommonPrefixes 的边界。未指定 delimiter 的请求应枚举原始对象；若返回分组前缀，则不能证明已列出全部后代。修复前普通桶删除测试返回成功并修改对象。现在批量枚举在分页合并/去重前拒绝分组响应，包括前缀与同名目录标记重叠、ObjectStore 直接返回 is_common_prefix 的情况。普通桶删除/重命名和 PFS 递归删除均覆盖；PFS 原有直接目录删除失败后进入递归回退，但异常枚举不会导致子对象删除。正常只读分组列举保持原行为。
+
+默认 workspace debug/release 各 **374 通过、0 失败、16 ignored**；append-diagnostics **376 通过、0 失败、16 ignored**。显式构建 debug/release 动态库后，实际 JVM 基础/异常冒烟通过；Hadoop **297 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。本批未新增云验证或性能结论。bulk-cancel-*、bulk-grouped-* 日志仅保存于工作区。
