@@ -1274,3 +1274,14 @@ etag-quotes-before.log、etag-quotes-after.log 及 protocol-final-* 日志仅保
 这是可复现的请求次数减少，不是生产吞吐/p99 结论。祖先表按本次游标涉及的不同祖先数量增长，属于元数据开销；新的扫描重新判断祖先，一次扫描内保留已接受判断，不保证外部并发修改的一致快照。
 
 最终默认 Rust debug / release 各 **369 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 177、HTTP 79）；append-diagnostics **371 通过、0 失败、15 ignored**。显式构建 debug 动态库后 JVM 基础/异常测试通过；Hadoop **296 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS，包含实际 JNI 游标请求计数。release JVM 已在上一批显式隐藏路径保护版本上补跑通过，本批未重跑。未运行吞吐基准或真实云测试。cursor-ancestor-* 及 explicit-shadow-release-*/explicit-shadow-diagnostics.log 仅保存在工作区。
+
+
+### 2026-10-15：祖先 HEAD 延迟手动对照
+
+新增默认 ignored 的 recursive_cursor_ancestor_latency_benchmark；仅测试 MemoryStore 增加可选 HEAD 等待，默认 0 不等待，不持有对象锁等待。release、2 个 Tokio worker、64 个单项页、9 对样本，交替先后顺序。对照是同一版本的无状态递归分页与 StatusCursor，并非两个 Git 版本的整个客户端吞吐比较。两者都返回 64 个文件、发送 64 次 LIST；每次样本分别要求 64/1 次祖先 HEAD。
+
+本机结果：无模拟等待时，中位 0.328/0.315 ms，差异很小，不据此声称 CPU 吞吐改善；请求 3 ms tokio sleep 时，中位 966.060/15.713 ms。Windows 计时/调度使实际等待明显高于 3 ms，因此不能把这组值解读为真实 3 ms 网络 RTT 下的性能。没有 HTTP/TLS、LIST 延迟、云服务限流或并发负载，也没有可靠的生产 p99 结论。确定性收益是重复祖先请求和对应等待次数减少。
+
+复现：cargo test --locked --release -p obs-rust-core --test filesystem recursive_cursor_ancestor_latency_benchmark -- --ignored --nocapture。基准输出日志仅保存在工作区 cursor-ancestor-benchmark.log。
+
+新增基准后的默认 debug/release 回归各 **369 通过、0 失败、16 ignored**，append-diagnostics **371 通过、0 失败、16 ignored**；新增 ignored 为本节手动基准，已显式执行通过。生产源码和 JNI/Hadoop 适配代码未改动，沿用上一批对应代码的 JVM/Hadoop 验证结果。cursor-benchmark-final-* 与 cursor-benchmark-diagnostics.log 仅在工作区保留。
