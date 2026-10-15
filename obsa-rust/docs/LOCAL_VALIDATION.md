@@ -1285,3 +1285,10 @@ etag-quotes-before.log、etag-quotes-after.log 及 protocol-final-* 日志仅保
 复现：cargo test --locked --release -p obs-rust-core --test filesystem recursive_cursor_ancestor_latency_benchmark -- --ignored --nocapture。基准输出日志仅保存在工作区 cursor-ancestor-benchmark.log。
 
 新增基准后的默认 debug/release 回归各 **369 通过、0 失败、16 ignored**，append-diagnostics **371 通过、0 失败、16 ignored**；新增 ignored 为本节手动基准，已显式执行通过。生产源码和 JNI/Hadoop 适配代码未改动，沿用上一批对应代码的 JVM/Hadoop 验证结果。cursor-benchmark-final-* 与 cursor-benchmark-diagnostics.log 仅在工作区保留。
+
+
+### 2026-10-15：根目录不接受文件状态提示
+
+Rust OpenOptions.status_hint 可以提供已有状态以避免查询，但根目录始终是目录。修复前伪造 FileStatus::file("/") 可使 open("/") 返回输入流；现在在读取提示之前拒绝根目录，返回 IsDirectory。普通桶和 PFS 回归均验证该错误且后端请求数为零。
+
+默认 Rust workspace debug/release 各 **370 通过、0 失败、16 ignored**。未重跑 JNI/Hadoop/append-diagnostics 或手动基准；对应的上批结果不是本次修改的新增验收。root-open-hint-* 日志仅保存在工作区。
