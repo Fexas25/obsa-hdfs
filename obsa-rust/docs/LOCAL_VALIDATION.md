@@ -1219,3 +1219,14 @@ HttpResponse::etag 原先使用 trim_matches 剥掉任意数量的首尾引号�
 在包含 LIST 空标量与 ETag 引号修复的最终源码上：默认 Rust debug / release 各 **351 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 159、HTTP 79）；显式构建 debug/release JNI 动态库，两种构建的 NativeSmokeTest 与 NativeErrorSmokeTest 均通过；Hadoop 3.3.6 **291 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。没有新增跳过项。append-diagnostics 与手动性能基准未在本轮重跑，未验证真实云端。
 
 etag-quotes-before.log、etag-quotes-after.log 及 protocol-final-* 日志仅保存在工作区，不上传日志、图片或构建产物。
+
+
+### 2026-10-15：请求路径的文件与子前缀冲突
+
+普通桶允许同时存在对象 file 和子对象 file/child。按已确认的文件优先规则，直接对 /file 执行容量统计、普通列举、分页列举与递归文件列举时，应返回 file 本身，不能根据子前缀推断为目录。抽出共同的请求路径检查：优先复用正缓存，普通桶冷缓存非根路径 HEAD 一次，仅路径缺失允许继续 LIST；NoSuchBucket 等服务级错误直接传播。根路径与 PFS 不新增此 HEAD，续页不重复检查。冷缓存返回的路径和块大小与状态查询一致。
+
+新增 Rust 回归覆盖冷/热缓存、五种列举入口、容量统计、长度/类型/路径/块大小和服务级 404。修复前容量统计将 6 字节对象误计为 5 字节子对象；修复后不再发送该路径的 LIST。已有请求计数回归继续验证列表回填后的 open 无额外 HEAD，以及续页无额外 HEAD。Hadoop 增加真实 Java → JNI → Rust → 本机 HTTP 的冲突测试，覆盖容量统计与各类列举，并保留惰性分页和关闭迭代器不追加请求的断言。
+
+本节仅描述直接请求冲突路径的处理，不代表父目录跨页列举中所有潜在冲突或外部写入一致性已全面验收。无真实云服务或性能改善结论。
+
+最终源码的默认 Rust workspace debug / release 各 **354 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 162、HTTP 79）；显式构建 debug JNI 动态库后，NativeSmokeTest 与 NativeErrorSmokeTest 通过；Hadoop **292 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。release JVM、append-diagnostics 和手动性能基准本批未重跑。file-precedence-* 及早期 summary/listing-collision-* 日志仅保存在工作区。
