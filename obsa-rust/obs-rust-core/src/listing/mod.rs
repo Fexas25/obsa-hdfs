@@ -115,6 +115,7 @@ pub mod iterator {
         prefix: &'a str,
         delimiter: &'a str,
         page_size: usize,
+        objects_only: bool,
         marker: Option<String>,
         seen_markers: HashSet<String>,
         done: bool,
@@ -133,6 +134,7 @@ pub mod iterator {
                 prefix,
                 delimiter,
                 page_size: page_size.clamp(1, 1000),
+                objects_only: false,
                 marker: None,
                 seen_markers: HashSet::new(),
                 done: false,
@@ -199,6 +201,12 @@ pub mod iterator {
         }
 
         fn validate(&self, page: ListPage) -> ObsResult<(Vec<ListEntry>, Option<String>)> {
+            // Check before merging prefixes with directory marker objects:
+            // deduplication must not hide evidence of an incomplete flat list.
+            if self.objects_only && (!page.common_prefixes.is_empty()
+                || page.contents.iter().any(|entry| entry.is_common_prefix)) {
+                return Err(ObsError::Io("recursive LIST returned common prefixes".into()));
+            }
             if page
                 .contents
                 .iter()
@@ -396,7 +404,12 @@ pub mod iterator {
         delimiter: &str,
         page_size: usize,
     ) -> ObsResult<Vec<ListEntry>> {
-        let entries = list_all(store, prefix, delimiter, page_size).await?;
+        let mut pager = ListPager::new(store, prefix, delimiter, page_size);
+        pager.objects_only = delimiter.is_empty();
+        let mut entries = Vec::new();
+        while let Some(page) = pager.next_page().await? {
+            entries.extend(page);
+        }
         validate_mutation_entries(&entries)?;
         Ok(entries)
     }

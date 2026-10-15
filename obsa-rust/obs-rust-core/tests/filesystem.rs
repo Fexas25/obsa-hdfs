@@ -5404,3 +5404,95 @@ async fn object_directory_mutation_conflicts_use_exact_unicode_segments() {
         }
     }
 }
+
+#[tokio::test]
+async fn cancelled_directory_preflight_preserves_objects_and_restarts_validation() {
+    for rename in [false, true] {
+        let control = AppendControl::blocked();
+        let store = Arc::new(MemoryStore { list_control: Some(control.clone()), ..Default::default() });
+        for key in ["src/", "src/a", "src/ok"] {
+            store.objects.lock().unwrap().insert(key.into(), Bytes::from_static(b"keep"));
+        }
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        assert!(fs.get_file_status("/src").await.unwrap().is_dir);
+        control.gate.add_permits(1);
+        assert!(!fs.exists("/dst").await.unwrap());
+        control.started.notified().await;
+        store.calls.lock().unwrap().clear();
+        store.list_markers.lock().unwrap().clear();
+        store.list_pages.lock().unwrap().push_back(ListPage {
+            contents: vec![ListEntry { key: "src/a".into(), size: 4, ..Default::default() }],
+            is_truncated: true, next_marker: Some("src/a".into()), ..Default::default()
+        });
+        let original = store.objects.lock().unwrap().clone();
+        control.gate.add_permits(1);
+        let mut operation = Box::pin(async {
+            if rename { fs.rename("/src", "/dst", false).await }
+            else { fs.delete("/src", true).await }
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while store.count("list:") < 2 {
+                tokio::select! {
+                    result = &mut operation => panic!("preflight unexpectedly completed: {result:?}"),
+                    _ = control.started.notified() => {},
+                }
+            }
+        }).await.unwrap();
+        drop(operation);
+        assert_eq!(*store.objects.lock().unwrap(), original);
+        assert_eq!(store.count("copy:"), 0);
+        assert_eq!(store.count("delete:"), 0);
+        assert_eq!(store.count("put"), 0);
+        assert_eq!(*store.list_markers.lock().unwrap(), vec![None, Some("src/a".into())]);
+        // A fresh operation must see a conflict introduced after cancellation.
+        store.objects.lock().unwrap().insert("src/a/hidden".into(), Bytes::from_static(b"hidden"));
+        let original = store.objects.lock().unwrap().clone();
+        store.list_markers.lock().unwrap().clear();
+        control.gate.add_permits(10);
+        let result = if rename { fs.rename("/src", "/dst", false).await }
+            else { fs.delete("/src", true).await };
+        assert!(matches!(result, Err(ObsError::Io(ref message)) if message.contains("file prefix conflict")));
+        assert_eq!(store.list_markers.lock().unwrap()[0], None);
+        assert_eq!(*store.objects.lock().unwrap(), original);
+        assert_eq!(store.count("copy:"), 0);
+        assert_eq!(store.count("delete:"), 0);
+        assert_eq!(store.count("put"), 0);
+    }
+}
+
+#[tokio::test]
+async fn recursive_mutations_reject_grouped_listing_before_writes() {
+    for prefix_form in 0..3 {
+    for (pfs, rename) in [(false, false), (false, true), (true, false)] {
+        let store = Arc::new(MemoryStore { pfs, directory_conflict: pfs, ..Default::default() });
+        for key in ["src/", "src/ok", "src/sub/hidden"] {
+            store.objects.lock().unwrap().insert(key.into(), Bytes::from_static(b"keep"));
+        }
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        fs.get_file_status("/src").await.unwrap();
+        assert!(!fs.exists("/dst").await.unwrap());
+        store.list_pages.lock().unwrap().extend([
+            ListPage { contents: vec![ListEntry { key: "src/ok".into(), ..Default::default() }],
+                is_truncated: true, next_marker: Some("src/ok".into()), ..Default::default() },
+            ListPage {
+                common_prefixes: if prefix_form < 2 { vec!["src/sub/".into()] } else { vec![] },
+                contents: if prefix_form > 0 {
+                    vec![ListEntry { key: "src/sub/".into(), is_common_prefix: prefix_form == 2, ..Default::default() }]
+                } else { vec![] },
+                ..Default::default()
+            },
+        ]);
+        let original = store.objects.lock().unwrap().clone();
+        store.calls.lock().unwrap().clear();
+        let result = if rename { fs.rename("/src", "/dst", false).await }
+            else { fs.delete("/src", true).await };
+        assert!(matches!(result, Err(ObsError::Io(ref message)) if message.contains("common prefixes")),
+            "pfs={pfs}, rename={rename}: {result:?}");
+        assert_eq!(*store.objects.lock().unwrap(), original);
+        assert_eq!(store.count("copy:"), 0);
+        assert_eq!(store.count("delete:src/ok"), 0);
+        assert_eq!(store.count("delete:src/sub"), 0);
+        assert_eq!(store.count("put"), 0);
+    }
+    }
+}
