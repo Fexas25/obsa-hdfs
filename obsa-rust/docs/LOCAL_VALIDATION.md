@@ -1263,3 +1263,14 @@ etag-quotes-before.log、etag-quotes-after.log 及 protocol-final-* 日志仅保
 未缓存或被失效的普通桶祖先会增加 HEAD，即使子文件状态已缓存；原有权限/长度缓存仍保留。缓存 TTL 与外部修改限制仍适用，不承诺即时发现绕过文件系统的并发修改，也不撤销已经打开的流。该批未改变父目录批量删除/重命名对前缀内原始对象的处理规则。
 
 最终默认 Rust workspace debug / release 各 **367 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 175、HTTP 79）。显式构建 debug JNI 动态库后，基础与异常分类 JVM 冒烟通过；Hadoop **295 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。release JVM、append-diagnostics 和性能基准本批未重跑。explicit-shadow-* 日志仅保存在工作区。
+
+
+### 2026-10-15：递归游标跨页复用祖先判断
+
+无状态分页函数仍按页独立工作。StatusCursor 现在在一次递归迭代内保留已接受页面的祖先判断，避免反复 HEAD 相同目录。每页只生成新判断的增量，不复制整个历史表；页完成且通过 marker/去重接受之后才合并。取消或失败的取页不提交中间判断。EOF、请求失败和 marker 循环释放祖先表容量，Drop 按正常所有权释放。
+
+确定性 Rust 场景中，100 个单项分页共享同一祖先，HEAD 从修复前 100 次降至 1 次，LIST 仍为 100 次，返回 100 个文件。新增取消测试先得出 dir 不是文件，再阻塞另一个祖先；取消后让 dir 成为文件，重试必须重新探测并隐藏子对象，证明未提交的判断没有泄漏。现有终止内存测试扩展为填充 4096 个祖先并验证释放后容量为零。Hadoop 新增普通桶/PFS 十页回归，要求 30 个文件、10 次 LIST，普通桶仅 1 次祖先 HEAD、PFS 0 次。
+
+这是可复现的请求次数减少，不是生产吞吐/p99 结论。祖先表按本次游标涉及的不同祖先数量增长，属于元数据开销；新的扫描重新判断祖先，一次扫描内保留已接受判断，不保证外部并发修改的一致快照。
+
+最终默认 Rust debug / release 各 **369 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 177、HTTP 79）；append-diagnostics **371 通过、0 失败、15 ignored**。显式构建 debug 动态库后 JVM 基础/异常测试通过；Hadoop **296 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS，包含实际 JNI 游标请求计数。release JVM 已在上一批显式隐藏路径保护版本上补跑通过，本批未重跑。未运行吞吐基准或真实云测试。cursor-ancestor-* 及 explicit-shadow-release-*/explicit-shadow-diagnostics.log 仅保存在工作区。
