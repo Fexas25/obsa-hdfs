@@ -717,7 +717,7 @@ impl ObsFileSystem {
             if status.is_dir {
                 let prefix = format!("{key}/");
                 let entries =
-                    crate::listing::iterator::list_all_for_mutation(
+                    crate::listing::iterator::list_all_for_object_mutation(
                         self.store.as_ref(), &prefix, "", self.config.paging_maximum,
                     ).await?;
                 let keys: Vec<_> = entries
@@ -845,7 +845,7 @@ impl ObsFileSystem {
             }
         } else {
             let keys = if status.is_dir {
-                crate::listing::iterator::list_all_for_mutation(
+                crate::listing::iterator::list_all_for_object_mutation(
                     self.store.as_ref(),
                     &format!("{source}/"),
                     "",

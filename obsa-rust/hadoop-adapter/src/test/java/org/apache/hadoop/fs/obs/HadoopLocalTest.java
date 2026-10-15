@@ -848,4 +848,29 @@ public class HadoopLocalTest {
       assertEquals(8, in.getPos());
     }
   }
+  @Test
+  public void directoryConflictPreflightPreservesEveryObject() throws Exception {
+    for (boolean rename : new boolean[] {false, true}) {
+      for (String hidden : new String[] {"src/a/", "src/a/b"}) {
+        open(false);
+        data.clear();
+        for (String key : new String[] {"src/", "src/a", hidden, "src/ok"}) {
+          data.put(key, key.getBytes(StandardCharsets.UTF_8));
+        }
+        java.util.Map<String, byte[]> original = new java.util.TreeMap<>(data);
+        IOException error = assertThrows(IOException.class, () -> {
+          if (rename) {
+            fs.rename(new Path("/src"), new Path("/dst"));
+          } else {
+            fs.delete(new Path("/src"), true);
+          }
+        });
+        assertTrue(error.getMessage(), error.getMessage().contains("file prefix conflict"));
+        assertEquals(original.keySet(), data.keySet());
+        for (String key : original.keySet()) {
+          assertArrayEquals(original.get(key), data.get(key));
+        }
+      }
+    }
+  }
 }

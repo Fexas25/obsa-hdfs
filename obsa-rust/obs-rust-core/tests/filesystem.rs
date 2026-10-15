@@ -5331,3 +5331,76 @@ async fn root_open_cannot_be_overridden_by_file_status_hint() {
         assert!(store.calls.lock().unwrap().is_empty());
     }
 }
+
+#[tokio::test]
+async fn object_directory_mutations_reject_file_prefix_conflicts_before_writes() {
+    for rename in [false, true] {
+        for marker in [false, true] {
+            for reversed in [false, true] {
+                let store = Arc::new(MemoryStore::default());
+                let child = if marker { "src/a/" } else { "src/a/b" };
+                for key in ["src/", "src/a", child, "src/ok"] {
+                    store.objects.lock().unwrap().insert(key.into(), Bytes::from_static(b"data"));
+                }
+                let original = store.objects.lock().unwrap().clone();
+                let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+                assert!(fs.get_file_status("/src").await.unwrap().is_dir);
+                assert!(!fs.exists("/dst").await.unwrap());
+                let order = if reversed { [child, "src/a"] } else { ["src/a", child] };
+                for (index, key) in order.iter().enumerate() {
+                    store.list_pages.lock().unwrap().push_back(ListPage {
+                        contents: vec![ListEntry { key: (*key).into(), size: 4, ..Default::default() }],
+                        is_truncated: index == 0, next_marker: (index == 0).then(|| "next".into()),
+                        ..Default::default()
+                    });
+                }
+                store.calls.lock().unwrap().clear();
+                let result = if rename { fs.rename("/src", "/dst", false).await }
+                    else { fs.delete("/src", true).await };
+                assert!(matches!(result, Err(ObsError::Io(ref message)) if message.contains("file prefix conflict")),
+                    "rename={rename}, marker={marker}, reversed={reversed}: {result:?}");
+                assert_eq!(*store.objects.lock().unwrap(), original);
+                assert_eq!(store.count("list:"), 2);
+                assert_eq!(store.count("put"), 0);
+                assert_eq!(store.count("copy"), 0);
+                assert_eq!(store.count("delete:"), 0);
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn object_directory_mutation_conflicts_use_exact_unicode_segments() {
+    for rename in [false, true] {
+        for conflict in [false, true] {
+            let store = Arc::new(MemoryStore::default());
+            for key in ["src/", "src/文件", "src/文件夹/child"] {
+                store.objects.lock().unwrap().insert(key.into(), Bytes::from_static(b"data"));
+            }
+            if conflict {
+                store.objects.lock().unwrap().insert("src/文件/child".into(), Bytes::from_static(b"hidden"));
+            }
+            let original = store.objects.lock().unwrap().clone();
+            let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+            let result = if rename { fs.rename("/src", "/dst", false).await }
+                else { fs.delete("/src", true).await };
+            if conflict {
+                assert!(matches!(result, Err(ObsError::Io(ref message)) if message.contains("file prefix conflict")));
+                assert_eq!(*store.objects.lock().unwrap(), original);
+                assert_eq!(store.count("copy"), 0);
+                assert_eq!(store.count("delete:"), 0);
+            } else {
+                assert!(result.unwrap());
+                let actual = store.objects.lock().unwrap();
+                if rename {
+                    assert_eq!(actual.len(), original.len());
+                    for (key, value) in original {
+                        assert_eq!(actual.get(&key.replacen("src/", "dst/", 1)), Some(&value));
+                    }
+                } else {
+                    assert!(actual.is_empty());
+                }
+            }
+        }
+    }
+}

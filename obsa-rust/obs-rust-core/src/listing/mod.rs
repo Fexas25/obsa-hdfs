@@ -401,6 +401,30 @@ pub mod iterator {
         Ok(entries)
     }
 
+    /// Ordinary-bucket directory mutations must not act on hidden descendants.
+    /// Validate the whole namespace before the caller copies or deletes anything.
+    pub(crate) async fn list_all_for_object_mutation(
+        store: &dyn ObjectStore,
+        prefix: &str,
+        delimiter: &str,
+        page_size: usize,
+    ) -> ObsResult<Vec<ListEntry>> {
+        let entries = list_all_for_mutation(store, prefix, delimiter, page_size).await?;
+        let files: HashSet<&str> = entries.iter().filter(|entry| entry.is_file())
+            .map(|entry| entry.key.as_str()).collect();
+        for entry in &entries {
+            for (end, _) in entry.key.match_indices('/') {
+                let ancestor = &entry.key[..end];
+                if files.contains(ancestor) {
+                    return Err(ObsError::Io(format!(
+                        "object namespace has file prefix conflict: {ancestor} and {}", entry.key
+                    )));
+                }
+            }
+        }
+        Ok(entries)
+    }
+
     fn validate_mutation_entries(entries: &[ListEntry]) -> ObsResult<()> {
         // The full list already exists; reserve once to avoid rehashing keys
         // during geometric growth. Keys themselves remain borrowed.
