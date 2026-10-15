@@ -3905,7 +3905,7 @@ async fn content_summary_allows_repeated_common_prefixes() {
     assert_eq!(summary.length, 8);
     assert_eq!(summary.space_consumed, 8);
     assert_eq!(store.count("list:"), 2);
-    assert_eq!(store.count("head:"), 1);
+    assert_eq!(store.count("head:"), 2); // Requested path and one memoized ancestor across both pages.
 }
 
 #[tokio::test]
@@ -4986,4 +4986,142 @@ async fn parent_prefix_probe_preserves_pfs_fast_path_and_service_errors() {
             assert_eq!(store.count("head:"), 1);
         }
     }
+}
+
+#[tokio::test]
+async fn recursive_views_hide_objects_beneath_files() {
+    for operation in 0..3 {
+        let store = Arc::new(MemoryStore::default());
+        for (key, size) in [("a", 6), ("a/", 0), ("a/b", 5), ("a/sub/c", 7),
+            ("dir/live", 2), ("z", 3)] {
+            store.objects.lock().unwrap().insert(key.into(), Bytes::from(vec![0; size]));
+        }
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store);
+        if operation == 0 {
+            let summary = fs.get_content_summary("/").await.unwrap();
+            assert_eq!(summary.file_count, 3);
+            assert_eq!(summary.directory_count, 2);
+            assert_eq!(summary.length, 11);
+            assert_eq!(summary.space_consumed, 11);
+        } else {
+            let entries = if operation == 1 { fs.list_files_recursive("/").await.unwrap() }
+                else { fs.list_files_page("/", None, true).await.unwrap().entries };
+            let mut paths: Vec<_> = entries.iter().map(|s| s.path.as_str()).collect();
+            paths.sort();
+            assert_eq!(paths, vec!["/a", "/dir/live", "/z"]);
+        }
+    }
+}
+
+#[tokio::test]
+async fn recursive_shadowing_is_independent_of_page_order() {
+    for operation in 0..3 {
+        let store = Arc::new(MemoryStore::default());
+        store.objects.lock().unwrap().insert("a".into(), Bytes::from_static(b"direct"));
+        for (i, key) in ["a/b", "a/sub/c", "a", "ab/x"].iter().enumerate() {
+            store.list_pages.lock().unwrap().push_back(ListPage {
+                contents: vec![ListEntry { key: (*key).into(), size: if *key == "a" { 6 } else { 2 }, ..Default::default() }],
+                is_truncated: i < 3, next_marker: (i < 3).then(|| format!("page{i}")),
+                ..Default::default()
+            });
+        }
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        if operation == 0 {
+            let summary = fs.get_content_summary("/").await.unwrap();
+            assert_eq!(summary.file_count, 2);
+            assert_eq!(summary.directory_count, 2);
+            assert_eq!(summary.length, 8);
+        } else {
+            let entries = if operation == 1 { fs.list_files_recursive("/").await.unwrap() }
+                else {
+                    let mut entries = Vec::new();
+                    let mut marker = None;
+                    loop {
+                        let page = fs.list_files_page("/", marker.as_deref(), true).await.unwrap();
+                        entries.extend(page.entries);
+                        marker = page.next_marker;
+                        if marker.is_none() { break; }
+                    }
+                    entries
+                };
+            assert_eq!(entries.iter().map(|s| s.path.as_str()).collect::<Vec<_>>(), vec!["/a", "/ab/x"]);
+        }
+        assert_eq!(store.count("list:"), 4);
+        assert_eq!(store.count("head:"), if operation == 2 { 3 } else { 2 });
+        assert_eq!(store.count("head:a/sub"), 0); // Stop at the first file ancestor.
+    }
+}
+
+#[tokio::test]
+async fn hidden_duplicate_objects_still_fail_summary_validation() {
+    let store = Arc::new(MemoryStore::default());
+    store.objects.lock().unwrap().insert("a".into(), Bytes::new());
+    for i in 0..2 {
+        store.list_pages.lock().unwrap().push_back(ListPage {
+            contents: vec![ListEntry { key: "a/b".into(), size: 1, ..Default::default() }],
+            is_truncated: i == 0, next_marker: (i == 0).then(|| "next".into()),
+            ..Default::default()
+        });
+    }
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store);
+    assert!(matches!(fs.get_content_summary("/").await,
+        Err(ObsError::Io(message)) if message.contains("duplicate object keys")));
+}
+
+#[tokio::test]
+async fn recursive_ancestor_errors_propagate_without_affecting_pfs() {
+    for pfs in [false, true] {
+        for summary in [false, true] {
+            let store = Arc::new(MemoryStore { pfs,
+                head_errors: BTreeMap::from([("a".into(), bucket_missing_for_fs_test())]),
+                ..Default::default()
+            });
+            store.objects.lock().unwrap().insert("a/b".into(), Bytes::new());
+            let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+            let result = if summary { fs.get_content_summary("/").await.map(|s| s.file_count as usize) }
+                else { fs.list_files_recursive("/").await.map(|s| s.len()) };
+            if pfs {
+                assert_eq!(result.unwrap(), 1);
+                assert_eq!(store.count("head:"), 0);
+            } else {
+                assert_eq!(result.unwrap_err().code(), Some("NoSuchBucket"));
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn cancelled_recursive_ancestor_probe_retries_same_cursor_page() {
+    use obs_rust_core::listing::StatusCursor;
+    let control = AppendControl::blocked();
+    let store = Arc::new(MemoryStore {
+        head_control: Some(control.clone()), head_pauses: AtomicUsize::new(1),
+        ..Default::default()
+    });
+    store.objects.lock().unwrap().insert("a".into(), Bytes::from_static(b"direct"));
+    for _ in 0..2 {
+        store.list_pages.lock().unwrap().push_back(ListPage {
+            contents: vec![ListEntry { key: "a/b".into(), size: 2, ..Default::default() }],
+            is_truncated: true, next_marker: Some("next".into()), ..Default::default()
+        });
+    }
+    store.list_pages.lock().unwrap().push_back(ListPage {
+        contents: vec![ListEntry { key: "a".into(), size: 6, ..Default::default() }],
+        ..Default::default()
+    });
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    let mut cursor = StatusCursor::files("/".into(), true);
+    let mut pending = Box::pin(cursor.next_page(&fs));
+    tokio::select! {
+        _ = control.started.notified() => {},
+        result = &mut pending => panic!("expected blocked ancestor probe: {result:?}"),
+    }
+    drop(pending);
+    let first = cursor.next_page(&fs).await.unwrap();
+    assert!(first.entries.is_empty());
+    assert_eq!(first.next_marker.as_deref(), Some("next"));
+    let last = cursor.next_page(&fs).await.unwrap();
+    assert_eq!(last.entries[0].path, "/a");
+    assert!(last.next_marker.is_none());
+    assert_eq!(*store.list_markers.lock().unwrap(), vec![None, None, Some("next".into())]);
 }

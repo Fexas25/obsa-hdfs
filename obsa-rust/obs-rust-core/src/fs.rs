@@ -459,6 +459,29 @@ impl ObsFileSystem {
         Ok(status.filter(|status| !status.is_dir))
     }
 
+    // Flat object listings may include descendants hidden by a file. Resolve
+    // ancestors independently of page order, remembering each probe per scan.
+    async fn visible_listing_entry(
+        &self, entry: &ListEntry, root: &str,
+        ancestors: &mut std::collections::HashMap<String, bool>,
+    ) -> ObsResult<bool> {
+        if self.is_pfs() { return Ok(true); }
+        for (end, _) in entry.key.match_indices('/') {
+            if end <= root.len() { continue; }
+            let ancestor = &entry.key[..end];
+            let file = match ancestors.get(ancestor) {
+                Some(file) => *file,
+                None => {
+                    let file = self.listed_file_status(ancestor).await?.is_some();
+                    ancestors.insert(ancestor.to_owned(), file);
+                    file
+                }
+            };
+            if file { return Ok(false); }
+        }
+        Ok(true)
+    }
+
     async fn list_page(&self, path: &str, marker: Option<&str>, recursive: bool, files_only: bool) -> ObsResult<FileStatusPage> {
         let key = self.key(path)?;
         if marker.is_none() {
@@ -492,7 +515,9 @@ impl ObsFileSystem {
         }
         let mut statuses = Vec::with_capacity(entries.len());
         let mut seen = BTreeSet::new();
+        let mut ancestors = std::collections::HashMap::new();
         for entry in entries {
+            if recursive && !self.visible_listing_entry(&entry, &key, &mut ancestors).await? { continue; }
             let k = entry.key.trim_end_matches('/');
             if k != key && seen.insert(k.to_owned()) {
                 let status = self.listing_status(&entry, epoch).await?;
@@ -560,8 +585,11 @@ impl ObsFileSystem {
             return Ok(if s.is_dir { vec![] } else { vec![s] });
         }
         let mut statuses = Vec::new();
+        let mut ancestors = std::collections::HashMap::new();
         for entry in entries.iter().filter(|entry| entry.is_file()) {
-            statuses.push(self.listing_status(entry, epoch).await?);
+            if self.visible_listing_entry(entry, &key, &mut ancestors).await? {
+                statuses.push(self.listing_status(entry, epoch).await?);
+            }
         }
         Ok(statuses)
     }
@@ -820,27 +848,30 @@ impl ObsFileSystem {
         let mut summary = ContentSummary::default();
         let mut directories = BTreeSet::from([key.clone()]);
         let mut objects = std::collections::HashSet::new();
+        let mut ancestors = std::collections::HashMap::new();
         while let Some(page) = pager.next_page().await? {
             saw_entries |= !page.is_empty();
             for e in page {
-                if e.is_directory() {
-                    directories.insert(e.key.trim_end_matches('/').to_string());
-                } else {
-                    summary.file_count = summary.file_count.checked_add(1).ok_or_else(|| {
-                        ObsError::Io("content summary file count overflow".into())
-                    })?;
-                    summary.length = summary
-                        .length
-                        .checked_add(e.size)
-                        .ok_or_else(|| ObsError::Io("content summary length overflow".into()))?;
-                }
-                let mut parent = e.key.trim_end_matches('/');
-                while let Some((p, _)) = parent.rsplit_once('/') {
-                    if p.len() < key.len() {
-                        break;
+                if self.visible_listing_entry(&e, &key, &mut ancestors).await? {
+                    if e.is_directory() {
+                        directories.insert(e.key.trim_end_matches('/').to_string());
+                    } else {
+                        summary.file_count = summary.file_count.checked_add(1).ok_or_else(|| {
+                            ObsError::Io("content summary file count overflow".into())
+                        })?;
+                        summary.length = summary
+                            .length
+                            .checked_add(e.size)
+                            .ok_or_else(|| ObsError::Io("content summary length overflow".into()))?;
                     }
-                    directories.insert(p.to_string());
-                    parent = p;
+                    let mut parent = e.key.trim_end_matches('/');
+                    while let Some((p, _)) = parent.rsplit_once('/') {
+                        if p.len() < key.len() {
+                            break;
+                        }
+                        directories.insert(p.to_string());
+                        parent = p;
+                    }
                 }
                 // Keep only owned keys, not LIST metadata, to reject overlapping
                 // pages rather than returning a double-counted summary. Common

@@ -393,6 +393,36 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void recursiveListingAndSummaryHideFileDescendants() throws Exception {
+    for (boolean summary : new boolean[] {false, true}) {
+      open(false);
+      data.clear();
+      data.put("a", new byte[6]);
+      data.put("a/", new byte[0]);
+      data.put("a/b", new byte[5]);
+      data.put("a/sub/c", new byte[7]);
+      for (int i = 0; i < 7; i++) data.put("a/b" + i, new byte[4]); // Entire hidden pages.
+      data.put("dir/live", new byte[2]);
+      data.put("z", new byte[3]);
+      if (summary) {
+        ContentSummary value = fs.getContentSummary(new Path("/"));
+        assertEquals(3, value.getFileCount());
+        assertEquals(2, value.getDirectoryCount());
+        assertEquals(11, value.getLength());
+      } else {
+        RemoteIterator<LocatedFileStatus> iterator = fs.listFiles(new Path("/"), true);
+        Set<String> found = new HashSet<>();
+        while (iterator.hasNext()) {
+          LocatedFileStatus value = iterator.next();
+          assertTrue(value.isFile());
+          assertTrue(found.add(value.getPath().toUri().getPath()));
+        }
+        assertEquals(new HashSet<>(Arrays.asList("/a", "/dir/live", "/z")), found);
+      }
+    }
+  }
+
+  @Test
   public void directoryIteratorFetchesOnlyConsumedPages() throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
       open(pfs);
@@ -447,7 +477,7 @@ public class HadoopLocalTest {
       assertEquals(10, paths.size());
       assertEquals(lists + 4, server.lists.get());
       assertEquals(flat + 4, server.flatLists.get());
-      assertEquals(beforeHeads + (pfs ? 0 : 1), heads.get());
+      assertEquals(beforeHeads + (pfs ? 0 : 11), heads.get()); // Root plus ten distinct ancestors.
       RemoteIterator<LocatedFileStatus> abandoned = fs.listFiles(new Path("/tree"), true);
       int afterFirst = server.lists.get();
       ((Closeable) abandoned).close();
