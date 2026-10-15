@@ -61,9 +61,10 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 
 配置、能力和接口覆盖详见 [API_COVERAGE.md](docs/API_COVERAGE.md)，预算详见 [BUFFER_BUDGET.md](docs/BUFFER_BUDGET.md)，恢复详见 [UPLOAD_RECOVERY.md](docs/UPLOAD_RECOVERY.md)。
 
-## 当前本地验证（2026-10-13）
+## 当前本地验证（2026-10-15）
 
-- 最新默认 Rust workspace debug：**348 通过、0 失败、15 ignored**；`append-diagnostics`：**350 通过、0 失败、15 ignored**。
+- 最新默认 Rust workspace debug：**350 通过、0 失败、15 ignored**；包含 LIST 显式空标量验证。
+- `append-diagnostics` 上次为 **350 通过、0 失败、15 ignored**，早于此次 LIST 修复。
 - 以下跨层结果来自上一轮、早于追加流服务级 404 隔离修复：release **346 通过、0 失败、15 ignored**。
 - 上一轮真实 JVM：debug / release 的基础 JNI 冒烟和新增异常分类测试均通过。
 - 上一轮 Hadoop 3.3.6：报告 **291 项、0 失败、0 错误、12 跳过**。跳过对应普通桶不支持 append 和新建文件 close 才可见的能力边界。

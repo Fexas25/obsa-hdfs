@@ -1201,3 +1201,10 @@ RenameGuard::finish 的最后一处宽泛 is_not_found 判断会让 NoSuchBucket
 新增协调器测试覆盖文件/目录范围、五种 404 错误码、源目标和相邻无关路径、队列释放；新增文件系统测试验证源流后续 write/close 失败且不发送追加，无关流正常写入，并能重新打开源流恢复写入。修复前 NoSuchBucket 用例复现旧流仍可用。
 
 最终默认 Rust debug workspace **348 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 159、HTTP 76）；append-diagnostics **350 通过、0 失败、15 ignored**（核心 113、缓存 1、文件系统 160、HTTP 76）。未运行手动性能基准，没有吞吐改善结论。本轮未重跑 release/JVM/Hadoop，它们上一轮通过的结果对应此修复之前的版本。工作区日志 append-missing-before.log、append-missing-after.log、append-missing-diagnostics.log 不提交。
+
+
+### 2026-10-15：LIST 显式空标量验证
+
+LIST 解析器原先将显式为空的 IsTruncated/Size 跳过，留下 false/0 默认值，可能把畸形分页响应误认为末页或将对象误报为零字节。现在仅对已识别作用域中的这两个字段拒绝空值，覆盖自闭合、空正文和空 CDATA；未知扩展字段与缺省字段的既有兼容规则不变。没有新增“所有字段必须存在”的约束。
+
+两个本机 HTTP 回归包含六种非法响应和三种合法/兼容响应；修复前复现 IsTruncated 自闭合被接受，修复后正确报 Io 错误，Size=0、IsTruncated=false/0 和缺省字段仍通过。完整默认 Rust debug workspace **350 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 159、HTTP 78）。本轮未重跑 release/JVM/Hadoop/append-diagnostics 或性能基准，无云端验收结论。list-empty-before.log 和 list-empty-after.log 仅保存在工作区。
