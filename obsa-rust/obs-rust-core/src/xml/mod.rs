@@ -211,7 +211,10 @@ pub fn parse_list_xml(body: &str) -> ObsResult<ListXmlResult> {
                     return Err(ObsError::Io("misplaced LIST entry container".into()));
                 }
                 let scope = if current.is_some() { 1 } else if current_prefix.is_some() { 2 } else { 0 };
-                claim_list_field(&name, scope, depth + 1, &mut seen_fields)?;
+                if claim_list_field(&name, scope, depth + 1, &mut seen_fields)?
+                    && matches!(name.as_str(), "IsTruncated" | "Size") {
+                    return Err(ObsError::Io(format!("empty LIST {name}")));
+                }
             }
             Ok(Event::Text(e)) => {
                 if !field.is_empty() {
@@ -229,6 +232,12 @@ pub fn parse_list_xml(body: &str) -> ObsResult<ListXmlResult> {
             }
             Ok(Event::End(e)) => {
                 let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                // Explicitly empty typed values are malformed, not false/zero.
+                // Absence retains the existing compatibility behavior.
+                if value_open && name == field && field_text.is_empty()
+                    && matches!(field.as_str(), "IsTruncated" | "Size") {
+                    return Err(ObsError::Io(format!("empty LIST {field}")));
+                }
                 // XML comments and CDATA may split one field into multiple
                 // events. Parse its complete value only at the closing tag.
                 if name == field && !field_text.is_empty() {

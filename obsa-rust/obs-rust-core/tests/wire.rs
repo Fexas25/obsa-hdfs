@@ -1708,3 +1708,38 @@ async fn delete_missing_key_remains_idempotent_in_object_and_batch_paths() {
         }
     }
 }
+
+
+#[tokio::test]
+async fn list_rejects_explicitly_empty_required_scalars() {
+    for body in [
+        "<ListBucketResult><IsTruncated/></ListBucketResult>",
+        "<ListBucketResult><IsTruncated></IsTruncated></ListBucketResult>",
+        "<ListBucketResult><IsTruncated><![CDATA[]]></IsTruncated></ListBucketResult>",
+        "<ListBucketResult><Contents><Key>file</Key><Size/></Contents></ListBucketResult>",
+        "<ListBucketResult><Contents><Key>file</Key><Size></Size></Contents></ListBucketResult>",
+        "<ListBucketResult><Contents><Key>file</Key><Size><![CDATA[]]></Size></Contents></ListBucketResult>",
+    ] {
+        let (store, task) = server(vec![("200 OK", "", body)]).await;
+        assert!(matches!(store.list("", "", None, 1000).await,
+            Err(obs_rust_core::ObsError::Io(_))), "empty typed scalar accepted: {body}");
+        assert_eq!(task.await.unwrap().len(), 1);
+    }
+}
+
+
+#[tokio::test]
+async fn list_empty_scalar_validation_preserves_zero_and_missing_compatibility() {
+    for body in [
+        "<ListBucketResult><Contents><Key>file</Key><Size>0</Size></Contents><IsTruncated>false</IsTruncated></ListBucketResult>",
+        "<ListBucketResult><Contents><Key>file</Key><Size>0</Size></Contents><IsTruncated>0</IsTruncated></ListBucketResult>",
+        "<ListBucketResult><Contents><Key>file</Key></Contents></ListBucketResult>",
+    ] {
+        let (store, task) = server(vec![("200 OK", "", body)]).await;
+        let page = store.list("", "", None, 1000).await.unwrap();
+        assert!(!page.is_truncated);
+        assert_eq!(page.contents.len(), 1);
+        assert_eq!(page.contents[0].size, 0);
+        assert_eq!(task.await.unwrap().len(), 1);
+    }
+}
