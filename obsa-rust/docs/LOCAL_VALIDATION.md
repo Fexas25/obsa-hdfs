@@ -1208,3 +1208,14 @@ RenameGuard::finish 的最后一处宽泛 is_not_found 判断会让 NoSuchBucket
 LIST 解析器原先将显式为空的 IsTruncated/Size 跳过，留下 false/0 默认值，可能把畸形分页响应误认为末页或将对象误报为零字节。现在仅对已识别作用域中的这两个字段拒绝空值，覆盖自闭合、空正文和空 CDATA；未知扩展字段与缺省字段的既有兼容规则不变。没有新增“所有字段必须存在”的约束。
 
 两个本机 HTTP 回归包含六种非法响应和三种合法/兼容响应；修复前复现 IsTruncated 自闭合被接受，修复后正确报 Io 错误，Size=0、IsTruncated=false/0 和缺省字段仍通过。完整默认 Rust debug workspace **350 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 159、HTTP 78）。本轮未重跑 release/JVM/Hadoop/append-diagnostics 或性能基准，无云端验收结论。list-empty-before.log 和 list-empty-after.log 仅保存在工作区。
+
+
+### 2026-10-15：分片 ETag 引号与协议跨层复验
+
+HttpResponse::etag 原先使用 trim_matches 剥掉任意数量的首尾引号，可将不成对或重复引号的响应改写成不同的分片标识。现在只允许移除一对完整外层引号，出现残余引号返回 None，由 UploadPart 现有检查报错；保留既有未加引号的不透明标识兼容性，不强制 MD5 格式。这不是所有 HTTP ETag 语法或重复头部的全面校验。
+
+新增本机 HTTP 回归覆盖五种畸形值，包括单边、重复、内嵌引号及弱标识形式。已有真实 ObsOutputStream 清理测试扩展到畸形引号，确认 abort、无 complete、任务名额归还，以及 128 字节预算复用。修复前已复现畸形值被接受。
+
+在包含 LIST 空标量与 ETag 引号修复的最终源码上：默认 Rust debug / release 各 **351 通过、0 失败、15 ignored**（核心 112、缓存 1、文件系统 159、HTTP 79）；显式构建 debug/release JNI 动态库，两种构建的 NativeSmokeTest 与 NativeErrorSmokeTest 均通过；Hadoop 3.3.6 **291 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。没有新增跳过项。append-diagnostics 与手动性能基准未在本轮重跑，未验证真实云端。
+
+etag-quotes-before.log、etag-quotes-after.log 及 protocol-final-* 日志仅保存在工作区，不上传日志、图片或构建产物。
