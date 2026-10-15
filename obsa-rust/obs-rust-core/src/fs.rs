@@ -408,6 +408,13 @@ impl ObsFileSystem {
     /// native cursor or background task. Callers deduplicate across pages.
     async fn listing_status(&self, entry: &ListEntry, epoch: u64) -> ObsResult<FileStatus> {
         let key = entry.key.trim_end_matches('/');
+        // A common prefix or slash marker does not prove that the unsuffixed
+        // object is absent. Do not cache a directory over a colliding file.
+        if !self.is_pfs() && entry.is_directory() {
+            if let Some(status) = self.listed_file_status(key).await? {
+                return Ok(self.remember_at(key, status, epoch));
+            }
+        }
         if self.disguise_permissions() {
             match self.store.head(&entry.key).await {
                 Ok(meta) => return Ok(self.remember_at(key, self.meta_status(key, meta), epoch)),
@@ -486,10 +493,10 @@ impl ObsFileSystem {
         let mut statuses = Vec::with_capacity(entries.len());
         let mut seen = BTreeSet::new();
         for entry in entries {
-            if files_only && entry.is_directory() { continue; }
             let k = entry.key.trim_end_matches('/');
             if k != key && seen.insert(k.to_owned()) {
-                statuses.push(self.listing_status(&entry, epoch).await?);
+                let status = self.listing_status(&entry, epoch).await?;
+                if !files_only || !status.is_dir { statuses.push(status); }
             }
         }
         if !self.disguise_permissions() { self.remember_at(&key, FileStatus::dir(&key, 0o755), epoch); }

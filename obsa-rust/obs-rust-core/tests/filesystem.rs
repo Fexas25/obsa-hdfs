@@ -1815,9 +1815,9 @@ async fn list_backfill_opens_without_head_and_keeps_zero_byte_file() {
             .unwrap()
             .is_dir
     );
-    assert_eq!(store.count("head:"), 1); // Resolve the requested ordinary-bucket directory.
+    assert_eq!(store.count("head:"), 2); // Resolve the requested directory and its child prefix.
     fs.open("/dir/empty", OpenOptions::default()).await.unwrap();
-    assert_eq!(store.count("head:"), 1); // Opening the listed file still needs no HEAD.
+    assert_eq!(store.count("head:"), 2); // Opening the listed file still needs no HEAD.
 }
 #[tokio::test]
 async fn pfs_delete_probes_directory_before_file_without_head() {
@@ -4901,5 +4901,89 @@ async fn listing_file_precedence_propagates_service_head_errors() {
         };
         assert_eq!(result.unwrap_err().code(), Some("NoSuchBucket"));
         assert_eq!(store.count("list:"), 0);
+    }
+}
+
+#[tokio::test]
+async fn parent_listing_collision_cannot_cache_file_as_directory() {
+    for paged in [false, true] {
+        let store = Arc::new(MemoryStore::default());
+        store.objects.lock().unwrap().insert("file".into(), Bytes::from_static(b"direct"));
+        store.objects.lock().unwrap().insert("file/child".into(), Bytes::from_static(b"child"));
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let entries = if paged { fs.list_status_page("/", None).await.unwrap().entries }
+            else { fs.list_status("/").await.unwrap() };
+        assert_eq!(entries.len(), 1);
+        assert!(!entries[0].is_dir);
+        assert_eq!(entries[0].path, "/file");
+        assert_eq!(entries[0].length, 6);
+        assert!(!fs.get_file_status("/file").await.unwrap().is_dir);
+        assert_eq!(fs.get_content_summary("/file").await.unwrap().length, 6);
+    }
+}
+
+#[tokio::test]
+async fn parent_prefix_collision_resolves_before_file_filter_and_across_pages() {
+    for files_only in [false, true] {
+        let store = Arc::new(MemoryStore::default());
+        store.objects.lock().unwrap().insert("file".into(), Bytes::from_static(b"direct"));
+        store.list_pages.lock().unwrap().extend([
+            ListPage { common_prefixes: vec!["file/".into()], is_truncated: true,
+                next_marker: Some("next".into()), ..Default::default() },
+            ListPage { contents: vec![ListEntry { key: "file".into(), size: 6,
+                ..Default::default() }], ..Default::default() },
+        ]);
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let first = if files_only { fs.list_files_page("/", None, false).await.unwrap() }
+            else { fs.list_status_page("/", None).await.unwrap() };
+        assert_eq!(first.entries.len(), 1);
+        assert!(!first.entries[0].is_dir);
+        assert_eq!(first.entries[0].length, 6);
+        assert_eq!(store.count("head:"), 1);
+        let second = fs.list_status_page("/", first.next_marker.as_deref()).await.unwrap();
+        assert_eq!(second.entries.len(), 1); // Stateless callers deduplicate across pages.
+        assert!(!second.entries[0].is_dir);
+        assert!(second.next_marker.is_none());
+        assert_eq!(store.count("head:"), 1);
+        assert_eq!(fs.get_content_summary("/file").await.unwrap().length, 6);
+    }
+}
+
+#[tokio::test]
+async fn delayed_parent_prefix_probe_cannot_restore_deleted_file_cache() {
+    let control = AppendControl::blocked();
+    let store = Arc::new(MemoryStore {
+        head_control: Some(control.clone()), head_pauses: AtomicUsize::new(1),
+        ..Default::default()
+    });
+    store.objects.lock().unwrap().insert("file".into(), Bytes::from_static(b"direct"));
+    store.objects.lock().unwrap().insert("file/child".into(), Bytes::from_static(b"child"));
+    let fs = Arc::new(ObsFileSystem::with_store(ObsConfig::default(), store));
+    let reader = fs.clone();
+    let pending = tokio::spawn(async move { reader.list_status("/").await.unwrap() });
+    control.started.notified().await;
+    assert!(fs.delete("/file", false).await.unwrap());
+    control.gate.add_permits(1);
+    assert_eq!(pending.await.unwrap()[0].length, 6); // In-flight snapshot is allowed.
+    assert!(fs.get_file_status("/file").await.unwrap().is_dir); // Child prefix remains.
+}
+
+#[tokio::test]
+async fn parent_prefix_probe_preserves_pfs_fast_path_and_service_errors() {
+    for pfs in [false, true] {
+        let store = Arc::new(MemoryStore {
+            pfs, head_errors: BTreeMap::from([("dir".into(), bucket_missing_for_fs_test())]),
+            ..Default::default()
+        });
+        store.objects.lock().unwrap().insert("dir/child".into(), Bytes::new());
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let result = fs.list_status("/").await;
+        if pfs {
+            assert!(result.unwrap()[0].is_dir);
+            assert_eq!(store.count("head:"), 0);
+        } else {
+            assert_eq!(result.unwrap_err().code(), Some("NoSuchBucket"));
+            assert_eq!(store.count("head:"), 1);
+        }
     }
 }

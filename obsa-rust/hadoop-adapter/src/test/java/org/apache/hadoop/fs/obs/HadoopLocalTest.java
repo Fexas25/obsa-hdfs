@@ -365,6 +365,34 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void parentListingKeepsCollidingFileVisibleAndCachedAsFile() throws Exception {
+    for (int operation = 0; operation < 3; operation++) {
+      open(false);
+      data.clear();
+      data.put("file", new byte[6]);
+      data.put("file/child", new byte[5]);
+      Path root = new Path("/");
+      FileStatus status;
+      if (operation == 0) {
+        FileStatus[] entries = fs.listStatus(root);
+        assertEquals(1, entries.length);
+        status = entries[0];
+      } else {
+        RemoteIterator<? extends FileStatus> entries = operation == 1
+            ? fs.listStatusIterator(root) : fs.listFiles(root, false);
+        assertTrue(entries.hasNext());
+        status = entries.next();
+        assertFalse(entries.hasNext());
+      }
+      assertTrue(status.isFile());
+      assertEquals("/file", status.getPath().toUri().getPath());
+      assertEquals(6, status.getLen());
+      assertTrue(fs.getFileStatus(new Path("/file")).isFile());
+      assertEquals(6, fs.getContentSummary(new Path("/file")).getLength());
+    }
+  }
+
+  @Test
   public void directoryIteratorFetchesOnlyConsumedPages() throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
       open(pfs);
