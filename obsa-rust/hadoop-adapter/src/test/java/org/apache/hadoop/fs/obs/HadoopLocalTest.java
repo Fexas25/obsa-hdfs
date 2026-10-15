@@ -451,6 +451,22 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void recursiveIteratorReusesAncestorProbeAcrossTenPages() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      for (int i = 0; i < 30; i++) data.put("dir/file" + i, new byte[1]);
+      int beforeHeads = heads.get(), beforeLists = server.lists.get();
+      RemoteIterator<LocatedFileStatus> iterator = fs.listFiles(new Path("/"), true);
+      int count = 0;
+      while (iterator.hasNext()) { iterator.next(); count++; }
+      assertEquals(30, count);
+      assertEquals(beforeLists + 10, server.lists.get());
+      assertEquals(beforeHeads + (pfs ? 0 : 1), heads.get());
+    }
+  }
+
+  @Test
   public void directoryIteratorFetchesOnlyConsumedPages() throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
       open(pfs);

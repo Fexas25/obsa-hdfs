@@ -8,6 +8,7 @@ pub struct StatusCursor {
     marker: Option<String>,
     markers: std::collections::HashSet<String>,
     paths: std::collections::HashSet<String>,
+    ancestors: std::collections::HashMap<String, bool>,
     done: bool,
     failure: Option<crate::error::ObsError>,
     files: Option<bool>,
@@ -20,6 +21,7 @@ impl StatusCursor {
             marker: None,
             markers: Default::default(),
             paths: Default::default(),
+            ancestors: Default::default(),
             done: false,
             failure: None,
             files: None,
@@ -44,14 +46,21 @@ impl StatusCursor {
             });
         }
         let result = match self.files {
-            Some(recursive) => fs.list_files_page(&self.path, self.marker.as_deref(), recursive).await,
-            None => fs.list_status_page(&self.path, self.marker.as_deref()).await,
+            Some(true) => fs.list_files_page_cached(&self.path, self.marker.as_deref(), &self.ancestors).await,
+            Some(false) => fs.list_files_page(&self.path, self.marker.as_deref(), false).await
+                .map(|page| (page, Default::default())),
+            None => fs.list_status_page(&self.path, self.marker.as_deref()).await
+                .map(|page| (page, Default::default())),
         };
-        let page = match result {
-            Ok(page) => page,
+        let (page, probes) = match result {
+            Ok(result) => result,
             Err(error) => return self.fail(error),
         };
-        self.accept_page(page)
+        let page = self.accept_page(page)?;
+        // Probe only into a page-local delta until the page is accepted. A
+        // cancelled or rejected fetch cannot change the cursor's decisions.
+        if !self.done { self.ancestors.extend(probes); }
+        Ok(page)
     }
 
     // Commit a fetched page without an await, so cancellation cannot consume
@@ -88,6 +97,7 @@ impl StatusCursor {
         // bucket allocations proportional to the entire completed listing.
         self.markers = Default::default();
         self.paths = Default::default();
+        self.ancestors = Default::default();
     }
 }
 
@@ -501,6 +511,8 @@ mod cursor_tests {
         assert_eq!(cursor.accept_page(page(0, 4096, Some("next"))).unwrap().entries.len(), 4096);
         assert!(cursor.paths.capacity() >= 4096);
         assert!(cursor.markers.capacity() > 0);
+        cursor.ancestors.extend((0..4096).map(|index| (format!("parent-{index}"), false)));
+        assert!(cursor.ancestors.capacity() >= 4096);
         let last = cursor.accept_page(page(4095, 4097, None)).unwrap();
         assert_eq!(last.entries.len(), 1);
         assert_eq!(last.entries[0].path, "dir/file-4096");
@@ -508,6 +520,7 @@ mod cursor_tests {
         assert!(cursor.done);
         assert_eq!(cursor.paths.capacity(), 0);
         assert_eq!(cursor.markers.capacity(), 0);
+        assert_eq!(cursor.ancestors.capacity(), 0);
     }
 
     #[test]
@@ -517,6 +530,8 @@ mod cursor_tests {
             cursor.accept_page(page(0, 4096, Some("next"))).unwrap();
             assert!(cursor.paths.capacity() >= 4096);
             assert!(cursor.markers.capacity() > 0);
+            cursor.ancestors.extend((0..4096).map(|index| (format!("parent-{index}"), false)));
+            assert!(cursor.ancestors.capacity() >= 4096);
             let error = if cycle {
                 cursor.accept_page(page(4096, 4097, Some("next"))).unwrap_err()
             } else {
@@ -525,6 +540,7 @@ mod cursor_tests {
             assert_eq!(cursor.failure.as_ref().unwrap().to_string(), error.to_string());
             assert_eq!(cursor.paths.capacity(), 0);
             assert_eq!(cursor.markers.capacity(), 0);
+            assert_eq!(cursor.ancestors.capacity(), 0);
         }
     }
 }

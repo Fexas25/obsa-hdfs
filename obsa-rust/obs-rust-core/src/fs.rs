@@ -486,12 +486,13 @@ impl ObsFileSystem {
     async fn visible_listing_entry(
         &self, entry: &ListEntry, root: &str,
         ancestors: &mut std::collections::HashMap<String, bool>,
+        previous: Option<&std::collections::HashMap<String, bool>>,
     ) -> ObsResult<bool> {
         if self.is_pfs() { return Ok(true); }
         for (end, _) in entry.key.match_indices('/') {
             if end <= root.len() { continue; }
             let ancestor = &entry.key[..end];
-            let file = match ancestors.get(ancestor) {
+            let file = match ancestors.get(ancestor).or_else(|| previous.and_then(|memo| memo.get(ancestor))) {
                 Some(file) => *file,
                 None => {
                     let file = self.direct_file_status(ancestor).await?.is_some();
@@ -505,11 +506,25 @@ impl ObsFileSystem {
     }
 
     async fn list_page(&self, path: &str, marker: Option<&str>, recursive: bool, files_only: bool) -> ObsResult<FileStatusPage> {
+        self.list_page_inner(path, marker, recursive, files_only, None).await.map(|(page, _)| page)
+    }
+
+    pub(crate) async fn list_files_page_cached(
+        &self, path: &str, marker: Option<&str>,
+        ancestors: &std::collections::HashMap<String, bool>,
+    ) -> ObsResult<(FileStatusPage, std::collections::HashMap<String, bool>)> {
+        self.list_page_inner(path, marker, true, true, Some(ancestors)).await
+    }
+
+    async fn list_page_inner(
+        &self, path: &str, marker: Option<&str>, recursive: bool, files_only: bool,
+        previous: Option<&std::collections::HashMap<String, bool>>,
+    ) -> ObsResult<(FileStatusPage, std::collections::HashMap<String, bool>)> {
         let key = self.key(path)?;
         self.ensure_visible_path(&key).await?;
         if marker.is_none() {
             if let Some(status) = self.direct_file_status(&key).await? {
-                return Ok(FileStatusPage { entries: vec![status], next_marker: None });
+                return Ok((FileStatusPage { entries: vec![status], next_marker: None }, Default::default()));
             }
         }
         let epoch = self.cache.snapshot_epoch();
@@ -530,17 +545,17 @@ impl ObsFileSystem {
         if entries.is_empty() && marker.is_none() && next_marker.is_none() && !key.is_empty() {
             let status = self.get_file_status(path).await?;
             if !status.is_dir {
-                return Ok(FileStatusPage {
+                return Ok((FileStatusPage {
                     entries: vec![status],
                     next_marker: None,
-                });
+                }, Default::default()));
             }
         }
         let mut statuses = Vec::with_capacity(entries.len());
         let mut seen = BTreeSet::new();
         let mut ancestors = std::collections::HashMap::new();
         for entry in entries {
-            if recursive && !self.visible_listing_entry(&entry, &key, &mut ancestors).await? { continue; }
+            if recursive && !self.visible_listing_entry(&entry, &key, &mut ancestors, previous).await? { continue; }
             let k = entry.key.trim_end_matches('/');
             if k != key && seen.insert(k.to_owned()) {
                 let status = self.listing_status(&entry, epoch).await?;
@@ -548,10 +563,10 @@ impl ObsFileSystem {
             }
         }
         if !self.disguise_permissions() { self.remember_at(&key, FileStatus::dir(&key, 0o755), epoch); }
-        Ok(FileStatusPage {
+        Ok((FileStatusPage {
             entries: statuses,
             next_marker,
-        })
+        }, ancestors))
     }
 
     pub async fn list_status(&self, path: &str) -> ObsResult<Vec<FileStatus>> {
@@ -610,7 +625,7 @@ impl ObsFileSystem {
         let mut statuses = Vec::new();
         let mut ancestors = std::collections::HashMap::new();
         for entry in entries.iter().filter(|entry| entry.is_file()) {
-            if self.visible_listing_entry(entry, &key, &mut ancestors).await? {
+            if self.visible_listing_entry(entry, &key, &mut ancestors, None).await? {
                 statuses.push(self.listing_status(entry, epoch).await?);
             }
         }
@@ -875,7 +890,7 @@ impl ObsFileSystem {
         while let Some(page) = pager.next_page().await? {
             saw_entries |= !page.is_empty();
             for e in page {
-                if self.visible_listing_entry(&e, &key, &mut ancestors).await? {
+                if self.visible_listing_entry(&e, &key, &mut ancestors, None).await? {
                     if e.is_directory() {
                         directories.insert(e.key.trim_end_matches('/').to_string());
                     } else {

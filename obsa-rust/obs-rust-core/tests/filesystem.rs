@@ -5211,3 +5211,59 @@ async fn explicit_ancestor_service_errors_are_not_path_misses() {
     assert_eq!(store.count("head:a/b"), 0);
     assert_eq!(store.count("delete:"), 0);
 }
+
+#[tokio::test]
+async fn recursive_cursor_reuses_ancestor_probes_across_pages() {
+    use obs_rust_core::listing::StatusCursor;
+    let store = Arc::new(MemoryStore::default());
+    for index in 0..100 {
+        store.list_pages.lock().unwrap().push_back(ListPage {
+            contents: vec![ListEntry { key: format!("dir/file{index}"), size: 1, ..Default::default() }],
+            is_truncated: index < 99, next_marker: (index < 99).then(|| format!("page{index}")),
+            ..Default::default()
+        });
+    }
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    let mut cursor = StatusCursor::files("/".into(), true);
+    let mut count = 0;
+    loop {
+        let page = cursor.next_page(&fs).await.unwrap();
+        count += page.entries.len();
+        if page.next_marker.is_none() { break; }
+    }
+    assert_eq!(count, 100);
+    assert_eq!(store.count("list:"), 100);
+    assert_eq!(store.count("head:"), 1);
+}
+
+#[tokio::test]
+async fn cancelled_recursive_page_discards_partial_ancestor_probes() {
+    use obs_rust_core::listing::StatusCursor;
+    let control = AppendControl::blocked();
+    let store = Arc::new(MemoryStore {
+        head_control: Some(control.clone()), head_pauses: AtomicUsize::new(1),
+        ..Default::default()
+    });
+    store.objects.lock().unwrap().insert("a".into(), Bytes::new());
+    for _ in 0..2 {
+        store.list_pages.lock().unwrap().push_back(ListPage {
+            contents: vec![ListEntry { key: "dir/file".into(), size: 2, ..Default::default() },
+                ListEntry { key: "a/b".into(), size: 3, ..Default::default() }],
+            is_truncated: true, next_marker: Some("next".into()), ..Default::default()
+        });
+    }
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    let mut cursor = StatusCursor::files("/".into(), true);
+    let mut pending = Box::pin(cursor.next_page(&fs));
+    tokio::select! {
+        _ = control.started.notified() => {},
+        result = &mut pending => panic!("expected blocked ancestor: {result:?}"),
+    }
+    drop(pending);
+    store.objects.lock().unwrap().insert("dir".into(), Bytes::new());
+    let page = cursor.next_page(&fs).await.unwrap();
+    assert!(page.entries.is_empty()); // Cancelled page's dir=false must not survive.
+    assert_eq!(page.next_marker.as_deref(), Some("next"));
+    assert_eq!(store.count("head:dir"), 2);
+    assert_eq!(*store.list_markers.lock().unwrap(), vec![None, None]);
+}
