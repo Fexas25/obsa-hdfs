@@ -1217,6 +1217,7 @@ struct MemoryStore {
     synthetic_listing: Option<usize>,
     metadata_failure: bool,
     head_errors: BTreeMap<String, ObsError>,
+    head_delay_ms: u64,
     rename_error: Option<ObsError>,
     delete_errors: BTreeMap<String, ObsError>,
     folder_error: Option<ObsError>,
@@ -1277,6 +1278,7 @@ impl MemoryStore {
 impl ObjectStore for MemoryStore {
     async fn head(&self, key: &str) -> ObsResult<ObjectMeta> {
         self.record(format!("head:{key}"));
+        if self.head_delay_ms > 0 { tokio::time::sleep(Duration::from_millis(self.head_delay_ms)).await; }
         if let Some(error) = self.head_errors.get(key) { return Err(error.clone()); }
         let bytes = self.objects.lock().unwrap().get(key).cloned().ok_or_else(Self::missing)?;
         if let Some(control) = &self.head_control {
@@ -5266,4 +5268,54 @@ async fn cancelled_recursive_page_discards_partial_ancestor_probes() {
     assert_eq!(page.next_marker.as_deref(), Some("next"));
     assert_eq!(store.count("head:dir"), 2);
     assert_eq!(*store.list_markers.lock().unwrap(), vec![None, None]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "manual synthetic ancestor HEAD latency comparison"]
+async fn recursive_cursor_ancestor_latency_benchmark() {
+    use obs_rust_core::listing::StatusCursor;
+    const PAGES: usize = 64;
+    const SAMPLES: usize = 9;
+    async fn sample(cursor_mode: bool, delay: u64) -> f64 {
+        let store = Arc::new(MemoryStore { head_delay_ms: delay, ..Default::default() });
+        for index in 0..PAGES {
+            store.list_pages.lock().unwrap().push_back(ListPage {
+                contents: vec![ListEntry { key: format!("dir/file{index}"), size: 1, ..Default::default() }],
+                is_truncated: index + 1 < PAGES,
+                next_marker: (index + 1 < PAGES).then(|| format!("page{index}")),
+                ..Default::default()
+            });
+        }
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let mut cursor = StatusCursor::files("/".into(), true);
+        let mut marker = None;
+        let mut count = 0;
+        let started = std::time::Instant::now();
+        loop {
+            let page = if cursor_mode { cursor.next_page(&fs).await.unwrap() }
+                else { fs.list_files_page("/", marker.as_deref(), true).await.unwrap() };
+            count += page.entries.len();
+            marker = page.next_marker;
+            if marker.is_none() { break; }
+        }
+        let elapsed = started.elapsed().as_secs_f64() * 1000.0;
+        assert_eq!(count, PAGES);
+        assert_eq!(store.count("list:"), PAGES);
+        assert_eq!(store.count("head:"), if cursor_mode { 1 } else { PAGES });
+        elapsed
+    }
+    for delay in [0, 3] {
+        let mut stateless = Vec::new();
+        let mut cached = Vec::new();
+        for round in 0..SAMPLES {
+            for mode in [round % 2 == 0, round % 2 != 0] {
+                let elapsed = sample(mode, delay).await;
+                if mode { cached.push(elapsed); } else { stateless.push(elapsed); }
+            }
+        }
+        stateless.sort_by(f64::total_cmp);
+        cached.sort_by(f64::total_cmp);
+        println!("ancestor_head_latency pages={PAGES} samples={SAMPLES} head_delay_ms={delay} stateless_heads={PAGES} cursor_heads=1 stateless_median_ms={:.3} cursor_median_ms={:.3}",
+            stateless[SAMPLES / 2], cached[SAMPLES / 2]);
+    }
 }
