@@ -1618,4 +1618,49 @@ public class HadoopLocalTest {
       java.nio.file.Files.deleteIfExists(directory);
     }
   }
+
+  /** Test-only destination: keep Hadoop local I/O, omit host-specific chmod/winutils. */
+  public static final class PermissionlessLocalFileSystem extends LocalFileSystem {
+    public PermissionlessLocalFileSystem() {
+      super(new RawLocalFileSystem() {
+        @Override
+        public void setPermission(Path path, FsPermission permission) {
+          // Permission propagation is outside this failure-path test.
+        }
+      });
+    }
+  }
+
+  @Test
+  public void failedDownloadMoveKeepsRemoteSourceAndCanRetry() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "download-failure-");
+    java.nio.file.Path local = directory.resolve("destination");
+    try {
+      for (boolean pfs : new boolean[] {false, true}) {
+        open(pfs);
+        fs.getConf().setClass("fs.file.impl", PermissionlessLocalFileSystem.class, FileSystem.class);
+        fs.getConf().setBoolean("fs.file.impl.disable.cache", true);
+        data.clear();
+        write("/download-source", "abcdefghijkl");
+        server.failedRangeStart = 4;
+        server.rangeFailures.set(3);
+        Path destination = new Path(local.toAbsolutePath().toUri());
+        assertThrows(IOException.class,
+            () -> fs.copyToLocalFile(true, new Path("/download-source"), destination, true));
+        assertEquals(0, server.rangeFailures.get());
+        assertArrayEquals("abcdefghijkl".getBytes(StandardCharsets.UTF_8), data.get("download-source"));
+        server.failedRangeStart = -1;
+        fs.copyToLocalFile(true, new Path("/download-source"), destination, true);
+        assertArrayEquals("abcdefghijkl".getBytes(StandardCharsets.UTF_8), java.nio.file.Files.readAllBytes(local));
+        assertFalse(data.containsKey("download-source"));
+        java.nio.file.Files.delete(local);
+      }
+    } finally {
+      server.failedRangeStart = -1;
+      server.rangeFailures.set(0);
+      java.nio.file.Files.deleteIfExists(local);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
 }
