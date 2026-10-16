@@ -1353,3 +1353,10 @@ Rust 直接入口现在对 append_stream("/") 和 truncate("/") 返回 IsDirecto
 新增普通桶/PFS、完整/分页四种路径测试，旧版本已复现 0700 变为 0755；另新增缓存单测验证 owner、修改时间、TTL/访问顺序不变，以及过期/负缓存替换与失效后迟到回填被拒绝。已有缓存失效与延迟查询竞态回归继续通过。本批仅修正父目录推断回填，不改变显式 HEAD/LIST 条目更新策略或缓存外部修改一致性边界。
 
 workspace debug/release 各 **385 通过、0 失败、16 ignored**，诊断特性 **387 通过、0 失败、16 ignored**。显式构建 debug/release 动态库后，实际 JVM 基础/异常冒烟通过；Hadoop **298 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。directory-hint-* 日志和补丁仅保存在工作区，无真实云验收结论。
+
+
+### 2026-10-16：Java 流检查所属文件系统关闭状态
+
+原生文件系统关闭会清理所属流句柄，但 Java 流原先仅检查自身 handle 字段，导致 getPos/available/零长度读取等本地操作仍可能成功。现在 NativeInput/NativeOutput 在方法入口同时检查所属文件系统的 volatile nativeHandle；已关闭时抛 IOException，避免顺序调用场景继续使用已退役句柄。流 close 保持幂等，不增加 JNI/网络请求。该检查不是与文件系统 close 的全局原子屏障，不声称改变已经在途的 I/O 语义。
+
+新增普通桶/PFS 的实际 Hadoop 回归，先打开输入和创建输出流，再关闭文件系统，校验 getPos、available、零长度/正常读写、seek、flush 均拒绝，重复关闭流无异常且未提交输出对象。旧版本在 getPos 应抛异常处失败；修复后 Hadoop **299 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 源码未修改，沿用上一批 debug/release 385、诊断 387 和 JVM 验证结果，没有重复执行这些未变组件的测试。stream-owner-* 日志仅保存在工作区。
