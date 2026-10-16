@@ -922,4 +922,36 @@ public class HadoopLocalTest {
       assertFalse(data.containsKey("closed-owner-output"));
     }
   }
+  @Test
+  public void liveFilesystemCannotBeInitializedTwice() throws Exception {
+    write("/keep-initialized", "original");
+    Configuration conf = new Configuration(fs.getConf());
+    assertThrows(IOException.class, () -> fs.initialize(URI.create("obs://bucket"), conf));
+    assertEquals("original", read("/keep-initialized"));
+  }
+
+  @Test
+  public void reopeningFilesystemDoesNotReviveOldStreamsOrBufferedIterators() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/old-file", "data");
+      FSDataInputStream input = fs.open(new Path("/old-file"));
+      FSDataOutputStream output = fs.create(new Path("/old-output"), true);
+      RemoteIterator<FileStatus> iterator = fs.listStatusIterator(new Path("/"));
+      assertTrue(iterator.hasNext());
+      Configuration conf = new Configuration(fs.getConf());
+      fs.close();
+      fs.initialize(URI.create("obs://bucket"), conf);
+      assertThrows(IOException.class, () -> input.getPos());
+      assertThrows(IOException.class, () -> input.read(new byte[0]));
+      assertThrows(IOException.class, () -> output.write(new byte[0]));
+      assertThrows(IOException.class, () -> iterator.hasNext());
+      assertThrows(IOException.class, () -> iterator.next());
+      input.close();
+      output.close();
+      ((Closeable) iterator).close();
+      assertEquals("data", read("/old-file"));
+      assertFalse(data.containsKey("old-output"));
+    }
+  }
 }

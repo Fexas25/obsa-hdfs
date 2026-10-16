@@ -22,7 +22,8 @@ public final class OBSFileSystemRust extends FileSystem {
   private boolean contentSummaryEnabled;
 
   @Override
-  public void initialize(URI name, Configuration conf) throws IOException {
+  public synchronized void initialize(URI name, Configuration conf) throws IOException {
+    if (nativeHandle != 0) throw new IOException("Filesystem is already initialized");
     super.initialize(name, conf);
     setConf(conf);
     if (!"obs".equals(name.getScheme()) || name.getHost() == null)
@@ -259,6 +260,7 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   private final class NativeStatusIterator implements RemoteIterator<FileStatus>, Closeable {
+    private final long filesystemHandle = nativeHandle;
     private final ObjectNode request;
     private final ListingCleanup cleanup;
     private Iterator<FileStatus> page = Collections.emptyIterator();
@@ -277,7 +279,8 @@ public final class OBSFileSystemRust extends FileSystem {
 
     @Override
     public synchronized boolean hasNext() throws IOException {
-      if (nativeHandle == 0 || closed) throw new IOException("Filesystem or iterator closed");
+      if (nativeHandle == 0 || nativeHandle != filesystemHandle || closed)
+        throw new IOException("Filesystem or iterator closed");
       if (failure != null) throw failure;
       try {
         while (!page.hasNext() && !finished) {
@@ -468,6 +471,7 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   private final class NativeInput extends FSInputStream {
+    private final long filesystemHandle = nativeHandle;
     private long handle, position;
     private final byte[] one = new byte[1];
 
@@ -476,7 +480,8 @@ public final class OBSFileSystemRust extends FileSystem {
     }
 
     private void checkOpen() throws IOException {
-      if (handle == 0 || nativeHandle == 0) throw new IOException("Stream closed");
+      if (handle == 0 || nativeHandle == 0 || nativeHandle != filesystemHandle)
+        throw new IOException("Stream closed");
     }
 
     @Override
@@ -551,11 +556,13 @@ public final class OBSFileSystemRust extends FileSystem {
       implements Syncable, StreamCapabilities {
     private long handle;
     private final OBSFileSystemRust owner;
+    private final long filesystemHandle;
     private final boolean append;
     private final Progressable progress;
 
     NativeOutput(OBSFileSystemRust owner, long handle, boolean append, Progressable progress) {
       this.owner = owner;
+      this.filesystemHandle = owner.nativeHandle;
       this.handle = handle;
       this.append = append;
       this.progress = progress;
@@ -576,7 +583,8 @@ public final class OBSFileSystemRust extends FileSystem {
     }
 
     private void checkOpen() throws IOException {
-      if (handle == 0 || owner.nativeHandle == 0) throw new IOException("Stream closed");
+      if (handle == 0 || owner.nativeHandle == 0 || owner.nativeHandle != filesystemHandle)
+        throw new IOException("Stream closed");
     }
 
     @Override
