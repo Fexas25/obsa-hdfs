@@ -432,6 +432,35 @@ public final class OBSFileSystemRust extends FileSystem {
     return new FSDataOutputStream(new NativeOutput(this, stream, false, progress), statistics);
   }
 
+  private static void validateCreateFlags(EnumSet<CreateFlag> flags) {
+    CreateFlag.validate(flags);
+    for (CreateFlag flag : flags) {
+      if (flag != CreateFlag.CREATE && flag != CreateFlag.OVERWRITE && flag != CreateFlag.APPEND)
+        throw new UnsupportedOperationException("Unsupported create flag: " + flag);
+    }
+  }
+
+  @Override
+  public FSDataOutputStream create(
+      Path path, FsPermission permission, EnumSet<CreateFlag> flags, int bufferSize,
+      short replication, long blockSize, Progressable progress, Options.ChecksumOpt checksum)
+      throws IOException {
+    validateCreateFlags(flags);
+    boolean present = exists(path);
+    CreateFlag.validate(path, present, flags);
+    if (present && flags.contains(CreateFlag.APPEND)) return append(path, bufferSize, progress);
+    return create(path, permission, flags.contains(CreateFlag.OVERWRITE), bufferSize,
+        replication, blockSize, progress);
+  }
+
+  @Override
+  protected FSDataOutputStream primitiveCreate(
+      Path path, FsPermission permission, EnumSet<CreateFlag> flags, int bufferSize,
+      short replication, long blockSize, Progressable progress, Options.ChecksumOpt checksum)
+      throws IOException {
+    return create(path, permission, flags, bufferSize, replication, blockSize, progress, checksum);
+  }
+
   @Override
   public FSDataOutputStream createNonRecursive(
       Path path,
@@ -463,6 +492,7 @@ public final class OBSFileSystemRust extends FileSystem {
       long blockSize,
       Progressable progress)
       throws IOException {
+    validateCreateFlags(flags);
     boolean present = exists(path);
     CreateFlag.validate(path, present, flags);
     if (flags.contains(CreateFlag.APPEND) && present) return append(path, bufferSize, progress);

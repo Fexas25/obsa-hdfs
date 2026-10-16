@@ -1038,4 +1038,75 @@ public class HadoopLocalTest {
     assertEquals("keep", read("/parent-error-source"));
     assertEquals("parent", read("/file-parent"));
   }
+  private FSDataOutputStream createWithFlags(int kind, Path path, EnumSet<CreateFlag> flags) throws Exception {
+    FsPermission permission = new FsPermission((short) 0600);
+    if (kind == 0) return fs.create(path, permission, flags, 4096, (short) 1, 1024, null);
+    if (kind == 1) return fs.create(path, permission, flags, 4096, (short) 1, 1024, null, null);
+    if (kind == 2) return fs.createNonRecursive(path, permission, flags, 4096, (short) 1, 1024, null);
+    java.lang.reflect.Method method = FileSystem.class.getDeclaredMethod("primitiveCreate",
+        Path.class, FsPermission.class, EnumSet.class, int.class, short.class, long.class,
+        org.apache.hadoop.util.Progressable.class, Options.ChecksumOpt.class);
+    method.setAccessible(true);
+    try {
+      return (FSDataOutputStream) method.invoke(fs, path, permission, flags, 4096, (short) 1, 1024L, null, null);
+    } catch (java.lang.reflect.InvocationTargetException error) {
+      Throwable cause = error.getCause();
+      if (cause instanceof Exception) throw (Exception) cause;
+      throw new AssertionError(cause);
+    }
+  }
+
+  @Test
+  public void createFlagOverloadsRejectInvalidCombinationsAndMissingCreate() throws Exception {
+    for (int kind = 0; kind < 4; kind++) {
+      open(false);
+      data.clear();
+      write("/flag-existing", "keep");
+      final int entry = kind;
+      assertThrows(IllegalArgumentException.class, () -> {
+        try (FSDataOutputStream out = createWithFlags(entry, new Path("/flag-existing"),
+            EnumSet.of(CreateFlag.APPEND, CreateFlag.OVERWRITE))) { out.write(1); }
+      });
+      assertEquals("keep", read("/flag-existing"));
+      assertThrows(FileNotFoundException.class, () -> {
+        try (FSDataOutputStream out = createWithFlags(entry, new Path("/flag-missing"),
+            EnumSet.of(CreateFlag.OVERWRITE))) { out.write(1); }
+      });
+      assertFalse(data.containsKey("flag-missing"));
+    }
+  }
+
+  @Test
+  public void createFlagAppendUsesPfsAppendAndCreateFallback() throws Exception {
+    for (int kind = 0; kind < 4; kind++) {
+      open(true);
+      data.clear();
+      write("/flag-append", "a");
+      try (FSDataOutputStream out = createWithFlags(kind, new Path("/flag-append"), EnumSet.of(CreateFlag.APPEND))) {
+        assertEquals(1, out.getPos());
+        out.write('b');
+      }
+      assertEquals("ab", read("/flag-append"));
+      try (FSDataOutputStream out = createWithFlags(kind, new Path("/flag-new"),
+          EnumSet.of(CreateFlag.CREATE, CreateFlag.APPEND))) { out.write('n'); }
+      assertEquals("n", read("/flag-new"));
+    }
+  }
+
+  @Test
+  public void createFlagOverloadsRejectUnsupportedStorageFlags() throws Exception {
+    for (int kind = 0; kind < 4; kind++) {
+      open(false);
+      data.clear();
+      final int entry = kind;
+      for (CreateFlag flag : CreateFlag.values()) {
+        if (flag == CreateFlag.CREATE || flag == CreateFlag.APPEND || flag == CreateFlag.OVERWRITE) continue;
+        assertThrows(UnsupportedOperationException.class, () -> {
+          try (FSDataOutputStream out = createWithFlags(entry, new Path("/unsupported-flag"),
+              EnumSet.of(CreateFlag.CREATE, flag))) { out.write(1); }
+        });
+        assertFalse(data.containsKey("unsupported-flag"));
+      }
+    }
+  }
 }
