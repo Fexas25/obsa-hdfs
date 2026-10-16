@@ -954,4 +954,88 @@ public class HadoopLocalTest {
       assertFalse(data.containsKey("old-output"));
     }
   }
+  private void renameWithOptions(Path source, Path destination, Options.Rename... options) throws Exception {
+    java.lang.reflect.Method method = FileSystem.class.getDeclaredMethod(
+        "rename", Path.class, Path.class, Options.Rename[].class);
+    method.setAccessible(true);
+    try {
+      method.invoke(fs, source, destination, options);
+    } catch (java.lang.reflect.InvocationTargetException error) {
+      Throwable cause = error.getCause();
+      if (cause instanceof Exception) throw (Exception) cause;
+      throw new AssertionError(cause);
+    }
+  }
+
+  @Test
+  public void overwriteRenameDoesNotPredeleteDestinationOnFailure() throws Exception {
+    for (int scenario = 0; scenario < 4; scenario++) {
+      open(false);
+      data.clear();
+      data.put("source", "new".getBytes(StandardCharsets.UTF_8));
+      data.put("target", "original".getBytes(StandardCharsets.UTF_8));
+      if (scenario == 0) data.put("source/hidden", new byte[] {1});
+      if (scenario == 3) data.put("target/hidden", new byte[] {2});
+      server.failCopy = scenario == 1;
+      Path destination = new Path(scenario == 2 ? "/source" : "/target");
+      java.util.Map<String, byte[]> original = new java.util.TreeMap<>(data);
+      assertThrows(IOException.class,
+          () -> renameWithOptions(new Path("/source"), destination, Options.Rename.OVERWRITE));
+      assertEquals(original.keySet(), data.keySet());
+      for (String key : original.keySet()) assertArrayEquals(original.get(key), data.get(key));
+      server.failCopy = false;
+    }
+  }
+
+  @Test
+  public void overwriteRenameReplacesFileThroughNativeCore() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+    open(pfs);
+    write("/overwrite-source", "new");
+    write("/overwrite-target", "old");
+    renameWithOptions(new Path("/overwrite-source"), new Path("/overwrite-target"), Options.Rename.OVERWRITE);
+    assertEquals("new", read("/overwrite-target"));
+    assertFalse(fs.exists(new Path("/overwrite-source")));
+    }
+  }
+
+  @Test
+  public void renameOptionsRejectExistingTargetWithoutOverwrite() throws Exception {
+    open(false);
+    write("/options-source", "new");
+    write("/options-target", "old");
+    assertThrows(FileAlreadyExistsException.class,
+        () -> renameWithOptions(new Path("/options-source"), new Path("/options-target"), Options.Rename.NONE));
+    assertEquals("new", read("/options-source"));
+    assertEquals("old", read("/options-target"));
+  }
+
+  @Test
+  public void unsupportedRenameOptionsPreserveObjects() throws Exception {
+    open(false);
+    data.clear();
+    data.put("source/", new byte[0]);
+    data.put("source/file", new byte[] {1});
+    data.put("target/", new byte[0]);
+    java.util.Set<String> original = new java.util.TreeSet<>(data.keySet());
+    assertThrows(UnsupportedOperationException.class,
+        () -> renameWithOptions(new Path("/source"), new Path("/target"), Options.Rename.OVERWRITE));
+    assertEquals(original, data.keySet());
+    assertThrows(UnsupportedOperationException.class,
+        () -> renameWithOptions(new Path("/source/file"), new Path("/elsewhere"), Options.Rename.TO_TRASH));
+    assertEquals(original, data.keySet());
+  }
+  @Test
+  public void renameOptionsPreserveMissingAndNonDirectoryParentErrors() throws Exception {
+    open(false);
+    data.clear();
+    write("/parent-error-source", "keep");
+    write("/file-parent", "parent");
+    assertThrows(FileNotFoundException.class,
+        () -> renameWithOptions(new Path("/parent-error-source"), new Path("/missing-parent/child")));
+    assertThrows(ParentNotDirectoryException.class,
+        () -> renameWithOptions(new Path("/parent-error-source"), new Path("/file-parent/child")));
+    assertEquals("keep", read("/parent-error-source"));
+    assertEquals("parent", read("/file-parent"));
+  }
 }

@@ -332,6 +332,43 @@ public final class OBSFileSystemRust extends FileSystem {
     return call("rename", args(source).put("destination", path(destination))).asBoolean();
   }
 
+  /** Route overwrite through Rust; Hadoop's default deletes the target first. */
+  @Override
+  public void rename(Path source, Path destination, Options.Rename... options) throws IOException {
+    boolean overwrite = false;
+    if (options != null) {
+      for (Options.Rename option : options) {
+        if (option == Options.Rename.OVERWRITE) overwrite = true;
+        else if (option != Options.Rename.NONE)
+          throw new UnsupportedOperationException("Unsupported rename option: " + option);
+      }
+    }
+    String sourcePath = path(source), destinationPath = path(destination);
+    FileStatus sourceStatus = getFileStatus(source);
+    if (sourcePath.equals(destinationPath))
+      throw new FileAlreadyExistsException("Source and destination are the same path");
+    FileStatus destinationStatus = null;
+    try {
+      destinationStatus = getFileStatus(destination);
+    } catch (FileNotFoundException missing) {
+      // Other service failures must propagate without modifying either path.
+    }
+    if (destinationStatus != null) {
+      if (!overwrite) throw new FileAlreadyExistsException(destination.toString());
+      if (sourceStatus.isDirectory() != destinationStatus.isDirectory())
+        throw new IOException("Source and destination must have the same type");
+      if (destinationStatus.isDirectory())
+        throw new UnsupportedOperationException("Replacing an existing directory is unsupported");
+    } else {
+      Path parent = makeQualified(destination).getParent();
+      if (parent != null && !getFileStatus(parent).isDirectory())
+        throw new ParentNotDirectoryException(parent.toString());
+    }
+    if (!call("rename", args(source).put("destination", destinationPath)
+        .put("overwrite", overwrite)).asBoolean())
+      throw new IOException("Rename failed: " + source + " to " + destination);
+  }
+
   @Override
   public boolean truncate(Path path, long length) throws IOException {
     return call("truncate", args(path).put("length", length)).asBoolean();
