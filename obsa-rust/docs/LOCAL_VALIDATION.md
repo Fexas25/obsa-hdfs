@@ -1445,3 +1445,12 @@ Hadoop 默认 deleteOnExit 将原始 Path 放入集合；相对路径在关闭�
 本地复制测试只在项目 target 下建立临时文件并清理。验证普通桶/PFS 成功复制保留源、成功移动删除源；普通桶隐藏目标或 overwrite=false 的已有目标被拒绝时，本地源和两份原始对象字节均不变。本批不声称目录、多源或上传中途失败的完整事务保证。
 
 Hadoop 完整回归 **328 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。未发现这些已测继承路径需要新增生产修复。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和实际 JVM 冒烟结果。inherited-queries* 日志与临时文件不上传。
+
+
+### 2026-10-17：默认本地移动复制的提交故障测试
+
+模拟服务器增加仅针对指定普通 PUT 对象的故障开关：完整读取请求体后，在提交前或提交后返回 503 ServiceUnavailable。仅测试夹具改变，生产代码不变。普通桶/PFS、目标已存在/缺失、提交前/后共八组场景验证 copyFromLocalFile(deleteSource=true, overwrite=true) 抛 IOException 后本地源字节仍在。
+
+提交前失败保留已有目标或目标缺失；提交后失败按不确定提交处理，允许并验证远端新内容可读，不声称回滚。故障清除后同一文件系统重试移动成功，才删除本地源。测试同时观察到实际 PUT 故障请求，避免在打开流之前失败造成假阳性。临时文件仅在项目 target 下创建并清理；该测试不涵盖 MPU、连接中断、多源或目录事务。
+
+Hadoop 完整回归 **329 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。copy-failure.log 不上传，无真实云验收结论。
