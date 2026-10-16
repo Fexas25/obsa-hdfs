@@ -1408,3 +1408,10 @@ Hadoop 完整回归 **313 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 Hadoop setReplication 默认直接返回 true，setTimes 默认直接返回，均不检查路径。适配器现将两者接入 Rust getFileStatus；副本数必须为正数，但返回 false 表示未改变 OBS 策略。时间参数两个均为 -1 时只校验路径；实际修改明确 UnsupportedOperationException，避免将未实现的时间写入报告为成功。此改变会使要求保留时间的上层操作明确失败，未添加模拟时间或副本元数据。
 
 新增普通桶/PFS 不支持操作的内容与元数据保留测试，以及不存在/被文件阻断后代/错误桶/关闭实例的路径校验。旧实现两个新增测试均失败。隐藏后代沿用 Rust 状态查询的 FileNotFoundException 分类，未改为 ParentNotDirectoryException。修复后 Hadoop 完整回归 **315 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和实际 JVM 冒烟结果。metadata-defaults-* 日志仅在工作区。
+
+
+### 2026-10-17：校验和默认入口补齐路径校验
+
+接续上次中断的测试。getFileChecksum 长度重载现在拒绝负长度并调用 Rust 状态查询，无长度入口通过 Hadoop 虚派发复用该实现。有效路径保持 null，表示没有 Hadoop 兼容校验和，不虚构 MD5 或把 ETag 用作文件校验和。
+
+普通桶/PFS 回归覆盖有效路径、零/正/负长度、不存在路径、错误桶和关闭实例；普通桶还验证隐藏后代拒绝，及 resolvePath、getFileLinkStatus、getFileBlockLocations、listLocatedStatus、access 继承入口遵循 Rust 可见性规则。旧实现校验和两项新增测试失败。此次完整 Hadoop 回归 **317 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。checksum-paths-* 日志不上传。

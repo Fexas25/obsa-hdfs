@@ -30,7 +30,7 @@
 24. setPermission：Hadoop 入口现在仅 PFS + permissions.mode=disguise 写 permission 十进制字符串元数据；none/普通桶 no-op。独立 Rust set_permission 仍更新数值 mode，不能混为一谈。
 25. setOwner：Java/JNI → Rust set_hadoop_owner 已接通名称元数据；PFS disguise 模式写 user/group，一个 null 保留对应字段，两个 null 拒绝；none/普通桶 no-op。当前仅非空可打印 ASCII，Unicode 编码和服务端 ACL 尚未实现。独立 Rust set_owner 保持数值 uid/gid 语义。
 26. getFileBlockLocations：未单独覆盖 Java；本轮已验证单文件继承块位置的 offset/length，以及 Rust 状态与默认逻辑块大小配置一致性；完整继承语义仍待核对。
-27. getFileChecksum：未接通原适配器校验和；不得直接把 ETag 当 MD5。
+27. getFileChecksum：两种重载现在通过 Rust 校验路径，负长度拒绝；有效路径仍返回 null 表示没有 Hadoop 兼容校验和，不把 ETag 当 MD5。
 28. xattrs：未接通。
 29. copyFromLocalFile：未单独覆盖，依赖 Hadoop 默认路径；尚无专项兼容验收。
 30. close：Hadoop deleteOnExit 在释放原生句柄前处理，仍经过 Rust 冲突检查，取消注册与重复关闭已本地验证；JNI 文件系统/流清理已接通；列表游标新增 EOF/错误/显式释放/所属 FS 关闭清理。MPU 远端清理仍 best effort。
