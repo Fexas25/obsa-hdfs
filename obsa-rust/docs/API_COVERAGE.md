@@ -33,7 +33,7 @@
 27. getFileChecksum：两种重载现在通过 Rust 校验路径，负长度拒绝；有效路径仍返回 null 表示没有 Hadoop 兼容校验和，不把 ETag 当 MD5。
 28. xattrs：未接通。
 29. copyFromLocalFile：未单独覆盖，依赖 Hadoop 默认路径；尚无专项兼容验收。
-30. close：Hadoop deleteOnExit 在释放原生句柄前处理，仍经过 Rust 冲突检查，取消注册与重复关闭已本地验证；JNI 文件系统/流清理已接通；列表游标新增 EOF/错误/显式释放/所属 FS 关闭清理。MPU 远端清理仍 best effort。
+30. close：Hadoop deleteOnExit 在释放原生句柄前处理，仍经过 Rust 冲突检查，注册/取消统一按调用时工作目录限定路径，工作目录切换不改变既有删除目标；取消注册与重复关闭已本地验证；JNI 文件系统/流清理已接通；列表游标新增 EOF/错误/显式释放/所属 FS 关闭清理。MPU 远端清理仍 best effort。
 31. delegation tokens：未接入原 Java token manager。
 32. checkPermission / AuthorizeProvider：未接入原 Java 扩展。
 33. MemArtsCC：未接入；这是原规格允许保留 Java 的 Hybrid 能力，不能据此声称当前自动具备。

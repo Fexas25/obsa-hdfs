@@ -1429,3 +1429,10 @@ Hadoop 3.3.6 默认 listLocatedStatus 在构造迭代器时调用全量 listStat
 Hadoop 默认 primitiveMkdir(path, permission, false) 对根路径执行 getFileStatus(null)，实际回归抛 IllegalArgumentException: null path。适配器现先验证桶并将路径按当前工作目录限定，再取父目录；根路径没有父目录时跳过父状态查询。非递归入口仍拒绝不存在或非目录父路径，实际创建调用原有 Rust mkdirs，递归入口也复用同一路径解析。
 
 新增普通桶/PFS 根目录不创建对象、单段相对路径落在工作目录下、缺失父目录不创建、递归创建成功，及普通桶文件父路径/隐藏后代/错误桶拒绝且对象字节不变的测试。旧实现根路径测试失败；修复后 Hadoop **322 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。父状态检查和创建非原子，不改变跨实例竞争保证。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。primitive-mkdir-* 日志保留本地。
+
+
+### 2026-10-17：退出删除固定登记时的工作目录
+
+Hadoop 默认 deleteOnExit 将原始 Path 放入集合；相对路径在关闭时才经当前工作目录解析，注册后切换工作目录会改变删除目标，同一文件的相对/绝对路径也不能相互取消。适配器现在对注册与取消均先校验桶，再按调用时的工作目录 makeQualified。删除依旧由 Hadoop close 调用 Rust 执行，不绕过原有命名空间冲突检查。
+
+旧实现相对/完整路径取消测试失败，单独的目录切换测试也复现原登记文件在关闭后仍存在。修复后普通桶/PFS 均验证原登记对象删除，切换后的同名对象字节保留；相对、绝对、含桶 URI 三种路径可互相取消。Hadoop 完整回归 **324 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。未实现跨实例重命名跟踪或对外部路径替换的身份绑定，退出删除仍按登记路径尽力执行。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。exit-paths-* 日志不上传。
