@@ -1319,3 +1319,14 @@ Rust OpenOptions.status_hint 可以提供已有状态以避免查询，但根目
 新增普通桶/PFS 回归覆盖空首屏后出现对象、根目录空首屏后出现目录，以及越界键/循环 marker 报错后重新查询成功。修复前两个用例分别复现错误 NoSuchKey 和漏报 DirectoryNotEmpty。
 
 workspace debug/release 各 **377 通过、0 失败、16 ignored**，append-diagnostics **379 通过、0 失败、16 ignored**。显式构建 debug/release JNI 动态库后的 JVM 基础/异常测试通过；Hadoop **297 项、0 失败、0 错误、12 跳过**。全部为本地验证，existence-pages-* 日志仅存于工作区。
+
+
+### 2026-10-16：单文件修改保留隐藏后代
+
+用户委托选择与项目规则一致的处理方式后，采用保守规则：普通桶同时存在 a 与 a/b 或 a/ 时，删除或移走 a、覆盖作为重命名目标的 a 均返回 Io，保留全部对象。此为项目行为选择，不代表已核验任何公司的内部规范。底层 ObjectStore 仍可用于显式处理原始对象。已有文件内容覆盖不移走祖先，不在本次删除/重命名规则的变更范围内。
+
+检查在写操作前进行，以 max-keys=1 的带分隔符 LIST 探测后代；有结果立即拒绝，空续页继续，非法页/循环 marker 报错。普通单文件删除/移动通常新增一次 LIST；覆盖已有目标还需检查目标。PFS 不走该检查。预检无法阻止其他客户端在检查后并发修改，不构成原子性保证。
+
+Rust 新增源文件删除（两种 recursive 值）、重命名、覆盖冲突目标、目录标记与子对象、空首屏与循环续页回归，要求对象快照不变且 PUT/COPY/DELETE 为零。旧缓存竞态测试先经 ObjectStore 清理冲突，再执行正常删除；旧延迟 LIST 测试限定门控及脚本响应只作用于根目录，避免把新的安全探测也阻塞。Hadoop 新增两种冲突的删除/重命名测试并逐对象核对字节内容。
+
+最终 workspace debug/release 各 **379 通过、0 失败、16 ignored**，append-diagnostics **381 通过、0 失败、16 ignored**；显式构建 debug/release 动态库后实际 JVM 基础/异常冒烟通过；Hadoop **298 项、0 失败、0 错误、12 跳过**。file-conflict-* 日志仅存工作区，未进行真实云或性能验收。
