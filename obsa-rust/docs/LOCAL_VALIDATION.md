@@ -1463,3 +1463,12 @@ Hadoop 完整回归 **329 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 普通桶/PFS 使用 4 字节分段，在第二段 GET 注入三次 503 耗尽初始请求及两次重试，断言故障计数耗尽且远端源完整保留。清除故障后同实例重试移动成功，本地内容完整且远端源删除。临时文件仅在项目 target 下建立并清理。失败时本地目标允许部分写入，不承诺回滚；真实 Windows 本地后端及权限传播仍待环境具备后验证。
 
 Hadoop 完整回归 **330 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。本批仅测试/文档，Rust/JNI 沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。download-failure* 日志不上传。
+
+
+### 2026-10-17：根目录移动到本地在复制前拒绝
+
+Hadoop 默认 copyToLocalFile 忽略 FileUtil.copy 的布尔结果，而 Rust delete("/", true) 固定返回 false。旧实现在根目录移动回归中未抛 IOException，不能据此报告根目录已经移动。适配器现在在 deleteSource=true 时先查询 Rust 返回的源状态，若状态路径为根目录则直接拒绝，不先写本地目标；普通 copyToLocalFile(deleteSource=false) 保持原流程。
+
+普通桶/PFS 测试覆盖根路径、归一化的 /unused/..、moveToLocalFile 便捷重载均在本地目标出现前报错且远端对象保留；普通复制根目录成功并保留源。目标仍使用上一批的测试专用免 chmod LocalFileSystem，未改变真实 Windows 权限能力边界。Hadoop 完整回归 **331 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。该修复只处理根目录，非根目录移动仍沿用复制/删除的非事务语义。
+
+Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。root-local-move-* 日志与项目 target 临时文件不上传。
