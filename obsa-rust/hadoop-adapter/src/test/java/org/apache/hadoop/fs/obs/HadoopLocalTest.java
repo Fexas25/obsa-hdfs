@@ -1663,4 +1663,38 @@ public class HadoopLocalTest {
       java.nio.file.Files.deleteIfExists(directory);
     }
   }
+
+  @Test
+  public void movingFilesystemRootToLocalIsRejectedBeforeCopying() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "root-local-move-");
+    java.nio.file.Path destination = directory.resolve("destination");
+    try {
+      for (boolean pfs : new boolean[] {false, true}) {
+        open(pfs);
+        fs.getConf().setClass("fs.file.impl", PermissionlessLocalFileSystem.class, FileSystem.class);
+        fs.getConf().setBoolean("fs.file.impl.disable.cache", true);
+        data.clear();
+        data.put("root-file", new byte[] {1});
+        for (String root : new String[] {"/", "/unused/.."}) {
+          assertThrows(IOException.class, () -> fs.copyToLocalFile(true,
+              new Path(root), new Path(destination.toAbsolutePath().toUri()), true));
+          assertFalse(java.nio.file.Files.exists(destination));
+          assertArrayEquals(new byte[] {1}, data.get("root-file"));
+        }
+        assertThrows(IOException.class, () -> fs.moveToLocalFile(new Path("/"),
+            new Path(destination.toAbsolutePath().toUri())));
+        assertFalse(java.nio.file.Files.exists(destination));
+        fs.copyToLocalFile(false, new Path("/"), new Path(destination.toAbsolutePath().toUri()), true);
+        assertArrayEquals(new byte[] {1}, java.nio.file.Files.readAllBytes(destination.resolve("root-file")));
+        assertArrayEquals(new byte[] {1}, data.get("root-file"));
+        java.nio.file.Files.delete(destination.resolve("root-file"));
+        java.nio.file.Files.delete(destination);
+      }
+    } finally {
+      java.nio.file.Files.deleteIfExists(destination.resolve("root-file"));
+      java.nio.file.Files.deleteIfExists(destination);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
 }

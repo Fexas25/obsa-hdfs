@@ -406,6 +406,15 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   @Override
+  public void copyToLocalFile(boolean deleteSource, Path source, Path destination,
+      boolean useRawLocalFileSystem) throws IOException {
+    if (deleteSource && getFileStatus(source).getPath().isRoot()) {
+      throw new IOException("Cannot move the filesystem root to local storage");
+    }
+    super.copyToLocalFile(deleteSource, source, destination, useRawLocalFileSystem);
+  }
+
+  @Override
   public boolean deleteOnExit(Path path) throws IOException {
     path(path);
     return super.deleteOnExit(path.makeQualified(uri, workingDirectory));
