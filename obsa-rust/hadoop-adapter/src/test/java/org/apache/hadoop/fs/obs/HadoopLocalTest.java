@@ -1157,4 +1157,60 @@ public class HadoopLocalTest {
     assertThrows(IOException.class, () -> fs.getFileStatus(new Path("/exit-conflict")));
     fs.close();
   }
+
+  @Test
+  public void appendNewBlockIsRejectedWithoutChangingContent() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      write("/new-block", "keep");
+      assertThrows(UnsupportedOperationException.class, () -> {
+        try (FSDataOutputStream out = fs.append(new Path("/new-block"), true)) { out.write(1); }
+      });
+      assertThrows(UnsupportedOperationException.class, () -> {
+        try (FSDataOutputStream out = fs.append(new Path("/new-block"), 4096, null, true)) { out.write(2); }
+      });
+      assertEquals("keep", read("/new-block"));
+      if (pfs) {
+        try (FSDataOutputStream out = fs.append(new Path("/new-block"), false)) { out.write('a'); }
+        try (FSDataOutputStream out = fs.append(new Path("/new-block"), 4096, null, false)) { out.write('b'); }
+        assertEquals("keepab", read("/new-block"));
+      } else {
+        assertThrows(UnsupportedOperationException.class, () -> fs.append(new Path("/new-block"), false));
+      }
+    }
+  }
+
+  @Test
+  public void outputBuildersPreserveFlagAndNamespaceChecks() throws Exception {
+    open(false);
+    data.clear();
+    write("/builder-file", "keep");
+    for (boolean recursive : new boolean[] {false, true}) {
+      FSDataOutputStreamBuilder<?, ?> invalid = fs.createFile(new Path("/builder-file")).append();
+      if (recursive) invalid.recursive();
+      assertThrows(IllegalArgumentException.class, () -> {
+        try (FSDataOutputStream out = invalid.build()) { out.write(1); }
+      });
+      data.put("builder-file/hidden", new byte[] {2});
+      FSDataOutputStreamBuilder<?, ?> overwrite = fs.createFile(new Path("/builder-file/hidden"));
+      if (recursive) overwrite.recursive();
+      assertThrows(IOException.class, () -> {
+        try (FSDataOutputStream out = overwrite.build()) { out.write(1); }
+      });
+      assertArrayEquals("keep".getBytes(StandardCharsets.UTF_8), data.get("builder-file"));
+      assertArrayEquals(new byte[] {2}, data.get("builder-file/hidden"));
+      assertThrows(IOException.class, () -> fs.appendFile(new Path("/builder-file/hidden")).build());
+    }
+    open(true);
+    data.clear();
+    try (FSDataOutputStream out = fs.createFile(new Path("/builder-parent/file")).recursive().build()) {
+      out.write('a');
+    }
+    try (FSDataOutputStream out = fs.appendFile(new Path("/builder-parent/file")).build()) {
+      assertEquals(1, out.getPos());
+      out.write('b');
+    }
+    assertEquals("ab", read("/builder-parent/file"));
+  }
 }

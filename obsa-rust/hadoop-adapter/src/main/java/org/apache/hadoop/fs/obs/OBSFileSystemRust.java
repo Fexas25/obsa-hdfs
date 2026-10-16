@@ -527,6 +527,15 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   @Override
+  public FSDataOutputStream append(Path path, int bufferSize, Progressable progress, boolean newBlock)
+      throws IOException {
+    if (newBlock) {
+      throw new UnsupportedOperationException("OBS does not support append to a new HDFS block");
+    }
+    return append(path, bufferSize, progress);
+  }
+
+  @Override
   public synchronized void close() throws IOException {
     long handle = nativeHandle;
     try {
