@@ -24,7 +24,7 @@
 18. listLocatedStatus：Java 未专门覆盖，继承路径待专项验收。
 19. listLocatedStatus(filter)：未将过滤下沉到 Rust，待明确 Java PathFilter 回调边界。
 20. delete：Rust 接通；PFS 双键、递归顺序、普通桶批删及回退已有测试；非事务操作。
-21. rename：Rust 接通；PFS 原生操作，普通桶串行 copy/delete，非原子且源并发变更风险未解决。
+21. rename：Rust 接通；PFS 原生操作，普通桶串行 copy/delete，非原子且源并发变更风险未解决。Java Options.Rename 重载已接管，文件 OVERWRITE 直接调用 Rust，不调用 Hadoop 默认的目标预删除流程；NONE 拒绝已存在目标，已有目录覆盖和 TO_TRASH 明确拒绝。
 22. mkdirs：Rust 接通，两桶模式已有契约测试。
 23. getContentSummary：开关开启时 Rust 平铺 LIST 逐页统计；默认关闭时使用 Hadoop super 目录遍历，桶级覆盖由 Rust 解析，已验证两种模式的结果与请求类型。
 24. setPermission：Hadoop 入口现在仅 PFS + permissions.mode=disguise 写 permission 十进制字符串元数据；none/普通桶 no-op。独立 Rust set_permission 仍更新数值 mode，不能混为一谈。

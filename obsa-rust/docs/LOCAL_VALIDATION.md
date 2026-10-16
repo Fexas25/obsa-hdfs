@@ -1369,3 +1369,12 @@ Java initialize 现在与 close 使用同一实例锁，并在修改配置或创
 旧实现两个新增测试均失败：重复初始化不抛 IOException；关闭重建后旧输入流 getPos 不抛 IOException。修复后覆盖普通桶/PFS 的旧输入流、旧输出流、已缓存迭代器拒绝访问，旧资源关闭后新实例仍能读取原文件且未提交旧输出。此为实例生命周期校验，不承诺将所有在途 I/O 与关闭/重建组成全局原子操作。
 
 本次 Hadoop **301 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS，使用实际 JNI 和本机 HTTP 模拟。Rust/JNI 源码未变，沿用对应源码已通过的 debug/release 385、诊断 387 和 JVM 冒烟结果，未重复运行。fs-generation-* 日志仅保存在工作区。
+
+
+### 2026-10-16：覆盖重命名禁止 Java 默认预删除
+
+检查本地 Hadoop 3.3.6 FileSystem 字节码确认其 Options.Rename 默认实现会先删除已存在目标，再调用双参数 rename。新增测试经该基类重载调用适配器，复现源文件与隐藏后代冲突时 Rust 拒绝重命名，但目标已被 Java 删除。现在适配器覆写该入口，先做只读状态检查，文件覆盖直接将 overwrite 传入 Rust。普通双参数 rename 行为保持不变；无覆盖选项时目标存在报 FileAlreadyExistsException，同路径拒绝，缺失父目录和文件父路径保留对应异常分类。覆盖已有目录及 TO_TRASH 在修改前明确 UnsupportedOperationException。
+
+回归覆盖源/目标隐藏后代、复制失败、同路径操作后所有对象字节不变，普通桶/PFS 正常文件覆盖，无覆盖选项拒绝已有目标，目录覆盖与 TO_TRASH 拒绝，以及目标父目录错误分类。使用反射调用 Hadoop 基类的受保护重载，确认虚派发进入新实现，避免仅验证新暴露的便捷入口。本次不保证普通桶 copy/delete 原子性，也不保证服务端提交后异常或外部并发修改可回滚。
+
+Hadoop 完整回归 **306 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未修改，沿用相同源码已有的 debug/release 385、诊断 387 和 JVM 冒烟结果。rename-options-* 日志和本地字节码输出仅保存在工作区，不上传。无真实云验收结论。
