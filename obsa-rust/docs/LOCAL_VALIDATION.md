@@ -1481,3 +1481,12 @@ Hadoop 默认单源/多源 copyFromLocalFile 丢弃 FileUtil.copy 的布尔返�
 回归覆盖单源、数组入口及 moveFromLocalFile 两个便捷重载：上传完成但本地源删除失败必须报错，两端内容仍可读取；deleteSource=false 的普通复制不受影响。本地删除 false 由夹具注入，不声称验证真实操作系统权限拒绝场景。既有单 PUT 提交故障、本地源保留、目标冲突及两桶正常复制回归继续通过。
 
 Hadoop 完整回归 **332 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。多源/目录复制仍可能部分完成，不具备事务性。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和实际 JVM 冒烟结果。copy-result-* 日志和 target 临时文件不上传。
+
+
+### 2026-10-17：下载移动检查远端删除布尔结果
+
+此前根目录保护之外的 copyToLocalFile 仍由 Hadoop 默认实现忽略 FileUtil 返回值。现在保留根目录预检，按 useRawLocalFileSystem 选择相同本地目标后委派 FileUtil，并在 false 时抛 IOException，避免将未完成的移动报告为成功。
+
+测试夹具针对指定 PFS 文件的目录键/文件键 DELETE 都返回 NoSuchKey，同时保留对象，以确定性触发 Rust dual_key_delete 的 false 分支；这是人工故障响应，不代表正常服务会如此保留对象。旧实现新增测试未抛错。修复后 raw 与带校验和本地目标均报告失败，断言确实出现两次删除响应、本地内容完整、模拟远端对象保留；恢复正常删除后重试成功。目标仍使用测试专用免 chmod LocalFileSystem，不覆盖真实 Windows 权限传播。
+
+Hadoop 完整回归 **333 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。复制与删除仍非事务性，报错不回滚本地文件，也不能推断真实远端对象仍然存在。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。download-result-* 日志不上传。
