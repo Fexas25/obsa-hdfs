@@ -1743,4 +1743,39 @@ public class HadoopLocalTest {
       java.nio.file.Files.deleteIfExists(directory);
     }
   }
+
+  @Test
+  public void downloadMoveReportsFalseRemoteDeletion() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "download-delete-failure-");
+    java.nio.file.Path local = directory.resolve("destination");
+    java.nio.file.Path checksum = directory.resolve(".destination.crc");
+    try {
+      for (boolean raw : new boolean[] {false, true}) {
+        open(true);
+        fs.getConf().setClass("fs.file.impl", PermissionlessLocalFileSystem.class, FileSystem.class);
+        fs.getConf().setBoolean("fs.file.impl.disable.cache", true);
+        data.clear();
+        write("/delete-failure-source", "data");
+        server.missingDeleteKey = "delete-failure-source";
+        int misses = server.deleteMisses.get();
+        Path source = new Path("/delete-failure-source");
+        Path destination = new Path(local.toAbsolutePath().toUri());
+        assertThrows(IOException.class, () -> fs.copyToLocalFile(true, source, destination, raw));
+        assertTrue(server.deleteMisses.get() >= misses + 2);
+        assertArrayEquals("data".getBytes(StandardCharsets.UTF_8), java.nio.file.Files.readAllBytes(local));
+        assertArrayEquals("data".getBytes(StandardCharsets.UTF_8), data.get("delete-failure-source"));
+        server.missingDeleteKey = null;
+        fs.copyToLocalFile(true, source, destination, raw);
+        assertFalse(data.containsKey("delete-failure-source"));
+        java.nio.file.Files.deleteIfExists(checksum);
+        java.nio.file.Files.delete(local);
+      }
+    } finally {
+      server.missingDeleteKey = null;
+      java.nio.file.Files.deleteIfExists(checksum);
+      java.nio.file.Files.deleteIfExists(local);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
 }

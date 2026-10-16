@@ -27,6 +27,8 @@ final class LocalObsServer implements AutoCloseable {
   volatile String failPutKey;
   volatile boolean failPutAfterCommit;
   final AtomicInteger putFailures = new AtomicInteger();
+  volatile String missingDeleteKey;
+  final AtomicInteger deleteMisses = new AtomicInteger();
   volatile int failedRangeStart = -1;
   final AtomicInteger rangeFailures = new AtomicInteger();
 
@@ -269,6 +271,12 @@ final class LocalObsServer implements AutoCloseable {
         e.getResponseHeaders().set("ETag", "\"mock\"");
         send(e, 200, "");
       } else if (method.equals("DELETE")) {
+        if (missingDeleteKey != null
+            && (key.equals(missingDeleteKey) || key.equals(missingDeleteKey + "/"))) {
+          deleteMisses.incrementAndGet();
+          error(e, 404, "NoSuchKey");
+          return;
+        }
         if (pfs
             && key.endsWith("/")
             && data.keySet().stream().anyMatch(k -> k.startsWith(key) && !k.equals(key))) {
