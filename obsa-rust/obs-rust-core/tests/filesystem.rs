@@ -5618,3 +5618,60 @@ async fn single_file_conflict_probe_validates_empty_continuations_before_writes(
         }
     }
 }
+
+#[tokio::test]
+async fn cancelled_single_file_preflight_preserves_objects_and_can_retry() {
+    for rename in [false, true] {
+        let control = AppendControl::blocked();
+        let store = Arc::new(MemoryStore {
+            list_control: Some(control.clone()), scripted_list_prefix: Some("a/".into()),
+            ..Default::default()
+        });
+        store.objects.lock().unwrap().insert("a".into(), Bytes::from_static(b"keep"));
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let original = store.objects.lock().unwrap().clone();
+        let mut operation = Box::pin(async {
+            if rename { fs.rename("/a", "/dst", false).await }
+            else { fs.delete("/a", false).await }
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            tokio::select! {
+                result = &mut operation => panic!("unexpected completion: {result:?}"),
+                _ = control.started.notified() => {},
+            }
+        }).await.unwrap();
+        drop(operation);
+        assert_eq!(*store.objects.lock().unwrap(), original);
+        assert_eq!(store.count("put"), 0);
+        assert_eq!(store.count("copy:"), 0);
+        assert_eq!(store.count("delete:"), 0);
+        control.gate.add_permits(1);
+        let result = tokio::time::timeout(Duration::from_secs(2), async {
+            if rename { fs.rename("/a", "/dst", false).await }
+            else { fs.delete("/a", false).await }
+        }).await.unwrap().unwrap();
+        assert!(result);
+        let objects = store.objects.lock().unwrap();
+        assert!(!objects.contains_key("a"));
+        if rename { assert_eq!(objects.get("dst"), Some(&Bytes::from_static(b"keep"))); }
+        else { assert!(objects.is_empty()); }
+    }
+}
+
+#[tokio::test]
+async fn single_file_preflight_request_cost_is_bounded_and_skips_pfs() {
+    for pfs in [false, true] {
+        for rename in [false, true] {
+            let store = Arc::new(MemoryStore { pfs, ..Default::default() });
+            store.objects.lock().unwrap().insert("a".into(), Bytes::from_static(b"keep"));
+            let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+            fs.get_file_status("/a").await.unwrap();
+            assert!(!fs.exists("/dst").await.unwrap());
+            store.calls.lock().unwrap().clear();
+            let result = if rename { fs.rename("/a", "/dst", false).await }
+                else { fs.delete("/a", false).await };
+            assert!(result.unwrap());
+            assert_eq!(store.count("list:"), usize::from(!pfs));
+        }
+    }
+}
