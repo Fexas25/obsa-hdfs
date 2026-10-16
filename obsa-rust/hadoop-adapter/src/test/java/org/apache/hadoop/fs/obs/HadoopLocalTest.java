@@ -1109,4 +1109,52 @@ public class HadoopLocalTest {
       }
     }
   }
+
+  @Test
+  public void deleteOnExitRunsBeforeNativeCloseAndHonorsCancellation() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      write("/exit-file", "remove");
+      write("/exit-directory/child", "remove");
+      write("/exit-kept", "keep");
+      assertTrue(fs.deleteOnExit(new Path("/exit-file")));
+      assertTrue(fs.deleteOnExit(new Path("/exit-directory")));
+      assertTrue(fs.deleteOnExit(new Path("/exit-kept")));
+      assertTrue(fs.cancelDeleteOnExit(new Path("/exit-kept")));
+      assertFalse(fs.deleteOnExit(new Path("/exit-missing")));
+      FSDataInputStream input = fs.open(new Path("/exit-kept"));
+      fs.close();
+      assertFalse(data.containsKey("exit-file"));
+      assertFalse(data.keySet().stream().anyMatch(key -> key.startsWith("exit-directory/")));
+      assertArrayEquals("keep".getBytes(StandardCharsets.UTF_8), data.get("exit-kept"));
+      assertThrows(IOException.class, () -> input.read());
+      input.close();
+      fs.close();
+    }
+  }
+
+  @Test
+  public void deleteOnExitCannotBypassRustConflictChecks() throws Exception {
+    open(false);
+    data.clear();
+    data.put("exit-conflict", new byte[] {1});
+    data.put("exit-conflict/hidden", new byte[] {2});
+    data.put("exit-dir/a", new byte[] {3});
+    data.put("exit-dir/a/hidden", new byte[] {4});
+    data.put("exit-clean", new byte[] {5});
+    assertTrue(fs.deleteOnExit(new Path("/exit-conflict")));
+    assertTrue(fs.deleteOnExit(new Path("/exit-dir")));
+    assertTrue(fs.deleteOnExit(new Path("/exit-clean")));
+    fs.close();
+    assertFalse(data.containsKey("exit-clean"));
+    assertEquals(new TreeSet<>(Arrays.asList("exit-conflict", "exit-conflict/hidden",
+        "exit-dir/a", "exit-dir/a/hidden")), data.keySet());
+    assertArrayEquals(new byte[] {1}, data.get("exit-conflict"));
+    assertArrayEquals(new byte[] {2}, data.get("exit-conflict/hidden"));
+    assertArrayEquals(new byte[] {3}, data.get("exit-dir/a"));
+    assertArrayEquals(new byte[] {4}, data.get("exit-dir/a/hidden"));
+    assertThrows(IOException.class, () -> fs.getFileStatus(new Path("/exit-conflict")));
+    fs.close();
+  }
 }

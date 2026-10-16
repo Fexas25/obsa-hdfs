@@ -529,11 +529,12 @@ public final class OBSFileSystemRust extends FileSystem {
   @Override
   public synchronized void close() throws IOException {
     long handle = nativeHandle;
-    nativeHandle = 0;
     try {
-      if (handle != 0) NativeObs.nativeClose(handle);
-    } finally {
+      // Hadoop deleteOnExit must still reach Rust's namespace checks.
       super.close();
+    } finally {
+      nativeHandle = 0;
+      if (handle != 0) NativeObs.nativeClose(handle);
     }
   }
 
