@@ -1401,3 +1401,10 @@ Hadoop 默认四参数 append 丢弃 newBlock 参数，PFS 因而把要求新 HD
 另验证 createFile builder 的递归/非递归入口拒绝 APPEND+OVERWRITE，覆盖被文件阻断的后代路径不会修改原对象，appendFile 同样拒绝被阻断路径，PFS builder 正常创建及追加成功。此处针对显式后代路径，未扩大删除/移动冲突规则到覆盖遮挡文件本身，也未新增 builder 实现。
 
 Hadoop 完整回归 **313 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果；无性能提升或真实云验收结论。append-options-* 日志仅保留本地。
+
+
+### 2026-10-16：默认元数据操作不再绕过路径校验或误报成功
+
+Hadoop setReplication 默认直接返回 true，setTimes 默认直接返回，均不检查路径。适配器现将两者接入 Rust getFileStatus；副本数必须为正数，但返回 false 表示未改变 OBS 策略。时间参数两个均为 -1 时只校验路径；实际修改明确 UnsupportedOperationException，避免将未实现的时间写入报告为成功。此改变会使要求保留时间的上层操作明确失败，未添加模拟时间或副本元数据。
+
+新增普通桶/PFS 不支持操作的内容与元数据保留测试，以及不存在/被文件阻断后代/错误桶/关闭实例的路径校验。旧实现两个新增测试均失败。隐藏后代沿用 Rust 状态查询的 FileNotFoundException 分类，未改为 ParentNotDirectoryException。修复后 Hadoop 完整回归 **315 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和实际 JVM 冒烟结果。metadata-defaults-* 日志仅在工作区。

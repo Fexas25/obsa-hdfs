@@ -40,6 +40,11 @@
 34. getCanonicalServiceName：未接入原配置开关，继承行为未专项验收。
 35. metrics / traffic / audit：Rust 有可选请求日志，Java 流有 bytesRead/bytesWritten 统计；原 metrics consumer、audit、完整 IOStatistics 未对齐。
 
+## 其他继承入口
+
+- setReplication：校验正数参数并通过 Rust 查询路径后返回 false，不宣称改变 OBS 副本策略。
+- setTimes：先通过 Rust 查询路径；两个参数均为 -1 时不修改，否则明确 UnsupportedOperationException。要求保留时间的上层复制任务应处理此能力限制。
+
 ## 配置核对
 
 核心配置读取在 obs-rust-core/src/config.rs，Java 入口在 OBSFileSystemRust.initialize / resolveCredentials。附录 G.1 中 endpoint、AK/SK/token、桶模式、连接/超时/TLS、分片、上传并发、预读、缓存、分页、PFS append/inode、trash、寻址方式和访问日志有解析路径；解析路径存在不等于每种取值均通过运行验收。
