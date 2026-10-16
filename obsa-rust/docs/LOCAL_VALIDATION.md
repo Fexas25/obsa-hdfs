@@ -1472,3 +1472,12 @@ Hadoop 默认 copyToLocalFile 忽略 FileUtil.copy 的布尔结果，而 Rust de
 普通桶/PFS 测试覆盖根路径、归一化的 /unused/..、moveToLocalFile 便捷重载均在本地目标出现前报错且远端对象保留；普通复制根目录成功并保留源。目标仍使用上一批的测试专用免 chmod LocalFileSystem，未改变真实 Windows 权限能力边界。Hadoop 完整回归 **331 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。该修复只处理根目录，非根目录移动仍沿用复制/删除的非事务语义。
 
 Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。root-local-move-* 日志与项目 target 临时文件不上传。
+
+
+### 2026-10-17：本地移动源删除失败不再误报成功
+
+Hadoop 默认单源/多源 copyFromLocalFile 丢弃 FileUtil.copy 的布尔返回值。测试专用 LocalFileSystem 令本地删除返回 false，旧实现新增回归未抛 IOException。适配器现在覆盖两个重载，继续委派同一 Hadoop FileUtil 完成复制；false 转成 IOException，其他异常原样传播。不是重新实现上传或本地文件算法，也不删除或回滚已上传对象。
+
+回归覆盖单源、数组入口及 moveFromLocalFile 两个便捷重载：上传完成但本地源删除失败必须报错，两端内容仍可读取；deleteSource=false 的普通复制不受影响。本地删除 false 由夹具注入，不声称验证真实操作系统权限拒绝场景。既有单 PUT 提交故障、本地源保留、目标冲突及两桶正常复制回归继续通过。
+
+Hadoop 完整回归 **332 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。多源/目录复制仍可能部分完成，不具备事务性。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和实际 JVM 冒烟结果。copy-result-* 日志和 target 临时文件不上传。
