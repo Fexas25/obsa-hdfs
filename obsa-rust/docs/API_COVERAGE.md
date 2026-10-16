@@ -42,6 +42,8 @@
 
 ## 其他继承入口
 
+- copyToLocalFile：本地测试通过第二段 GET 耗尽重试验证移动失败保留远端源、恢复后重试成功；目标为测试专用免 chmod 的 LocalFileSystem，未验收真实 Windows winutils/权限传播。
+
 - globStatus、多路径 listStatus 与 PathFilter、getUsed：已验证普通桶隐藏后代不出现在结果/用量中，显式隐藏路径被拒绝；glob 的无匹配返回遵循 Hadoop 语义。
 
 - setReplication：校验正数参数并通过 Rust 查询路径后返回 false，不宣称改变 OBS 副本策略。

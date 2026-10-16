@@ -1454,3 +1454,12 @@ Hadoop 完整回归 **328 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 提交前失败保留已有目标或目标缺失；提交后失败按不确定提交处理，允许并验证远端新内容可读，不声称回滚。故障清除后同一文件系统重试移动成功，才删除本地源。测试同时观察到实际 PUT 故障请求，避免在打开流之前失败造成假阳性。临时文件仅在项目 target 下创建并清理；该测试不涵盖 MPU、连接中断、多源或目录事务。
 
 Hadoop 完整回归 **329 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。copy-failure.log 不上传，无真实云验收结论。
+
+
+### 2026-10-17：下载移动读取失败保留源
+
+实际 Windows Hadoop LocalFileSystem 写入在请求远端数据前因缺少 HADOOP_HOME/winutils 失败，原始测试未能验证目标故障场景。改用测试专用 LocalFileSystem 包装器，仅覆盖 RawLocalFileSystem.setPermission 为 no-op，保持 Hadoop FileSystem.copyToLocalFile/FileUtil 和实际本地文件 I/O；该替身只通过本测试实例配置启用，不修改生产实现或全局配置。
+
+普通桶/PFS 使用 4 字节分段，在第二段 GET 注入三次 503 耗尽初始请求及两次重试，断言故障计数耗尽且远端源完整保留。清除故障后同实例重试移动成功，本地内容完整且远端源删除。临时文件仅在项目 target 下建立并清理。失败时本地目标允许部分写入，不承诺回滚；真实 Windows 本地后端及权限传播仍待环境具备后验证。
+
+Hadoop 完整回归 **330 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。本批仅测试/文档，Rust/JNI 沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。download-failure* 日志不上传。
