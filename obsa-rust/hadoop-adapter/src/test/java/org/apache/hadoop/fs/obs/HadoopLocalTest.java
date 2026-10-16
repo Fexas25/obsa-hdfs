@@ -1479,4 +1479,104 @@ public class HadoopLocalTest {
     fs.close();
     assertArrayEquals("keep".getBytes(StandardCharsets.UTF_8), data.get("cancel-directory/file"));
   }
+
+  @Test
+  public void inheritedGlobMultiPathAndUsageRespectVisibleNamespace() throws Exception {
+    open(false);
+    data.clear();
+    data.put("visible-file", new byte[] {1});
+    data.put("visible-file/hidden", new byte[20]);
+    data.put("visible-directory/child", new byte[] {2, 3, 4});
+    FileStatus[] root = fs.globStatus(new Path("/visible-*"));
+    assertEquals(2, root.length);
+    assertNull(fs.globStatus(new Path("/visible-file/hidden")));
+    assertEquals(0, fs.globStatus(new Path("/visible-file/*")).length);
+    FileStatus[] filtered = fs.listStatus(new Path[] {new Path("/visible-file"),
+        new Path("/visible-directory")}, path -> path.getName().equals("child"));
+    assertEquals(1, filtered.length);
+    assertEquals("/visible-directory/child", filtered[0].getPath().toUri().getPath());
+    assertThrows(FileNotFoundException.class,
+        () -> fs.listStatus(new Path[] {new Path("/visible-file/hidden")}));
+    assertEquals(4, fs.getUsed());
+    assertEquals(1, fs.getUsed(new Path("/visible-file")));
+    assertEquals(3, fs.getUsed(new Path("/visible-directory")));
+    assertThrows(FileNotFoundException.class,
+        () -> fs.getUsed(new Path("/visible-file/hidden")));
+  }
+
+  @Test
+  public void openFileBuilderHintsCannotBypassRustVisibilityOrSupplyContents() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      write("/hint-file", "data");
+      FileStatus hint = new FileStatus(999, false, 1, 1024, 0, new Path("obs://bucket/hint-file"));
+      try (FSDataInputStream input = fs.openFile(new Path("/hint-file")).withFileStatus(hint).build().get()) {
+        byte[] actual = new byte[4];
+        input.readFully(actual);
+        assertArrayEquals("data".getBytes(StandardCharsets.UTF_8), actual);
+        assertEquals(-1, input.read());
+      }
+    }
+    open(false);
+    data.clear();
+    data.put("hint-parent", new byte[] {1});
+    data.put("hint-parent/hidden", new byte[] {2});
+    Path hidden = new Path("/hint-parent/hidden");
+    FileStatus hint = new FileStatus(1, false, 1, 1024, 0, hidden);
+    java.util.concurrent.ExecutionException error = assertThrows(java.util.concurrent.ExecutionException.class,
+        () -> fs.openFile(hidden).withFileStatus(hint).build().get());
+    assertTrue(error.getCause() instanceof FileNotFoundException);
+  }
+
+  @Test
+  public void copyFromLocalPreservesSourceAndObjectsWhenRustRejectsDestination() throws Exception {
+    open(false);
+    data.clear();
+    data.put("copy-parent", new byte[] {1});
+    data.put("copy-parent/hidden", new byte[] {2});
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "copy-local-");
+    java.nio.file.Path local = directory.resolve("source");
+    try {
+      java.nio.file.Files.write(local, new byte[] {3});
+      Path source = new Path(local.toAbsolutePath().toUri());
+      assertThrows(IOException.class,
+          () -> fs.copyFromLocalFile(true, false, source, new Path("/copy-parent/hidden")));
+      assertArrayEquals(new byte[] {3}, java.nio.file.Files.readAllBytes(local));
+      assertEquals(2, data.size());
+      assertArrayEquals(new byte[] {1}, data.get("copy-parent"));
+      assertArrayEquals(new byte[] {2}, data.get("copy-parent/hidden"));
+      assertThrows(IOException.class,
+          () -> fs.copyFromLocalFile(true, false, source, new Path("/copy-parent")));
+      assertTrue(java.nio.file.Files.exists(local));
+    } finally {
+      java.nio.file.Files.deleteIfExists(local);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
+
+  @Test
+  public void copyFromLocalMovesSourceOnlyAfterSuccessfulUpload() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "copy-local-success-");
+    java.nio.file.Path local = directory.resolve("source");
+    try {
+      for (boolean pfs : new boolean[] {false, true}) {
+        open(pfs);
+        data.clear();
+        java.nio.file.Files.write(local, "copied".getBytes(StandardCharsets.UTF_8));
+        Path source = new Path(local.toAbsolutePath().toUri());
+        fs.copyFromLocalFile(false, false, source, new Path("/local-copy"));
+        assertTrue(java.nio.file.Files.exists(local));
+        assertEquals("copied", read("/local-copy"));
+        fs.copyFromLocalFile(true, false, source, new Path("/local-move"));
+        assertFalse(java.nio.file.Files.exists(local));
+        assertEquals("copied", read("/local-move"));
+      }
+    } finally {
+      java.nio.file.Files.deleteIfExists(local);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
 }
