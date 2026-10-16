@@ -5684,3 +5684,23 @@ async fn pfs_root_rejects_content_mutations_without_backend_requests() {
     assert!(matches!(fs.truncate("/", 0).await, Err(ObsError::IsDirectory(_))));
     assert!(store.calls.lock().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn listing_parent_hint_preserves_known_directory_permissions() {
+    for pfs in [false, true] {
+        for paged in [false, true] {
+            let store = Arc::new(MemoryStore { pfs, ..Default::default() });
+            let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+            fs.mkdirs("/dir", 0o700).await.unwrap();
+            let before = fs.get_file_status("/dir").await.unwrap();
+            let heads = store.count("head:");
+            if paged { fs.list_status_page("/dir", None).await.unwrap(); }
+            else { fs.list_status("/dir").await.unwrap(); }
+            let after = fs.get_file_status("/dir").await.unwrap();
+            assert_eq!(after.permission, before.permission, "pfs={pfs}, paged={paged}");
+            assert_eq!(after.path, before.path);
+            assert_eq!(after.block_size, before.block_size);
+            assert_eq!(store.count("head:"), heads);
+        }
+    }
+}

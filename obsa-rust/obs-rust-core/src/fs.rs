@@ -178,6 +178,12 @@ impl ObsFileSystem {
         self.cache.put_if_unchanged(key, Some(status.clone()), epoch);
         status
     }
+    fn remember_directory_hint(&self, key: &str, epoch: u64) {
+        let mut status = FileStatus::dir(self.key_to_path(key), 0o755);
+        status.block_size = self.default_block_size();
+        self.cache.put_directory_hint_if_unchanged(key, status, epoch);
+    }
+
     fn meta_status(&self, key: &str, meta: ObjectMeta) -> FileStatus {
         let dir = meta.mode.map(|m| m & S_IFMT == S_IFDIR).unwrap_or(false)
             || meta.key.ends_with('/')
@@ -567,7 +573,7 @@ impl ObsFileSystem {
                 if !files_only || !status.is_dir { statuses.push(status); }
             }
         }
-        if !self.disguise_permissions() { self.remember_at(&key, FileStatus::dir(&key, 0o755), epoch); }
+        if !self.disguise_permissions() { self.remember_directory_hint(&key, epoch); }
         Ok((FileStatusPage {
             entries: statuses,
             next_marker,
@@ -607,7 +613,7 @@ impl ObsFileSystem {
             }
             statuses.push(self.listing_status(&entry, epoch).await?);
         }
-        if !self.disguise_permissions() { self.remember_at(&key, FileStatus::dir(&key, 0o755), epoch); }
+        if !self.disguise_permissions() { self.remember_directory_hint(&key, epoch); }
         Ok(statuses)
     }
     pub async fn list_files_recursive(&self, path: &str) -> ObsResult<Vec<FileStatus>> {

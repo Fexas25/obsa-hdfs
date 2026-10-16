@@ -64,6 +64,15 @@ impl StatusCache {
         }
     }
 
+    /// A listing proves existence, not replacement metadata. Keep a live
+    /// positive entry without extending its TTL or changing its access order.
+    pub(crate) fn put_directory_hint_if_unchanged(&self, key: &str, status: FileStatus, epoch: u64) {
+        let current = self.invalidation_epoch.read().unwrap_or_else(|e| e.into_inner());
+        if *current == epoch {
+            self.put_entry(key, Some(status), true);
+        }
+    }
+
     /// Complete a mutation without admitting a response overtaken by invalidation.
     /// Invalidate even on conflict: the remote mutation may itself have committed
     /// after the competing operation. A fresh query must decide the current state.
@@ -118,6 +127,10 @@ impl StatusCache {
     }
 
     fn put(&self, key: impl Into<String>, status: Option<FileStatus>) {
+        self.put_entry(key, status, false);
+    }
+
+    fn put_entry(&self, key: impl Into<String>, status: Option<FileStatus>, preserve_positive: bool) {
         if self.max_size == 0 {
             return;
         }
@@ -132,6 +145,10 @@ impl StatusCache {
         // Repeated LIST/status backfills normally replace existing entries.
         // No capacity scan or unrelated eviction is needed on this hot path.
         if let Some(mut existing) = self.entries.get_mut(&key) {
+            if preserve_positive && existing.status.is_some()
+                && existing.inserted_at.elapsed() < self.positive_ttl {
+                return;
+            }
             existing.status = entry.status;
             existing.inserted_at = entry.inserted_at;
             existing.access_order.fetch_max(order, Ordering::Relaxed);
@@ -141,6 +158,10 @@ impl StatusCache {
         // Never acquire this mutex while holding a shard guard.
         let mut index = self.insertion.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(mut existing) = self.entries.get_mut(&key) {
+            if preserve_positive && existing.status.is_some()
+                && existing.inserted_at.elapsed() < self.positive_ttl {
+                return;
+            }
             existing.status = entry.status;
             existing.inserted_at = entry.inserted_at;
             existing.access_order.fetch_max(order, Ordering::Relaxed);
@@ -218,7 +239,7 @@ impl StatusCache {
         }
         let parent = normalize_cache_key(parent_path);
         if !parent.is_empty() {
-            self.put_positive(parent.clone(), FileStatus::dir(parent, 0o755));
+            self.put_entry(parent.clone(), Some(FileStatus::dir(parent, 0o755)), true);
         }
     }
 
@@ -626,5 +647,50 @@ mod concurrency_tests {
         cache.put_negative("a");
         cache.put_positive("b", FileStatus::file("b", 0, 0o644));
         assert_eq!(cache.len(), 0);
+    }
+}
+
+#[cfg(test)]
+mod directory_hint_tests {
+    use super::*;
+
+    #[test]
+    fn directory_hint_keeps_live_metadata_and_original_ttl() {
+        let cache = StatusCache::new(Duration::from_secs(60), Duration::from_secs(1), 8);
+        let mut status = FileStatus::dir("/dir", 0o700);
+        status.owner = "owner".into();
+        status.modification_time = 1234;
+        cache.put_positive("dir", status);
+        let (inserted, order) = {
+            let entry = cache.entries.get("dir").unwrap();
+            (entry.inserted_at, entry.access_order.load(Ordering::Relaxed))
+        };
+        cache.put_directory_hint_if_unchanged("dir", FileStatus::dir("/dir", 0o755), cache.snapshot_epoch());
+        cache.backfill_from_list("/dir", &[]);
+        let entry = cache.entries.get("dir").unwrap();
+        let status = entry.status.as_ref().unwrap();
+        assert_eq!(status.permission, 0o700);
+        assert_eq!(status.owner, "owner");
+        assert_eq!(status.modification_time, 1234);
+        assert_eq!(entry.inserted_at, inserted);
+        assert_eq!(entry.access_order.load(Ordering::Relaxed), order);
+    }
+
+    #[test]
+    fn directory_hint_replaces_expired_or_negative_entries_but_not_after_invalidation() {
+        let cache = StatusCache::new(Duration::from_secs(1), Duration::from_secs(1), 8);
+        for negative in [false, true] {
+            if negative { cache.put_negative("dir"); }
+            else {
+                cache.put_positive("dir", FileStatus::dir("/dir", 0o700));
+                cache.entries.get_mut("dir").unwrap().inserted_at = Instant::now() - Duration::from_secs(2);
+            }
+            cache.put_directory_hint_if_unchanged("dir", FileStatus::dir("/dir", 0o755), cache.snapshot_epoch());
+            assert_eq!(cache.get_positive("dir").unwrap().permission, 0o755);
+        }
+        let epoch = cache.snapshot_epoch();
+        cache.invalidate("dir");
+        cache.put_directory_hint_if_unchanged("dir", FileStatus::dir("/dir", 0o755), epoch);
+        assert!(cache.get("dir").is_none());
     }
 }
