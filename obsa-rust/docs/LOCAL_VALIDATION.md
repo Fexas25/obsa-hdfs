@@ -1310,3 +1310,12 @@ Rust OpenOptions.status_hint 可以提供已有状态以避免查询，但根目
 另修复递归批量枚举收到 CommonPrefixes 的边界。未指定 delimiter 的请求应枚举原始对象；若返回分组前缀，则不能证明已列出全部后代。修复前普通桶删除测试返回成功并修改对象。现在批量枚举在分页合并/去重前拒绝分组响应，包括前缀与同名目录标记重叠、ObjectStore 直接返回 is_common_prefix 的情况。普通桶删除/重命名和 PFS 递归删除均覆盖；PFS 原有直接目录删除失败后进入递归回退，但异常枚举不会导致子对象删除。正常只读分组列举保持原行为。
 
 默认 workspace debug/release 各 **374 通过、0 失败、16 ignored**；append-diagnostics **376 通过、0 失败、16 ignored**。显式构建 debug/release 动态库后，实际 JVM 基础/异常冒烟通过；Hadoop **297 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。本批未新增云验证或性能结论。bulk-cancel-*、bulk-grouped-* 日志仅保存于工作区。
+
+
+### 2026-10-16：目录存在性探测跨越空分页
+
+状态查询在 HEAD 未找到目录时，用 LIST 判断隐式目录是否存在。原实现只检查第一页；空页带续页标记时，即使后续存在对象也会返回 NoSuchKey 并写入负缓存。根目录非递归删除有同类问题。现统一使用 ListPager，在得到非空页时立即结束，只有完整空枚举才判定为空；正常非空首页仍只请求一次 LIST。分页器同时验证对象前缀和续页循环，避免非法响应污染状态缓存。
+
+新增普通桶/PFS 回归覆盖空首屏后出现对象、根目录空首屏后出现目录，以及越界键/循环 marker 报错后重新查询成功。修复前两个用例分别复现错误 NoSuchKey 和漏报 DirectoryNotEmpty。
+
+workspace debug/release 各 **377 通过、0 失败、16 ignored**，append-diagnostics **379 通过、0 失败、16 ignored**。显式构建 debug/release JNI 动态库后的 JVM 基础/异常测试通过；Hadoop **297 项、0 失败、0 错误、12 跳过**。全部为本地验证，existence-pages-* 日志仅存于工作区。
