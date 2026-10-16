@@ -1385,3 +1385,10 @@ Hadoop 完整回归 **306 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 本地 Hadoop 3.3.6 字节码确认递归 create flags 默认重载只提取 OVERWRITE，忽略 APPEND 与组合合法性。适配器现在接管带 ChecksumOpt 的递归入口和 primitiveCreate，非递归入口共享基础校验；通过 Hadoop CreateFlag.validate 检查存在性和组合，已有文件 APPEND 转入原生追加，CREATE+APPEND 在缺失时创建。未实现的 SYNC_BLOCK、NEW_BLOCK 等标志在创建流前明确拒绝，避免默默退化。ChecksumOpt 尚未下传；不存在跨实例存在性检查与写入的原子保证。
 
 四种入口均覆盖非法 APPEND+OVERWRITE、缺失对象 OVERWRITE-only、PFS 追加位置/内容及 CREATE+APPEND 回退，并遍历其余所有枚举标志验证拒绝且没有创建对象。旧版本新增测试出现 2 失败、1 错误；修复后 Hadoop 完整回归 **309 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用相同源码 debug/release 385、诊断 387 和实际 JVM 冒烟结果。create-flags-* 日志仅在工作区，无真实云验收结论。
+
+
+### 2026-10-16：退出删除先于原生文件系统关闭
+
+原先 Java close 先释放 Rust 句柄，再调用 Hadoop super.close，导致后者 processDeleteOnExit 的 exists/delete 全部无法访问原生文件系统，错误被 Hadoop 按尽力清理语义吞掉。现在先执行 super.close，在 finally 中清零并释放原生句柄，确保退出删除仍经过 Rust 的状态和命名空间检查。取消注册、重复关闭保持原有语义；不保证与在途 I/O 或其他实例并发修改的全局原子性。
+
+新增普通桶/PFS 文件与目录退出删除、取消注册保留、缺失路径不注册、关闭后旧流失效，以及普通桶文件/目录隐藏后代冲突保留全部字节并继续清理其他对象的测试。旧实现两项新增测试均失败；修复后 Hadoop 完整回归 **311 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。清理冲突仍由 Hadoop 记录并忽略，close 成功不表示所有注册路径已删除。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。delete-on-exit-* 日志仅在工作区。
