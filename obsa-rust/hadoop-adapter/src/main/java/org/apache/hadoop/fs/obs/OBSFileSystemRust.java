@@ -198,6 +198,14 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   @Override
+  public FileChecksum getFileChecksum(Path path, long length) throws IOException {
+    if (length < 0) throw new IllegalArgumentException("Checksum length must be non-negative");
+    getFileStatus(path);
+    // No Hadoop-compatible checksum is available; OBS ETags are not interchangeable.
+    return null;
+  }
+
+  @Override
   public boolean exists(Path path) throws IOException {
     return call("exists", args(path)).asBoolean();
   }

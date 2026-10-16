@@ -1263,4 +1263,48 @@ public class HadoopLocalTest {
     assertArrayEquals(new byte[] {1}, data.get("metadata-parent"));
     assertArrayEquals(new byte[] {2}, data.get("metadata-parent/hidden"));
   }
+
+  @Test
+  public void checksumQueriesValidatePathAndLengthWithoutInventingChecksum() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      write("/checksum-file", "keep");
+      assertNull(fs.getFileChecksum(new Path("/checksum-file")));
+      assertNull(fs.getFileChecksum(new Path("/checksum-file"), 0));
+      assertNull(fs.getFileChecksum(new Path("/checksum-file"), 2));
+      assertThrows(IllegalArgumentException.class,
+          () -> fs.getFileChecksum(new Path("/checksum-file"), -1));
+      assertThrows(FileNotFoundException.class,
+          () -> fs.getFileChecksum(new Path("/checksum-missing")));
+      assertThrows(IllegalArgumentException.class,
+          () -> fs.getFileChecksum(new Path("obs://other/key")));
+      assertEquals("keep", read("/checksum-file"));
+      fs.close();
+      assertThrows(IOException.class,
+          () -> fs.getFileChecksum(new Path("/checksum-file")));
+    }
+  }
+
+  @Test
+  public void checksumAndInheritedQueriesRejectHiddenDescendants() throws Exception {
+    open(false);
+    data.clear();
+    data.put("query-file", new byte[] {1});
+    data.put("query-file/hidden", new byte[] {2});
+    Path hidden = new Path("/query-file/hidden");
+    assertThrows(FileNotFoundException.class, () -> fs.getFileChecksum(hidden));
+    assertThrows(FileNotFoundException.class, () -> fs.getFileChecksum(hidden, 1));
+    assertThrows(FileNotFoundException.class, () -> fs.resolvePath(hidden));
+    assertThrows(FileNotFoundException.class, () -> fs.getFileLinkStatus(hidden));
+    assertThrows(FileNotFoundException.class, () -> fs.getFileBlockLocations(hidden, 0, 1));
+    assertThrows(FileNotFoundException.class, () -> fs.listLocatedStatus(hidden));
+    assertThrows(FileNotFoundException.class,
+        () -> fs.access(hidden, org.apache.hadoop.fs.permission.FsAction.READ));
+    RemoteIterator<LocatedFileStatus> entries = fs.listLocatedStatus(new Path("/"));
+    assertTrue(entries.hasNext());
+    assertEquals("/query-file", entries.next().getPath().toUri().getPath());
+    assertFalse(entries.hasNext());
+    assertEquals(2, data.size());
+  }
 }
