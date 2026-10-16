@@ -1213,4 +1213,54 @@ public class HadoopLocalTest {
     }
     assertEquals("ab", read("/builder-parent/file"));
   }
+
+  @Test
+  public void unsupportedMetadataUpdatesDoNotReportSuccess() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      write("/metadata-file", "keep");
+      FileStatus before = fs.getFileStatus(new Path("/metadata-file"));
+      assertFalse(fs.setReplication(new Path("/metadata-file"), (short) 2));
+      assertThrows(IllegalArgumentException.class,
+          () -> fs.setReplication(new Path("/metadata-file"), (short) 0));
+      assertThrows(UnsupportedOperationException.class,
+          () -> fs.setTimes(new Path("/metadata-file"), 1234, -1));
+      assertThrows(UnsupportedOperationException.class,
+          () -> fs.setTimes(new Path("/metadata-file"), -1, 5678));
+      fs.setTimes(new Path("/metadata-file"), -1, -1);
+      FileStatus after = fs.getFileStatus(new Path("/metadata-file"));
+      assertEquals(before.getModificationTime(), after.getModificationTime());
+      assertEquals(before.getReplication(), after.getReplication());
+      assertEquals("keep", read("/metadata-file"));
+    }
+  }
+
+  @Test
+  public void metadataDefaultsValidatePathsThroughRust() throws Exception {
+    open(false);
+    data.clear();
+    data.put("metadata-parent", new byte[] {1});
+    data.put("metadata-parent/hidden", new byte[] {2});
+    assertThrows(FileNotFoundException.class,
+        () -> fs.setReplication(new Path("/metadata-missing"), (short) 1));
+    assertThrows(FileNotFoundException.class,
+        () -> fs.setTimes(new Path("/metadata-missing"), -1, -1));
+    assertThrows(FileNotFoundException.class,
+        () -> fs.setReplication(new Path("/metadata-parent/hidden"), (short) 1));
+    assertThrows(FileNotFoundException.class,
+        () -> fs.setTimes(new Path("/metadata-parent/hidden"), 1234, -1));
+    assertThrows(IllegalArgumentException.class,
+        () -> fs.setReplication(new Path("obs://other/key"), (short) 1));
+    assertThrows(IllegalArgumentException.class,
+        () -> fs.setTimes(new Path("obs://other/key"), 1234, -1));
+    fs.close();
+    assertThrows(IOException.class,
+        () -> fs.setReplication(new Path("/metadata-parent"), (short) 1));
+    assertThrows(IOException.class,
+        () -> fs.setTimes(new Path("/metadata-parent"), -1, -1));
+    assertEquals(2, data.size());
+    assertArrayEquals(new byte[] {1}, data.get("metadata-parent"));
+    assertArrayEquals(new byte[] {2}, data.get("metadata-parent/hidden"));
+  }
 }

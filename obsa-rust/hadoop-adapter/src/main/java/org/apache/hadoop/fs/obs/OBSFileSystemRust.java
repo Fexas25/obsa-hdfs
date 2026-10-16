@@ -375,6 +375,21 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   @Override
+  public boolean setReplication(Path path, short replication) throws IOException {
+    if (replication <= 0) throw new IllegalArgumentException("Replication must be positive");
+    getFileStatus(path);
+    // OBS controls durability; a successful status lookup does not change it.
+    return false;
+  }
+
+  @Override
+  public void setTimes(Path path, long modificationTime, long accessTime) throws IOException {
+    getFileStatus(path);
+    if (modificationTime == -1 && accessTime == -1) return;
+    throw new UnsupportedOperationException("OBS does not support setting file times");
+  }
+
+  @Override
   public void setPermission(Path path, FsPermission permission) throws IOException {
     call("setPermission", args(path).put("permission", permission.toShort() & 07777));
   }
