@@ -1436,3 +1436,12 @@ Hadoop 默认 primitiveMkdir(path, permission, false) 对根路径执行 getFile
 Hadoop 默认 deleteOnExit 将原始 Path 放入集合；相对路径在关闭时才经当前工作目录解析，注册后切换工作目录会改变删除目标，同一文件的相对/绝对路径也不能相互取消。适配器现在对注册与取消均先校验桶，再按调用时的工作目录 makeQualified。删除依旧由 Hadoop close 调用 Rust 执行，不绕过原有命名空间冲突检查。
 
 旧实现相对/完整路径取消测试失败，单独的目录切换测试也复现原登记文件在关闭后仍存在。修复后普通桶/PFS 均验证原登记对象删除，切换后的同名对象字节保留；相对、绝对、含桶 URI 三种路径可互相取消。Hadoop 完整回归 **324 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。未实现跨实例重命名跟踪或对外部路径替换的身份绑定，退出删除仍按登记路径尽力执行。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。exit-paths-* 日志不上传。
+
+
+### 2026-10-17：更多继承查询与本地复制入口回归
+
+本批只增加集成回归，不修改生产代码。普通桶的 globStatus、多路径/过滤 listStatus、getUsed 共享文件优先可见性：隐藏后代不被枚举或计入用量，显式查询依照 Hadoop 各接口约定返回无匹配或 FileNotFoundException。openFile builder 在普通桶/PFS 中使用实际对象长度/内容，不采信提供的错误长度提示；隐藏路径即使附带 FileStatus 也通过失败 Future 返回 FileNotFoundException。
+
+本地复制测试只在项目 target 下建立临时文件并清理。验证普通桶/PFS 成功复制保留源、成功移动删除源；普通桶隐藏目标或 overwrite=false 的已有目标被拒绝时，本地源和两份原始对象字节均不变。本批不声称目录、多源或上传中途失败的完整事务保证。
+
+Hadoop 完整回归 **328 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。未发现这些已测继承路径需要新增生产修复。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和实际 JVM 冒烟结果。inherited-queries* 日志与临时文件不上传。

@@ -1,6 +1,6 @@
 # 原始 API 与配置覆盖核对
 
-更新：2026-10-11。依据 PROMPT_NEXT_AI_APPENDIX.md 的 A/G 两节及当前 Rust、JNI、Java 源码。这里的“接通”只表示有实现调用链；本地契约通过不等于真实服务、全部重载或原 Java 扩展全部兼容。未对第三方 Hadoop 默认实现作完整源码审计。
+更新：2026-10-17。依据 PROMPT_NEXT_AI_APPENDIX.md 的 A/G 两节及当前 Rust、JNI、Java 源码。这里的“接通”只表示有实现调用链；本地契约通过不等于真实服务、全部重载或原 Java 扩展全部兼容。未对第三方 Hadoop 默认实现作完整源码审计。
 
 ## 原始 35 项方法
 
@@ -10,7 +10,7 @@
 4. 工作目录：Java 解析相对路径，Rust 也有路径归一化；当前不是共享一份工作目录状态，需核对直接 Rust 调用与 JNI 一致性。
 5. getHomeDirectory：继承 Hadoop 3.3.6 当前 UGI 短用户名语义；初始工作目录已改为初始化时 UGI 的短用户名。普通桶/PFS 的 remote/proxy 用户 doAs、相对路径读写、工作目录切换已专项验证；切换调用用户不重置已有工作目录，home 随当前调用用户变化。此项不是服务端权限隔离或 Kerberos 认证验收。
 6. open(Path,int)：JNI → Rust 输入流接通；缓存、版本检测、预取已测。
-7. open(Path,jobConf)：原扩展重载未接通；openFile 的 status hints 尚未下传。
+7. open(Path,jobConf)：原扩展重载未接通；openFile 的 status hints 尚未下传；已验证提示不会绕过 Rust 可见性检查或覆盖真实长度/内容。
 8. create 基础重载：已接通 Rust 输出流；权限/overwrite 已传入，bufferSize/replication/blockSize 参数并未全部下传。
 9. create flags：递归（含 ChecksumOpt 重载）、非递归及 primitiveCreate 统一校验 CREATE/OVERWRITE/APPEND 组合与存在性，追加走 Rust append；未实现的存储标志明确拒绝。ChecksumOpt 尚未下传，不代表实现自定义校验和。createFile/appendFile builder 已验证非法组合、被文件阻断的后代路径以及正常 PFS 创建追加。
 10. createNonRecursive：布尔及 flags 重载接通，父目录校验已有测试。
@@ -32,7 +32,7 @@
 26. getFileBlockLocations：未单独覆盖 Java；本轮已验证单文件继承块位置的 offset/length，以及 Rust 状态与默认逻辑块大小配置一致性；完整继承语义仍待核对。
 27. getFileChecksum：两种重载现在通过 Rust 校验路径，负长度拒绝；有效路径仍返回 null 表示没有 Hadoop 兼容校验和，不把 ETag 当 MD5。
 28. xattrs：未接通。
-29. copyFromLocalFile：未单独覆盖，依赖 Hadoop 默认路径；尚无专项兼容验收。
+29. copyFromLocalFile：使用 Hadoop 默认路径；本地已验证单文件普通桶/PFS 复制和移动，以及目标隐藏/禁止覆盖时保留本地源与原对象。目录、多源及上传中途故障的完整兼容性仍待专项验证。
 30. close：Hadoop deleteOnExit 在释放原生句柄前处理，仍经过 Rust 冲突检查，注册/取消统一按调用时工作目录限定路径，工作目录切换不改变既有删除目标；取消注册与重复关闭已本地验证；JNI 文件系统/流清理已接通；列表游标新增 EOF/错误/显式释放/所属 FS 关闭清理。MPU 远端清理仍 best effort。
 31. delegation tokens：未接入原 Java token manager。
 32. checkPermission / AuthorizeProvider：未接入原 Java 扩展。
@@ -41,6 +41,8 @@
 35. metrics / traffic / audit：Rust 有可选请求日志，Java 流有 bytesRead/bytesWritten 统计；原 metrics consumer、audit、完整 IOStatistics 未对齐。
 
 ## 其他继承入口
+
+- globStatus、多路径 listStatus 与 PathFilter、getUsed：已验证普通桶隐藏后代不出现在结果/用量中，显式隐藏路径被拒绝；glob 的无匹配返回遵循 Hadoop 语义。
 
 - setReplication：校验正数参数并通过 Rust 查询路径后返回 false，不宣称改变 OBS 副本策略。
 - setTimes：先通过 Rust 查询路径；两个参数均为 -1 时不修改，否则明确 UnsupportedOperationException。要求保留时间的上层复制任务应处理此能力限制。
