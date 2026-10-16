@@ -25,7 +25,7 @@
 19. listLocatedStatus(filter)：Java PathFilter 在迭代时执行，跨页筛选并最多额外缓存一个匹配条目；回调异常释放游标，关闭或重建文件系统后拒绝缓存条目访问。过滤器不下沉 Rust。
 20. delete：Rust 接通；PFS 双键、递归顺序、普通桶批删及回退已有测试；非事务操作。
 21. rename：Rust 接通；PFS 原生操作，普通桶串行 copy/delete，非原子且源并发变更风险未解决。Java Options.Rename 重载已接管，文件 OVERWRITE 直接调用 Rust，不调用 Hadoop 默认的目标预删除流程；NONE 拒绝已存在目标，已有目录覆盖和 TO_TRASH 明确拒绝。
-22. mkdirs：Rust 接通，两桶模式已有契约测试。
+22. mkdirs：Rust 接通，两桶模式已有契约测试。primitiveMkdir(createParent) 先按工作目录限定路径，非递归校验父目录，根路径不查询 null 父目录；实际创建仍走 Rust。
 23. getContentSummary：开关开启时 Rust 平铺 LIST 逐页统计；默认关闭时使用 Hadoop super 目录遍历，桶级覆盖由 Rust 解析，已验证两种模式的结果与请求类型。
 24. setPermission：Hadoop 入口现在仅 PFS + permissions.mode=disguise 写 permission 十进制字符串元数据；none/普通桶 no-op。独立 Rust set_permission 仍更新数值 mode，不能混为一谈。
 25. setOwner：Java/JNI → Rust set_hadoop_owner 已接通名称元数据；PFS disguise 模式写 user/group，一个 null 保留对应字段，两个 null 拒绝；none/普通桶 no-op。当前仅非空可打印 ASCII，Unicode 编码和服务端 ACL 尚未实现。独立 Rust set_owner 保持数值 uid/gid 语义。

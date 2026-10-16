@@ -1422,3 +1422,10 @@ Hadoop setReplication 默认直接返回 true，setTimes 默认直接返回，�
 Hadoop 3.3.6 默认 listLocatedStatus 在构造迭代器时调用全量 listStatus，30 个对象、每页 3 条的本地测试在仅创建迭代器时已发 10 次 LIST。适配器现覆盖无过滤和带 PathFilter 的入口，使用 Rust 非递归游标；首屏仍验证路径，之后按需读取。Java 过滤器在迭代时执行，最多额外缓存一个匹配 FileStatus，保留目录条目且目录不生成块位置。过滤器运行时异常释放游标，显式关闭幂等，缓存命中前仍检查原生所属文件系统生命周期。listFiles 无过滤路径继续使用原包装，不引入过滤扫描。
 
 新增普通桶/PFS 首屏恰好 1 次 LIST、重复 hasNext/提前关闭不请求后续页、完整遍历/EOF、跨页过滤、全部过滤掉、目录与块位置、过滤异常释放登记及关闭文件系统后拒绝缓存条目的回归。旧实现首屏计数为 10 且无 Closeable 支持。修复后 Hadoop **320 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。此为按需读取和请求计数证明，不是吞吐/p99 或 Java 堆峰值基准；遍历全部对象仍须读取全部页面。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。located-paging-* 日志不上传。
+
+
+### 2026-10-17：primitiveMkdir 根目录与相对路径处理
+
+Hadoop 默认 primitiveMkdir(path, permission, false) 对根路径执行 getFileStatus(null)，实际回归抛 IllegalArgumentException: null path。适配器现先验证桶并将路径按当前工作目录限定，再取父目录；根路径没有父目录时跳过父状态查询。非递归入口仍拒绝不存在或非目录父路径，实际创建调用原有 Rust mkdirs，递归入口也复用同一路径解析。
+
+新增普通桶/PFS 根目录不创建对象、单段相对路径落在工作目录下、缺失父目录不创建、递归创建成功，及普通桶文件父路径/隐藏后代/错误桶拒绝且对象字节不变的测试。旧实现根路径测试失败；修复后 Hadoop **322 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。父状态检查和创建非原子，不改变跨实例竞争保证。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。primitive-mkdir-* 日志保留本地。
