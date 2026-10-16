@@ -873,4 +873,30 @@ public class HadoopLocalTest {
       }
     }
   }
+  @Test
+  public void singleFileConflictPreflightPreservesHiddenObjects() throws Exception {
+    for (int operation = 0; operation < 3; operation++) {
+      for (String hidden : new String[] {"a/", "a/b"}) {
+        open(false);
+        data.clear();
+        for (String key : new String[] {"a", hidden}) {
+          data.put(key, key.getBytes(StandardCharsets.UTF_8));
+        }
+        java.util.Map<String, byte[]> original = new java.util.TreeMap<>(data);
+        final int action = operation;
+        IOException error = assertThrows(IOException.class, () -> {
+          if (action == 2) {
+            fs.rename(new Path("/a"), new Path("/dst"));
+          } else {
+            fs.delete(new Path("/a"), action == 1);
+          }
+        });
+        assertTrue(error.getMessage(), error.getMessage().contains("file prefix conflict"));
+        assertEquals(original.keySet(), data.keySet());
+        for (String key : original.keySet()) {
+          assertArrayEquals(original.get(key), data.get(key));
+        }
+      }
+    }
+  }
 }

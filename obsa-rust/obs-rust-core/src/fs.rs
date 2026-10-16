@@ -636,6 +636,19 @@ impl ObsFileSystem {
         }
         Ok(statuses)
     }
+    // Removing a visible file must not expose a hidden object subtree.
+    // Probe through empty continuation pages, stopping at the first conflict.
+    async fn ensure_no_file_descendants(&self, key: &str) -> ObsResult<()> {
+        let prefix = format!("{key}/");
+        let mut pager = ListPager::new(self.store.as_ref(), &prefix, "/", 1);
+        while let Some(entries) = pager.next_page().await? {
+            if !entries.is_empty() {
+                return Err(ObsError::Io(format!("object namespace has file prefix conflict: {key}")));
+            }
+        }
+        Ok(())
+    }
+
     // Persist an implicit parent before removing its last possible child.
     // Do not overwrite an existing marker: it may carry user metadata.
     async fn preserve_object_parent(&self, key: &str) -> ObsResult<()> {
@@ -740,6 +753,7 @@ impl ObsFileSystem {
                 }
                 self.store.delete(&prefix, false).await?;
             } else {
+                self.ensure_no_file_descendants(&key).await?;
                 self.preserve_object_parent(&key).await?;
                 self.store.delete(&key, false).await?;
             }
@@ -824,7 +838,9 @@ impl ObsFileSystem {
         // trees or create file/descendant collisions in an object namespace.
         match self.get_file_status(&self.key_to_path(&target)).await {
             Ok(existing) if !overwrite || existing.is_dir || status.is_dir => return Ok(false),
-            Ok(_) => {}
+            Ok(_) => {
+                if !self.is_pfs() { self.ensure_no_file_descendants(&target).await?; }
+            },
             Err(e) if e.is_path_not_found() => {}
             Err(e) => return Err(e),
         }
@@ -862,6 +878,7 @@ impl ObsFileSystem {
                 .map(|e| e.key)
                 .collect::<Vec<_>>()
             } else {
+                self.ensure_no_file_descendants(&source).await?;
                 vec![source.clone()]
             };
             for key in &keys {

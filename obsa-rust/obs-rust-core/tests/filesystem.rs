@@ -1030,6 +1030,7 @@ async fn delayed_list_cannot_repopulate_cache_after_delete() {
         let control = AppendControl::blocked();
         let store = Arc::new(MemoryStore {
             list_control: Some(control.clone()),
+            scripted_list_prefix: Some(String::new()),
             ..Default::default()
         });
         store.put("file", Bytes::from_static(b"old"), PutHeaders::default()).await.unwrap();
@@ -1248,6 +1249,7 @@ struct MemoryStore {
     get_delay_ms: u64,
     get_base: u64,
     list_control: Option<Arc<AppendControl>>,
+    scripted_list_prefix: Option<String>,
     get_active: AtomicUsize,
     get_peak: AtomicUsize,
     list_pages: Mutex<std::collections::VecDeque<ListPage>>,
@@ -1422,12 +1424,14 @@ impl ObjectStore for MemoryStore {
             .lock()
             .unwrap()
             .push(marker.map(str::to_owned));
-        if let Some(control) = &self.list_control {
-            control.started.notify_one();
-            control.gate.acquire().await.unwrap().forget();
-        }
-        if let Some(page) = self.list_pages.lock().unwrap().pop_front() {
-            return Ok(page);
+        if self.scripted_list_prefix.as_deref().map_or(true, |expected| expected == prefix) {
+            if let Some(control) = &self.list_control {
+                control.started.notify_one();
+                control.gate.acquire().await.unwrap().forget();
+            }
+            if let Some(page) = self.list_pages.lock().unwrap().pop_front() {
+                return Ok(page);
+            }
         }
         if let Some(total) = self.synthetic_listing {
             assert_eq!(delimiter, "");
@@ -4960,14 +4964,17 @@ async fn delayed_parent_prefix_probe_cannot_restore_deleted_file_cache() {
     });
     store.objects.lock().unwrap().insert("file".into(), Bytes::from_static(b"direct"));
     store.objects.lock().unwrap().insert("file/child".into(), Bytes::from_static(b"child"));
-    let fs = Arc::new(ObsFileSystem::with_store(ObsConfig::default(), store));
+    let fs = Arc::new(ObsFileSystem::with_store(ObsConfig::default(), store.clone()));
     let reader = fs.clone();
     let pending = tokio::spawn(async move { reader.list_status("/").await.unwrap() });
     control.started.notified().await;
+    // Resolve the raw collision first; the filesystem now refuses to expose
+    // hidden descendants by removing their visible file ancestor.
+    store.delete("file/child", false).await.unwrap();
     assert!(fs.delete("/file", false).await.unwrap());
     control.gate.add_permits(1);
     assert_eq!(pending.await.unwrap()[0].length, 6); // In-flight snapshot is allowed.
-    assert!(fs.get_file_status("/file").await.unwrap().is_dir); // Child prefix remains.
+    assert!(fs.get_file_status("/file").await.unwrap_err().is_path_not_found());
 }
 
 #[tokio::test]
@@ -5553,6 +5560,61 @@ async fn directory_existence_rejects_invalid_pages_without_caching_absence() {
             });
             assert!(fs.get_file_status("/dir").await.unwrap().is_dir);
             assert_eq!(store.count("list:"), if cycle { 3 } else { 2 });
+        }
+    }
+}
+
+#[tokio::test]
+async fn single_file_mutations_reject_hidden_descendants_before_writes() {
+    for marker in [false, true] {
+        for operation in 0..4 {
+            let store = Arc::new(MemoryStore::default());
+            let hidden = if marker { "a/" } else { "a/b" };
+            for key in ["a", hidden, "plain"] {
+                store.objects.lock().unwrap().insert(key.into(), Bytes::from_static(b"keep"));
+            }
+            let original = store.objects.lock().unwrap().clone();
+            let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+            let result = match operation {
+                0 => fs.delete("/a", false).await,
+                1 => fs.delete("/a", true).await,
+                2 => fs.rename("/a", "/dst", false).await,
+                _ => fs.rename("/plain", "/a", true).await,
+            };
+            assert!(matches!(result, Err(ObsError::Io(ref message)) if message.contains("file prefix conflict")),
+                "marker={marker}, operation={operation}: {result:?}");
+            assert_eq!(*store.objects.lock().unwrap(), original);
+            assert_eq!(store.count("put"), 0);
+            assert_eq!(store.count("copy:"), 0);
+            assert_eq!(store.count("delete:"), 0);
+        }
+    }
+}
+
+#[tokio::test]
+async fn single_file_conflict_probe_validates_empty_continuations_before_writes() {
+    for rename in [false, true] {
+        for cycle in [false, true] {
+            let store = Arc::new(MemoryStore::default());
+            store.objects.lock().unwrap().insert("a".into(), Bytes::from_static(b"keep"));
+            let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+            fs.get_file_status("/a").await.unwrap();
+            assert!(!fs.exists("/dst").await.unwrap());
+            store.calls.lock().unwrap().clear();
+            store.list_pages.lock().unwrap().extend([
+                ListPage { is_truncated: true, next_marker: Some("next".into()), ..Default::default() },
+                if cycle { ListPage { is_truncated: true, next_marker: Some("next".into()), ..Default::default() } }
+                else { ListPage { contents: vec![ListEntry { key: "a/hidden".into(), ..Default::default() }], ..Default::default() } },
+            ]);
+            let original = store.objects.lock().unwrap().clone();
+            let result = if rename { fs.rename("/a", "/dst", false).await }
+                else { fs.delete("/a", false).await };
+            assert!(matches!(result, Err(ObsError::Io(_))));
+            assert_eq!(*store.objects.lock().unwrap(), original);
+            assert_eq!(store.count("list:"), 2);
+            assert_eq!(store.count("copy:"), 0);
+            assert_eq!(store.count("delete:"), 0);
+            assert_eq!(store.count("put"), 0);
         }
     }
 }
