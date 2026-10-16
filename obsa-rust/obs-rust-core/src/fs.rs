@@ -766,6 +766,9 @@ impl ObsFileSystem {
             return Err(ObsError::Unsupported("truncate requires PFS".into()));
         }
         let key = self.key(path)?;
+        if key.is_empty() {
+            return Err(ObsError::IsDirectory(path.into()));
+        }
         let _invalidation = StatusInvalidation { cache: &self.cache, key: &key };
         self.pfs.truncate(&key, length).await
     }
@@ -774,6 +777,9 @@ impl ObsFileSystem {
             return Err(ObsError::Unsupported("append requires PFS".into()));
         }
         let key = self.key(path)?;
+        if key.is_empty() {
+            return Err(ObsError::IsDirectory(path.into()));
+        }
         self.cache.invalidate(&key);
         let cache = self.cache.clone();
         let callback_key = key.clone();

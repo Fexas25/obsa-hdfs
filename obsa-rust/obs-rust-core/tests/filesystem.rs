@@ -5675,3 +5675,12 @@ async fn single_file_preflight_request_cost_is_bounded_and_skips_pfs() {
         }
     }
 }
+
+#[tokio::test]
+async fn pfs_root_rejects_content_mutations_without_backend_requests() {
+    let store = Arc::new(MemoryStore { pfs: true, ..Default::default() });
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    assert!(matches!(fs.append_stream("/", 0).await, Err(ObsError::IsDirectory(_))));
+    assert!(matches!(fs.truncate("/", 0).await, Err(ObsError::IsDirectory(_))));
+    assert!(store.calls.lock().unwrap().is_empty());
+}
