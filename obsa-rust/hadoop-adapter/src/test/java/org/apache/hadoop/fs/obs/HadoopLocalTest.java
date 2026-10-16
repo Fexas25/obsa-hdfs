@@ -1400,4 +1400,53 @@ public class HadoopLocalTest {
     assertThrows(IOException.class, () -> buffered.next());
     ((Closeable) buffered).close();
   }
+
+  private void primitiveMkdir(Path path, boolean createParent) throws Exception {
+    java.lang.reflect.Method method = FileSystem.class.getDeclaredMethod("primitiveMkdir",
+        Path.class, FsPermission.class, boolean.class);
+    method.setAccessible(true);
+    try { method.invoke(fs, path, new FsPermission((short) 0700), createParent); }
+    catch (java.lang.reflect.InvocationTargetException error) {
+      Throwable cause = error.getCause();
+      if (cause instanceof Exception) throw (Exception) cause;
+      throw new AssertionError(cause);
+    }
+  }
+
+  @Test
+  public void primitiveMkdirHandlesRootAndRelativePathsWithoutCreatingParents() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      primitiveMkdir(new Path("/"), false);
+      assertTrue(data.isEmpty());
+      fs.mkdirs(new Path("/working"));
+      fs.setWorkingDirectory(new Path("/working"));
+      primitiveMkdir(new Path("child"), false);
+      assertTrue(fs.getFileStatus(new Path("/working/child")).isDirectory());
+      assertFalse(data.containsKey("child/"));
+      assertThrows(FileNotFoundException.class,
+          () -> primitiveMkdir(new Path("missing/child"), false));
+      assertFalse(data.keySet().stream().anyMatch(key -> key.startsWith("working/missing/")));
+      primitiveMkdir(new Path("recursive/child"), true);
+      assertTrue(fs.getFileStatus(new Path("/working/recursive/child")).isDirectory());
+    }
+  }
+
+  @Test
+  public void primitiveMkdirPreservesFileParentAndHiddenDescendantChecks() throws Exception {
+    open(false);
+    data.clear();
+    data.put("mkdir-file", new byte[] {1});
+    data.put("mkdir-file/hidden", new byte[] {2});
+    assertThrows(ParentNotDirectoryException.class,
+        () -> primitiveMkdir(new Path("/mkdir-file/new"), false));
+    assertThrows(FileNotFoundException.class,
+        () -> primitiveMkdir(new Path("/mkdir-file/hidden/new"), false));
+    assertThrows(IllegalArgumentException.class,
+        () -> primitiveMkdir(new Path("obs://other/new"), false));
+    assertEquals(2, data.size());
+    assertArrayEquals(new byte[] {1}, data.get("mkdir-file"));
+    assertArrayEquals(new byte[] {2}, data.get("mkdir-file/hidden"));
+  }
 }

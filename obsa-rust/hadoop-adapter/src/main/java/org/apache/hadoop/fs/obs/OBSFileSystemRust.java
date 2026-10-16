@@ -394,6 +394,18 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   @Override
+  protected void primitiveMkdir(Path path, FsPermission permission, boolean createParent)
+      throws IOException {
+    path(path);
+    Path qualified = path.makeQualified(uri, workingDirectory);
+    Path parent = qualified.getParent();
+    if (!createParent && parent != null && !getFileStatus(parent).isDirectory()) {
+      throw new ParentNotDirectoryException("Parent is not a directory: " + parent);
+    }
+    if (!mkdirs(qualified, permission)) throw new IOException("Could not create directory: " + qualified);
+  }
+
+  @Override
   public boolean delete(Path path, boolean recursive) throws IOException {
     return call("delete", args(path).put("recursive", recursive)).asBoolean();
   }
