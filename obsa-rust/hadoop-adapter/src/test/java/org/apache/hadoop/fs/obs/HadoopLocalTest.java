@@ -1449,4 +1449,34 @@ public class HadoopLocalTest {
     assertArrayEquals(new byte[] {1}, data.get("mkdir-file"));
     assertArrayEquals(new byte[] {2}, data.get("mkdir-file/hidden"));
   }
+
+  @Test
+  public void deleteOnExitKeepsRegistrationDirectoryAfterWorkingDirectoryChanges() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      write("/exit-first/same", "remove");
+      write("/exit-second/same", "keep");
+      fs.setWorkingDirectory(new Path("/exit-first"));
+      assertTrue(fs.deleteOnExit(new Path("same")));
+      fs.setWorkingDirectory(new Path("/exit-second"));
+      fs.close();
+      assertFalse(data.containsKey("exit-first/same"));
+      assertArrayEquals("keep".getBytes(StandardCharsets.UTF_8), data.get("exit-second/same"));
+    }
+  }
+
+  @Test
+  public void deleteOnExitCancellationUsesQualifiedPathIdentity() throws Exception {
+    open(false);
+    data.clear();
+    write("/cancel-directory/file", "keep");
+    fs.setWorkingDirectory(new Path("/cancel-directory"));
+    assertTrue(fs.deleteOnExit(new Path("file")));
+    assertTrue(fs.cancelDeleteOnExit(new Path("obs://bucket/cancel-directory/file")));
+    assertTrue(fs.deleteOnExit(new Path("/cancel-directory/file")));
+    assertTrue(fs.cancelDeleteOnExit(new Path("file")));
+    fs.close();
+    assertArrayEquals("keep".getBytes(StandardCharsets.UTF_8), data.get("cancel-directory/file"));
+  }
 }

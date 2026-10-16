@@ -406,6 +406,18 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   @Override
+  public boolean deleteOnExit(Path path) throws IOException {
+    path(path);
+    return super.deleteOnExit(path.makeQualified(uri, workingDirectory));
+  }
+
+  @Override
+  public boolean cancelDeleteOnExit(Path path) {
+    path(path);
+    return super.cancelDeleteOnExit(path.makeQualified(uri, workingDirectory));
+  }
+
+  @Override
   public boolean delete(Path path, boolean recursive) throws IOException {
     return call("delete", args(path).put("recursive", recursive)).asBoolean();
   }
