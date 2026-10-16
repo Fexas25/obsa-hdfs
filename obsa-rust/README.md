@@ -55,6 +55,7 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 - 普通桶读取默认检查 ETag，避免混合不同修订的数据。PFS 使用可变文件语义，不承诺快照读取。
 - 普通桶列举与容量统计按文件优先：同时存在 `a` 与 `a/b` 时，父目录递归结果隐藏 `a/b`，统计也不计入它；显式访问 `/a/b` 也会被拒绝。递归删除或重命名目录时，若完整枚举发现内部文件与后代或目录标记冲突，会在任何复制/删除之前拒绝整个操作。直接删除、移动冲突文件或覆盖冲突目标文件也会拒绝；普通桶单文件删除/重命名增加前缀 LIST 探测（空续页会继续，覆盖已有目标另查目标）。未缓存目录与祖先可能增加 HEAD；不保证外部并发修改下的一致快照。
 - 新建上传文件在 close 时提交，`hflush/hsync` 不提供即时可见性；PFS append 同步等待已提交写入。普通桶 rename 是 copy/delete，不具备 HDFS 原子重命名保证。Hadoop 带选项的文件覆盖直接走 Rust，避免默认实现预先删除目标；覆盖已有目录和 TO_TRASH 明确不支持。
+- Hadoop 创建标志支持 CREATE、OVERWRITE、APPEND；非法组合及未实现的存储标志明确拒绝，追加仍受桶类型限制。
 - 上传初始化/完成及 PFS rename 不自动重试；已发往服务端的写入不能靠本地取消回滚。
 - 可选 `fs.obs.buffer.total.bytes`（默认 0，关闭）统一计费受控数据缓冲；不包含所有 TLS/Hyper/分配器及元数据开销，不能当作进程 RSS 上限。
 - `fs.obs.http.response.max.bytes` 默认 64 MiB；范围响应另受请求长度限制。大对象应分范围读取。
@@ -66,7 +67,7 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 
 - 最新默认 Rust workspace debug / release 各 **385 通过、0 失败、16 ignored**。
 - 真实 JVM：显式构建 debug / release 动态库后，基础 JNI 冒烟和异常分类测试均通过。
-- Hadoop 3.3.6：**306 项、0 失败、0 错误、12 跳过**。跳过对应普通桶不支持 append 和新建文件 close 才可见的能力边界。
+- Hadoop 3.3.6：**309 项、0 失败、0 错误、12 跳过**。跳过对应普通桶不支持 append 和新建文件 close 才可见的能力边界。
 - `append-diagnostics` **387 通过、0 失败、16 ignored**。
 
 Rust ignored 项是手动基准，未混入上述通过数。全部使用内存或本机 HTTP 模拟；没有真实云桶、生产作业或跨平台验收结论。详细运行证据见 [LOCAL_VALIDATION.md](docs/LOCAL_VALIDATION.md)。

@@ -12,7 +12,7 @@
 6. open(Path,int)：JNI → Rust 输入流接通；缓存、版本检测、预取已测。
 7. open(Path,jobConf)：原扩展重载未接通；openFile 的 status hints 尚未下传。
 8. create 基础重载：已接通 Rust 输出流；权限/overwrite 已传入，bufferSize/replication/blockSize 参数并未全部下传。
-9. create flags：非递归 flags 重载已实现；其他继承重载不能视为原适配器全部 flags 已对齐。
+9. create flags：递归（含 ChecksumOpt 重载）、非递归及 primitiveCreate 统一校验 CREATE/OVERWRITE/APPEND 组合与存在性，追加走 Rust append；未实现的存储标志明确拒绝。ChecksumOpt 尚未下传，不代表实现自定义校验和。
 10. createNonRecursive：布尔及 flags 重载接通，父目录校验已有测试。
 11. append：PFS 接通，普通桶不支持；Java 与 JNI 都取状态，通常由缓存消除第二次 HEAD。同实例 rename/回收站移动仅等待源/目标路径范围内的在途追加，无关路径可继续追加和重命名；追加/注册与 rename 之间的冲突按登记顺序处理，取消移除等待项，成功后更新活动追加流路径（含目录后代）；覆盖目标流或结果不确定时拒绝继续写入。确定性回归及 Hadoop 文件/父目录移动回归已通过；跨实例/带外 rename 尚不支持协调。
 12. truncate：Rust PFS 分支接通，普通桶不支持。

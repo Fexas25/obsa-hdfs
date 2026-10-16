@@ -1378,3 +1378,10 @@ Java initialize 现在与 close 使用同一实例锁，并在修改配置或创
 回归覆盖源/目标隐藏后代、复制失败、同路径操作后所有对象字节不变，普通桶/PFS 正常文件覆盖，无覆盖选项拒绝已有目标，目录覆盖与 TO_TRASH 拒绝，以及目标父目录错误分类。使用反射调用 Hadoop 基类的受保护重载，确认虚派发进入新实现，避免仅验证新暴露的便捷入口。本次不保证普通桶 copy/delete 原子性，也不保证服务端提交后异常或外部并发修改可回滚。
 
 Hadoop 完整回归 **306 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未修改，沿用相同源码已有的 debug/release 385、诊断 387 和 JVM 冒烟结果。rename-options-* 日志和本地字节码输出仅保存在工作区，不上传。无真实云验收结论。
+
+
+### 2026-10-16：创建标志不再被 Hadoop 默认重载丢弃
+
+本地 Hadoop 3.3.6 字节码确认递归 create flags 默认重载只提取 OVERWRITE，忽略 APPEND 与组合合法性。适配器现在接管带 ChecksumOpt 的递归入口和 primitiveCreate，非递归入口共享基础校验；通过 Hadoop CreateFlag.validate 检查存在性和组合，已有文件 APPEND 转入原生追加，CREATE+APPEND 在缺失时创建。未实现的 SYNC_BLOCK、NEW_BLOCK 等标志在创建流前明确拒绝，避免默默退化。ChecksumOpt 尚未下传；不存在跨实例存在性检查与写入的原子保证。
+
+四种入口均覆盖非法 APPEND+OVERWRITE、缺失对象 OVERWRITE-only、PFS 追加位置/内容及 CREATE+APPEND 回退，并遍历其余所有枚举标志验证拒绝且没有创建对象。旧版本新增测试出现 2 失败、1 错误；修复后 Hadoop 完整回归 **309 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用相同源码 debug/release 385、诊断 387 和实际 JVM 冒烟结果。create-flags-* 日志仅在工作区，无真实云验收结论。
