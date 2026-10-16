@@ -406,6 +406,26 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   @Override
+  public void copyFromLocalFile(boolean deleteSource, boolean overwrite, Path source, Path destination)
+      throws IOException {
+    Configuration conf = getConf();
+    if (!FileUtil.copy(FileSystem.getLocal(conf), source, this, destination,
+        deleteSource, overwrite, conf)) {
+      throw new IOException("Local copy did not complete: " + source + " -> " + destination);
+    }
+  }
+
+  @Override
+  public void copyFromLocalFile(boolean deleteSource, boolean overwrite, Path[] sources, Path destination)
+      throws IOException {
+    Configuration conf = getConf();
+    if (!FileUtil.copy(FileSystem.getLocal(conf), sources, this, destination,
+        deleteSource, overwrite, conf)) {
+      throw new IOException("Local copy did not complete for all sources: " + destination);
+    }
+  }
+
+  @Override
   public void copyToLocalFile(boolean deleteSource, Path source, Path destination,
       boolean useRawLocalFileSystem) throws IOException {
     if (deleteSource && getFileStatus(source).getPath().isRoot()) {

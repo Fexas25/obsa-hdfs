@@ -1697,4 +1697,50 @@ public class HadoopLocalTest {
       java.nio.file.Files.deleteIfExists(directory);
     }
   }
+
+  public static final class RetainingSourceLocalFileSystem extends LocalFileSystem {
+    public RetainingSourceLocalFileSystem() {
+      super(new RawLocalFileSystem() {
+        @Override
+        public boolean delete(Path path, boolean recursive) {
+          return false;
+        }
+      });
+    }
+  }
+
+  @Test
+  public void localMoveReportsSourceDeletionFailureAfterUpload() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "retained-source-");
+    java.nio.file.Path local = directory.resolve("source");
+    try {
+      for (int kind = 0; kind < 2; kind++) {
+        open(false);
+        data.clear();
+        fs.getConf().setClass("fs.file.impl", RetainingSourceLocalFileSystem.class, FileSystem.class);
+        fs.getConf().setBoolean("fs.file.impl.disable.cache", true);
+        java.nio.file.Files.write(local, "kept".getBytes(StandardCharsets.UTF_8));
+        Path source = new Path(local.toAbsolutePath().toUri());
+        if (kind == 0) {
+          assertThrows(IOException.class,
+              () -> fs.copyFromLocalFile(true, false, source, new Path("/retained-target")));
+          assertEquals("kept", read("/retained-target"));
+          assertThrows(IOException.class, () -> fs.moveFromLocalFile(source, new Path("/retained-target")));
+          fs.copyFromLocalFile(false, true, source, new Path("/retained-target"));
+        } else {
+          fs.mkdirs(new Path("/retained-target"));
+          assertThrows(IOException.class,
+              () -> fs.copyFromLocalFile(true, false, new Path[] {source}, new Path("/retained-target")));
+          assertEquals("kept", read("/retained-target/source"));
+          assertThrows(IOException.class, () -> fs.moveFromLocalFile(new Path[] {source}, new Path("/retained-target")));
+          fs.copyFromLocalFile(false, true, new Path[] {source}, new Path("/retained-target"));
+        }
+        assertArrayEquals("kept".getBytes(StandardCharsets.UTF_8), java.nio.file.Files.readAllBytes(local));
+      }
+    } finally {
+      java.nio.file.Files.deleteIfExists(local);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
 }
