@@ -5496,3 +5496,63 @@ async fn recursive_mutations_reject_grouped_listing_before_writes() {
     }
     }
 }
+
+#[tokio::test]
+async fn directory_existence_continues_past_empty_truncated_pages() {
+    for pfs in [false, true] {
+        let store = Arc::new(MemoryStore { pfs, ..Default::default() });
+        store.list_pages.lock().unwrap().extend([
+            ListPage { is_truncated: true, next_marker: Some("next".into()), ..Default::default() },
+            ListPage { contents: vec![ListEntry { key: "dir/file".into(), ..Default::default() }], ..Default::default() },
+        ]);
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        let status = fs.get_file_status("/dir").await.unwrap();
+        assert!(status.is_dir);
+        assert_eq!(status.path, "/dir");
+        assert_eq!(store.count("list:"), 2);
+        assert!(fs.get_file_status("/dir").await.unwrap().is_dir);
+        assert_eq!(store.count("list:"), 2);
+    }
+}
+
+#[tokio::test]
+async fn root_nonrecursive_delete_checks_later_nonempty_page() {
+    for pfs in [false, true] {
+        let store = Arc::new(MemoryStore { pfs, ..Default::default() });
+        store.list_pages.lock().unwrap().extend([
+            ListPage { is_truncated: true, next_marker: Some("next".into()), ..Default::default() },
+            ListPage { common_prefixes: vec!["dir/".into()], ..Default::default() },
+        ]);
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+        assert!(matches!(fs.delete("/", false).await, Err(ObsError::DirectoryNotEmpty(_))));
+        assert_eq!(store.count("list:"), 2);
+        assert_eq!(store.count("delete:"), 0);
+    }
+}
+
+#[tokio::test]
+async fn directory_existence_rejects_invalid_pages_without_caching_absence() {
+    for pfs in [false, true] {
+        for cycle in [false, true] {
+            let store = Arc::new(MemoryStore { pfs, ..Default::default() });
+            if cycle {
+                for _ in 0..2 {
+                    store.list_pages.lock().unwrap().push_back(ListPage {
+                        is_truncated: true, next_marker: Some("repeat".into()), ..Default::default()
+                    });
+                }
+            } else {
+                store.list_pages.lock().unwrap().push_back(ListPage {
+                    contents: vec![ListEntry { key: "outside/file".into(), ..Default::default() }], ..Default::default()
+                });
+            }
+            let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+            assert!(matches!(fs.get_file_status("/dir").await, Err(ObsError::Io(_))));
+            store.list_pages.lock().unwrap().push_back(ListPage {
+                contents: vec![ListEntry { key: "dir/file".into(), ..Default::default() }], ..Default::default()
+            });
+            assert!(fs.get_file_status("/dir").await.unwrap().is_dir);
+            assert_eq!(store.count("list:"), if cycle { 3 } else { 2 });
+        }
+    }
+}

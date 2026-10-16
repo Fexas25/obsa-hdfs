@@ -234,9 +234,12 @@ impl ObsFileSystem {
                 Err(e) => return Err(e),
             }
         }
-        let page = self.store.list(&format!("{key}/"), "/", None, 1).await?;
-        if !page.contents.is_empty() || !page.common_prefixes.is_empty() {
-            return Ok(self.remember_at(&key, FileStatus::dir(&key, 0o755), epoch));
+        let prefix = format!("{key}/");
+        let mut pager = ListPager::new(self.store.as_ref(), &prefix, "/", 1);
+        while let Some(entries) = pager.next_page().await? {
+            if !entries.is_empty() {
+                return Ok(self.remember_at(&key, FileStatus::dir(&key, 0o755), epoch));
+            }
         }
         self.cache.put_if_unchanged(&key, None, epoch);
         Err(Self::not_found(&key))
@@ -660,9 +663,11 @@ impl ObsFileSystem {
         let key = self.key(path)?;
         if key.is_empty() {
             if !recursive {
-                let page = self.store.list("", "/", None, 1).await?;
-                if !page.contents.is_empty() || !page.common_prefixes.is_empty() {
-                    return Err(ObsError::DirectoryNotEmpty(path.into()));
+                let mut pager = ListPager::new(self.store.as_ref(), "", "/", 1);
+                while let Some(entries) = pager.next_page().await? {
+                    if !entries.is_empty() {
+                        return Err(ObsError::DirectoryNotEmpty(path.into()));
+                    }
                 }
             }
             return Ok(false);
