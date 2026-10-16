@@ -1307,4 +1307,97 @@ public class HadoopLocalTest {
     assertFalse(entries.hasNext());
     assertEquals(2, data.size());
   }
+
+  @SuppressWarnings("unchecked")
+  private RemoteIterator<LocatedFileStatus> locatedWithFilter(Path path, PathFilter filter) throws Exception {
+    java.lang.reflect.Method method = FileSystem.class.getDeclaredMethod("listLocatedStatus", Path.class, PathFilter.class);
+    method.setAccessible(true);
+    try { return (RemoteIterator<LocatedFileStatus>) method.invoke(fs, path, filter); }
+    catch (java.lang.reflect.InvocationTargetException error) {
+      Throwable cause = error.getCause();
+      if (cause instanceof Exception) throw (Exception) cause;
+      throw new AssertionError(cause);
+    }
+  }
+
+  @Test
+  public void locatedStatusFetchesPagesOnDemandAndCanCloseEarly() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      for (int i = 0; i < 30; i++) data.put(String.format("located-%02d", i), new byte[] {1});
+      int before = server.lists.get();
+      RemoteIterator<LocatedFileStatus> entries = fs.listLocatedStatus(new Path("/"));
+      assertEquals(1, server.lists.get() - before);
+      assertTrue(entries instanceof Closeable);
+      assertTrue(entries.hasNext());
+      assertTrue(entries.hasNext());
+      assertEquals("/located-00", entries.next().getPath().toUri().getPath());
+      assertEquals(1, server.lists.get() - before);
+      ((Closeable) entries).close();
+      ((Closeable) entries).close();
+      final RemoteIterator<LocatedFileStatus> closedEntries = entries;
+      assertThrows(IOException.class, () -> closedEntries.hasNext());
+      assertEquals(1, server.lists.get() - before);
+      entries = fs.listLocatedStatus(new Path("/"));
+      int count = 0;
+      while (entries.hasNext()) { entries.next(); count++; }
+      assertEquals(30, count);
+      assertFalse(entries.hasNext());
+      final RemoteIterator<LocatedFileStatus> exhausted = entries;
+      assertThrows(NoSuchElementException.class, () -> exhausted.next());
+      ((Closeable) entries).close();
+    }
+  }
+
+  @Test
+  public void locatedStatusFiltersAcrossPagesAndPreservesDirectoryEntries() throws Exception {
+    open(false);
+    data.clear();
+    for (int i = 0; i < 12; i++) data.put(String.format("filtered-%02d", i), new byte[] {1});
+    data.put("folder/child", new byte[] {2});
+    RemoteIterator<LocatedFileStatus> entries = locatedWithFilter(new Path("/"),
+        path -> path.getName().equals("filtered-10") || path.getName().equals("folder"));
+    assertTrue(entries.hasNext());
+    assertTrue(entries.hasNext());
+    LocatedFileStatus file = entries.next();
+    assertEquals("filtered-10", file.getPath().getName());
+    assertTrue(file.isFile());
+    assertEquals(1, file.getBlockLocations().length);
+    assertTrue(entries.next().isDirectory());
+    assertFalse(entries.hasNext());
+    ((Closeable) entries).close();
+    RemoteIterator<LocatedFileStatus> empty = locatedWithFilter(new Path("/"), path -> false);
+    assertFalse(empty.hasNext());
+    ((Closeable) empty).close();
+  }
+
+  @Test
+  public void locatedStatusReleasesCursorOnFilterFailureAndRejectsClosedOwner() throws Exception {
+    open(false);
+    data.clear();
+    for (int i = 0; i < 12; i++) data.put("failure-" + i, new byte[] {1});
+    java.lang.reflect.Field liveField = ListingCleanup.class.getDeclaredField("LIVE");
+    liveField.setAccessible(true);
+    Set<?> live = (Set<?>) liveField.get(null);
+    Set<Object> previous = new HashSet<>(live);
+    RemoteIterator<LocatedFileStatus> failed = locatedWithFilter(new Path("/"), path -> {
+      throw new IllegalStateException("filter failure");
+    });
+    Set<Object> added = new HashSet<>(live);
+    added.removeAll(previous);
+    assertEquals(1, added.size());
+    int requests = server.lists.get();
+    assertThrows(IllegalStateException.class, () -> failed.hasNext());
+    assertTrue(Collections.disjoint(live, added));
+    assertThrows(IOException.class, () -> failed.hasNext());
+    ((Closeable) failed).close();
+    assertEquals(requests, server.lists.get());
+    RemoteIterator<LocatedFileStatus> buffered = locatedWithFilter(new Path("/"), path -> true);
+    assertTrue(buffered.hasNext());
+    fs.close();
+    assertThrows(IOException.class, () -> buffered.hasNext());
+    assertThrows(IOException.class, () -> buffered.next());
+    ((Closeable) buffered).close();
+  }
 }

@@ -242,6 +242,64 @@ public final class OBSFileSystemRust extends FileSystem {
     return new NativeLocatedIterator(statusIterator(path, true, recursive));
   }
 
+  @Override
+  public RemoteIterator<LocatedFileStatus> listLocatedStatus(Path path) throws IOException {
+    return new NativeLocatedIterator(statusIterator(path, false, false));
+  }
+
+  @Override
+  protected RemoteIterator<LocatedFileStatus> listLocatedStatus(Path path, PathFilter filter)
+      throws IOException {
+    Objects.requireNonNull(filter, "filter");
+    return new FilteredLocatedIterator(statusIterator(path, false, false), filter);
+  }
+
+  private final class FilteredLocatedIterator
+      implements RemoteIterator<LocatedFileStatus>, Closeable {
+    private final NativeStatusIterator source;
+    private final PathFilter filter;
+    private FileStatus pending;
+
+    FilteredLocatedIterator(NativeStatusIterator source, PathFilter filter) {
+      this.source = source;
+      this.filter = filter;
+    }
+
+    @Override
+    public synchronized boolean hasNext() throws IOException {
+      try {
+        source.checkOpen();
+        if (pending != null) return true;
+        while (source.hasNext()) {
+          FileStatus candidate = source.next();
+          if (filter.accept(candidate.getPath())) {
+            pending = candidate;
+            return true;
+          }
+        }
+        return false;
+      } catch (IOException | RuntimeException error) {
+        close();
+        throw error;
+      }
+    }
+
+    @Override
+    public synchronized LocatedFileStatus next() throws IOException {
+      if (!hasNext()) throw new NoSuchElementException("No more directory entries");
+      FileStatus status = pending;
+      pending = null;
+      return new LocatedFileStatus(status,
+          status.isFile() ? getFileBlockLocations(status, 0, status.getLen()) : null);
+    }
+
+    @Override
+    public synchronized void close() {
+      pending = null;
+      source.close();
+    }
+  }
+
   private final class NativeLocatedIterator
       implements RemoteIterator<LocatedFileStatus>, Closeable {
     private final NativeStatusIterator source;
@@ -258,7 +316,8 @@ public final class OBSFileSystemRust extends FileSystem {
     @Override
     public LocatedFileStatus next() throws IOException {
       FileStatus status = source.next();
-      return new LocatedFileStatus(status, getFileBlockLocations(status, 0, status.getLen()));
+      return new LocatedFileStatus(status,
+          status.isFile() ? getFileBlockLocations(status, 0, status.getLen()) : null);
     }
 
     @Override
@@ -285,10 +344,14 @@ public final class OBSFileSystemRust extends FileSystem {
       cleanup = new ListingCleanup(this, cursor);
     }
 
-    @Override
-    public synchronized boolean hasNext() throws IOException {
+    private synchronized void checkOpen() throws IOException {
       if (nativeHandle == 0 || nativeHandle != filesystemHandle || closed)
         throw new IOException("Filesystem or iterator closed");
+    }
+
+    @Override
+    public synchronized boolean hasNext() throws IOException {
+      checkOpen();
       if (failure != null) throw failure;
       try {
         while (!page.hasNext() && !finished) {
