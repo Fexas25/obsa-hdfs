@@ -476,7 +476,7 @@ public final class OBSFileSystemRust extends FileSystem {
     }
 
     private void checkOpen() throws IOException {
-      if (handle == 0) throw new IOException("Stream closed");
+      if (handle == 0 || nativeHandle == 0) throw new IOException("Stream closed");
     }
 
     @Override
@@ -576,7 +576,7 @@ public final class OBSFileSystemRust extends FileSystem {
     }
 
     private void checkOpen() throws IOException {
-      if (handle == 0) throw new IOException("Stream closed");
+      if (handle == 0 || owner.nativeHandle == 0) throw new IOException("Stream closed");
     }
 
     @Override

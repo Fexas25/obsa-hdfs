@@ -899,4 +899,27 @@ public class HadoopLocalTest {
       }
     }
   }
+  @Test
+  public void streamsRejectOperationsAfterFilesystemClose() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/closed-owner-input", "data");
+      FSDataInputStream input = fs.open(new Path("/closed-owner-input"));
+      FSDataOutputStream output = fs.create(new Path("/closed-owner-output"), true);
+      fs.close();
+      assertThrows(IOException.class, () -> input.getPos());
+      assertThrows(IOException.class, () -> input.available());
+      assertThrows(IOException.class, () -> input.read(new byte[0]));
+      assertThrows(IOException.class, () -> input.read());
+      assertThrows(IOException.class, () -> input.seek(0));
+      assertThrows(IOException.class, () -> output.write(new byte[0]));
+      assertThrows(IOException.class, () -> output.write(1));
+      assertThrows(IOException.class, () -> output.flush());
+      input.close();
+      input.close();
+      output.close();
+      output.close();
+      assertFalse(data.containsKey("closed-owner-output"));
+    }
+  }
 }
