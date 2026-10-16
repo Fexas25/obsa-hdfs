@@ -1392,3 +1392,12 @@ Hadoop 完整回归 **306 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 原先 Java close 先释放 Rust 句柄，再调用 Hadoop super.close，导致后者 processDeleteOnExit 的 exists/delete 全部无法访问原生文件系统，错误被 Hadoop 按尽力清理语义吞掉。现在先执行 super.close，在 finally 中清零并释放原生句柄，确保退出删除仍经过 Rust 的状态和命名空间检查。取消注册、重复关闭保持原有语义；不保证与在途 I/O 或其他实例并发修改的全局原子性。
 
 新增普通桶/PFS 文件与目录退出删除、取消注册保留、缺失路径不注册、关闭后旧流失效，以及普通桶文件/目录隐藏后代冲突保留全部字节并继续清理其他对象的测试。旧实现两项新增测试均失败；修复后 Hadoop 完整回归 **311 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。清理冲突仍由 Hadoop 记录并忽略，close 成功不表示所有注册路径已删除。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。delete-on-exit-* 日志仅在工作区。
+
+
+### 2026-10-16：追加新块选项显式拒绝及 builder 路径验证
+
+Hadoop 默认四参数 append 丢弃 newBlock 参数，PFS 因而把要求新 HDFS 块的调用当作普通追加。现在 newBlock=true 在打开流前报 UnsupportedOperationException；false 委派已有追加路径。两种布尔重载、两种桶类型均验证拒绝后内容不变，PFS false 保持追加位置和内容，普通桶 false 保持不支持。新增测试在旧实现上复现 true 没有抛错。
+
+另验证 createFile builder 的递归/非递归入口拒绝 APPEND+OVERWRITE，覆盖被文件阻断的后代路径不会修改原对象，appendFile 同样拒绝被阻断路径，PFS builder 正常创建及追加成功。此处针对显式后代路径，未扩大删除/移动冲突规则到覆盖遮挡文件本身，也未新增 builder 实现。
+
+Hadoop 完整回归 **313 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果；无性能提升或真实云验收结论。append-options-* 日志仅保留本地。
