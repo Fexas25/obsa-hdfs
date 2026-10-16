@@ -1330,3 +1330,10 @@ workspace debug/release 各 **377 通过、0 失败、16 ignored**，append-diag
 Rust 新增源文件删除（两种 recursive 值）、重命名、覆盖冲突目标、目录标记与子对象、空首屏与循环续页回归，要求对象快照不变且 PUT/COPY/DELETE 为零。旧缓存竞态测试先经 ObjectStore 清理冲突，再执行正常删除；旧延迟 LIST 测试限定门控及脚本响应只作用于根目录，避免把新的安全探测也阻塞。Hadoop 新增两种冲突的删除/重命名测试并逐对象核对字节内容。
 
 最终 workspace debug/release 各 **379 通过、0 失败、16 ignored**，append-diagnostics **381 通过、0 失败、16 ignored**；显式构建 debug/release 动态库后实际 JVM 基础/异常冒烟通过；Hadoop **298 项、0 失败、0 错误、12 跳过**。file-conflict-* 日志仅存工作区，未进行真实云或性能验收。
+
+
+### 2026-10-16：单文件探测取消与请求成本回归
+
+新增确定性测试，在单文件删除/重命名的后代探测阻塞时取消，确认原始对象不变且 PUT/COPY/DELETE 为零；释放模拟门控后重新执行正常成功。另在源状态和目标缺失状态已缓存的前提下，校验普通桶单文件删除/移动恰好增加一次 LIST，PFS 为零。该测试证明请求计数，不是网络吞吐或尾延迟基准。
+
+仅增加 Rust 测试，生产代码不变。默认 debug/release 各 **381 通过、0 失败、16 ignored**，诊断特性 **383 通过、0 失败、16 ignored**。实际 JVM 和 Hadoop 沿用上一批相同生产源码的结果，未重复执行。file-probe-* 日志仅保存在工作区。
