@@ -1360,3 +1360,12 @@ workspace debug/release 各 **385 通过、0 失败、16 ignored**，诊断特�
 原生文件系统关闭会清理所属流句柄，但 Java 流原先仅检查自身 handle 字段，导致 getPos/available/零长度读取等本地操作仍可能成功。现在 NativeInput/NativeOutput 在方法入口同时检查所属文件系统的 volatile nativeHandle；已关闭时抛 IOException，避免顺序调用场景继续使用已退役句柄。流 close 保持幂等，不增加 JNI/网络请求。该检查不是与文件系统 close 的全局原子屏障，不声称改变已经在途的 I/O 语义。
 
 新增普通桶/PFS 的实际 Hadoop 回归，先打开输入和创建输出流，再关闭文件系统，校验 getPos、available、零长度/正常读写、seek、flush 均拒绝，重复关闭流无异常且未提交输出对象。旧版本在 getPos 应抛异常处失败；修复后 Hadoop **299 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 源码未修改，沿用上一批 debug/release 385、诊断 387 和 JVM 验证结果，没有重复执行这些未变组件的测试。stream-owner-* 日志仅保存在工作区。
+
+
+### 2026-10-16：文件系统重建与旧 Java 资源隔离
+
+Java initialize 现在与 close 使用同一实例锁，并在修改配置或创建原生对象之前拒绝对仍打开的实例再次初始化，避免覆盖原生句柄。关闭后仍可重新初始化。输入流、输出流和状态迭代器记录创建时的文件系统句柄，入口检查要求它仍与当前句柄一致，防止旧流的本地方法和已缓存的迭代器页面在重建后恢复可用。旧资源的重复关闭仍安全，不会关闭新实例。
+
+旧实现两个新增测试均失败：重复初始化不抛 IOException；关闭重建后旧输入流 getPos 不抛 IOException。修复后覆盖普通桶/PFS 的旧输入流、旧输出流、已缓存迭代器拒绝访问，旧资源关闭后新实例仍能读取原文件且未提交旧输出。此为实例生命周期校验，不承诺将所有在途 I/O 与关闭/重建组成全局原子操作。
+
+本次 Hadoop **301 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS，使用实际 JNI 和本机 HTTP 模拟。Rust/JNI 源码未变，沿用对应源码已通过的 debug/release 385、诊断 387 和 JVM 冒烟结果，未重复运行。fs-generation-* 日志仅保存在工作区。
