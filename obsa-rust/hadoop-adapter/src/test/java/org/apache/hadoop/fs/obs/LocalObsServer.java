@@ -24,6 +24,9 @@ final class LocalObsServer implements AutoCloseable {
   final Queue<String> listResponses = new java.util.concurrent.ConcurrentLinkedQueue<>();
   boolean pfs;
   volatile boolean failCopy;
+  volatile String failPutKey;
+  volatile boolean failPutAfterCommit;
+  final AtomicInteger putFailures = new AtomicInteger();
   volatile int failedRangeStart = -1;
   final AtomicInteger rangeFailures = new AtomicInteger();
 
@@ -254,7 +257,14 @@ final class LocalObsServer implements AutoCloseable {
             error(e, 409, "FileAlreadyExists");
             return;
           }
-          data.put(key, body(e));
+          byte[] payload = body(e);
+          if (key.equals(failPutKey)) {
+            putFailures.incrementAndGet();
+            if (failPutAfterCommit) data.put(key, payload);
+            error(e, 503, "ServiceUnavailable");
+            return;
+          }
+          data.put(key, payload);
         }
         e.getResponseHeaders().set("ETag", "\"mock\"");
         send(e, 200, "");

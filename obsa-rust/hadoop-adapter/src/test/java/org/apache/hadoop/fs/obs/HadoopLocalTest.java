@@ -1579,4 +1579,43 @@ public class HadoopLocalTest {
       java.nio.file.Files.deleteIfExists(directory);
     }
   }
+
+  @Test
+  public void copyUploadFailureKeepsLocalSourceBeforeAndAfterRemoteCommit() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "copy-local-failure-");
+    java.nio.file.Path local = directory.resolve("source");
+    try {
+      for (boolean pfs : new boolean[] {false, true}) {
+        for (boolean committed : new boolean[] {false, true}) {
+          for (boolean existing : new boolean[] {false, true}) {
+            open(pfs);
+            data.clear();
+            if (existing) write("/copy-failure", "old");
+            java.nio.file.Files.write(local, "replacement".getBytes(StandardCharsets.UTF_8));
+            Path source = new Path(local.toAbsolutePath().toUri());
+            server.failPutAfterCommit = committed;
+            server.failPutKey = "copy-failure";
+            int failures = server.putFailures.get();
+            assertThrows(IOException.class,
+                () -> fs.copyFromLocalFile(true, true, source, new Path("/copy-failure")));
+            assertTrue(server.putFailures.get() > failures);
+            assertArrayEquals("replacement".getBytes(StandardCharsets.UTF_8), java.nio.file.Files.readAllBytes(local));
+            server.failPutKey = null;
+            if (committed) assertEquals("replacement", read("/copy-failure"));
+            else if (existing) assertEquals("old", read("/copy-failure"));
+            else assertFalse(fs.exists(new Path("/copy-failure")));
+            fs.copyFromLocalFile(true, true, source, new Path("/copy-failure"));
+            assertFalse(java.nio.file.Files.exists(local));
+            assertEquals("replacement", read("/copy-failure"));
+          }
+        }
+      }
+    } finally {
+      server.failPutKey = null;
+      server.failPutAfterCommit = false;
+      java.nio.file.Files.deleteIfExists(local);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
 }
