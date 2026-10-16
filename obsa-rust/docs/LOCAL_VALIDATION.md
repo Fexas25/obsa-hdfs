@@ -1415,3 +1415,10 @@ Hadoop setReplication 默认直接返回 true，setTimes 默认直接返回，�
 接续上次中断的测试。getFileChecksum 长度重载现在拒绝负长度并调用 Rust 状态查询，无长度入口通过 Hadoop 虚派发复用该实现。有效路径保持 null，表示没有 Hadoop 兼容校验和，不虚构 MD5 或把 ETag 用作文件校验和。
 
 普通桶/PFS 回归覆盖有效路径、零/正/负长度、不存在路径、错误桶和关闭实例；普通桶还验证隐藏后代拒绝，及 resolvePath、getFileLinkStatus、getFileBlockLocations、listLocatedStatus、access 继承入口遵循 Rust 可见性规则。旧实现校验和两项新增测试失败。此次完整 Hadoop 回归 **317 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。checksum-paths-* 日志不上传。
+
+
+### 2026-10-17：LocatedStatus 列举复用 Rust 分页
+
+Hadoop 3.3.6 默认 listLocatedStatus 在构造迭代器时调用全量 listStatus，30 个对象、每页 3 条的本地测试在仅创建迭代器时已发 10 次 LIST。适配器现覆盖无过滤和带 PathFilter 的入口，使用 Rust 非递归游标；首屏仍验证路径，之后按需读取。Java 过滤器在迭代时执行，最多额外缓存一个匹配 FileStatus，保留目录条目且目录不生成块位置。过滤器运行时异常释放游标，显式关闭幂等，缓存命中前仍检查原生所属文件系统生命周期。listFiles 无过滤路径继续使用原包装，不引入过滤扫描。
+
+新增普通桶/PFS 首屏恰好 1 次 LIST、重复 hasNext/提前关闭不请求后续页、完整遍历/EOF、跨页过滤、全部过滤掉、目录与块位置、过滤异常释放登记及关闭文件系统后拒绝缓存条目的回归。旧实现首屏计数为 10 且无 Closeable 支持。修复后 Hadoop **320 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。此为按需读取和请求计数证明，不是吞吐/p99 或 Java 堆峰值基准；遍历全部对象仍须读取全部页面。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。located-paging-* 日志不上传。

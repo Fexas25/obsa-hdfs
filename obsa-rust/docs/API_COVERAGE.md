@@ -21,8 +21,8 @@
 15. listStatus：Rust 全量结果；额外提供 listStatusIterator，当前跨页状态已归 Rust 管理。 disguise 模式逐条 HEAD 补齐名称/权限，自定义元数据不由 LIST 返回；none 模式保留原路径。
 16. listStatus(Path,recursive)：原 Java 扩展重载未暴露；不能把 Rust 递归列表当作这个重载已经兼容。
 17. listFiles：Java 已覆盖并直接使用 Rust 文件游标。recursive=true 使用平铺 LIST，false 使用 delimiter=/，目录过滤与跨页去重在 Rust。Java 包装 LocatedFileStatus；默认模式不逐条 HEAD，disguise 仍按既有规则补元数据。旧 Rust 全量 Vec API 保留。
-18. listLocatedStatus：Java 未专门覆盖，继承路径待专项验收。
-19. listLocatedStatus(filter)：未将过滤下沉到 Rust，待明确 Java PathFilter 回调边界。
+18. listLocatedStatus：已覆盖，使用 Rust 非递归分页游标，首屏之后按需获取，可显式 Closeable.close；保留文件和目录条目，目录不伪造块位置。
+19. listLocatedStatus(filter)：Java PathFilter 在迭代时执行，跨页筛选并最多额外缓存一个匹配条目；回调异常释放游标，关闭或重建文件系统后拒绝缓存条目访问。过滤器不下沉 Rust。
 20. delete：Rust 接通；PFS 双键、递归顺序、普通桶批删及回退已有测试；非事务操作。
 21. rename：Rust 接通；PFS 原生操作，普通桶串行 copy/delete，非原子且源并发变更风险未解决。Java Options.Rename 重载已接管，文件 OVERWRITE 直接调用 Rust，不调用 Hadoop 默认的目标预删除流程；NONE 拒绝已存在目标，已有目录覆盖和 TO_TRASH 明确拒绝。
 22. mkdirs：Rust 接通，两桶模式已有契约测试。
