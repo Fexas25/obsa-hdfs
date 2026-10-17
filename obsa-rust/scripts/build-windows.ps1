@@ -1,4 +1,4 @@
-﻿param([switch]$SkipTests, [switch]$BenchmarkListing, [switch]$BenchmarkCache, [switch]$BenchmarkHttp, [switch]$BenchmarkRange, [switch]$BenchmarkListValidation, [switch]$BenchmarkAppend)
+﻿param([switch]$SkipTests, [switch]$BenchmarkListing, [switch]$BenchmarkCache, [switch]$BenchmarkHttp, [switch]$BenchmarkRange, [switch]$BenchmarkListValidation, [switch]$BenchmarkAppend, [switch]$Release)
 $ErrorActionPreference = 'Stop'
 if (([int]$BenchmarkListing.IsPresent + [int]$BenchmarkCache.IsPresent + [int]$BenchmarkHttp.IsPresent + [int]$BenchmarkRange.IsPresent + [int]$BenchmarkListValidation.IsPresent + [int]$BenchmarkAppend.IsPresent) -gt 1) { throw 'Select one benchmark at a time.' }
 $projectRoot = Split-Path $PSScriptRoot -Parent
@@ -44,9 +44,11 @@ if ($BenchmarkListing) {
     if ($LASTEXITCODE -ne 0) { throw 'listing benchmark failed' }
     return
 }
-& $cargoPath build --workspace --manifest-path (Join-Path $projectRoot 'Cargo.toml')
+$rustBuildProfileArgs = @()
+if ($Release) { $rustBuildProfileArgs += '--release' }
+& $cargoPath build --locked @rustBuildProfileArgs --workspace --manifest-path (Join-Path $projectRoot 'Cargo.toml')
 if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
 if (!$SkipTests) {
-    & $cargoPath test --workspace --manifest-path (Join-Path $projectRoot 'Cargo.toml')
+    & $cargoPath test --locked @rustBuildProfileArgs --workspace --manifest-path (Join-Path $projectRoot 'Cargo.toml')
     if ($LASTEXITCODE -ne 0) { throw 'cargo test failed' }
 }
