@@ -1,14 +1,14 @@
 param(
     [string]$JavaHome = $env:JAVA_HOME,
-    [ValidateSet('debug', 'release')][string]$Profile = 'debug'
+    [Alias('Profile')][ValidateSet('debug', 'release')][string]$NativeProfile = 'debug'
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
 $java = if ($JavaHome) { Join-Path $JavaHome 'bin\java.exe' } else { (Get-Command java).Source }
 $javac = if ($JavaHome) { Join-Path $JavaHome 'bin\javac.exe' } else { (Get-Command javac).Source }
-$nativeLibraryPath = Join-Path $projectRoot "target\$Profile"
-if (!(Test-Path -LiteralPath (Join-Path $nativeLibraryPath 'obs_jni.dll'))) {
-    throw "Build the $Profile JNI library before running this script: $nativeLibraryPath"
+$nativeLibraryPath = Join-Path $projectRoot "target\$NativeProfile"
+if (!(Test-Path -LiteralPath (Join-Path $nativeLibraryPath 'obs_jni.dll') -PathType Leaf)) {
+    throw "Build the $NativeProfile JNI library before running this script: $nativeLibraryPath"
 }
 Write-Host "JNI smoke native library directory: $nativeLibraryPath"
 $classes = Join-Path $projectRoot 'target\java-smoke'
