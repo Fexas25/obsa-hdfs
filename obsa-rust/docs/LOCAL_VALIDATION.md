@@ -1577,3 +1577,14 @@ Hadoop 默认 checkPath 对 scheme 为 null 的路径直接返回，包含 //oth
 POM 新增自动 java8-api profile，在 JDK 9 及以上设置 maven.compiler.release=8；JDK 8 的配置分支保持原 source/target=8。无显式 release 命令参数下，标准 javac 与可选 ECJ 分别 clean test-compile 成功，两个日志均确认生产/测试使用 release 8。最终 ECJ 生成的 39 个项目 class 文件逐一核验 major=52。无新增编译依赖。
 
 这是 API/字节码兼容检查，不是实际 Java 8 JVM 运行验收；本机仍使用 JDK 17，独立 JNI 冒烟脚本仍按 README 要求使用 JDK 17+。POM 自动激活后只补编译检查，完整 342 项运行证据来自相同 release 8 参数的前置验证，未将编译成功记为再次测试通过。java8-api-* 日志和核验 JSON 不上传。
+
+
+### 2026-10-17：Rust 原生 skip 避免读取丢弃的数据
+
+Hadoop NativeInput 原先继承 InputStream.skip，逐段读取后丢弃内容。本机 HTTP 回归使用 4 字节读取块，skip(8) 旧实现触发 2 次 GET，新增测试失败。现在 Rust ObsInputStream::skip 按打开时长度限制前进量，复用 seek 的缓存、取消恢复和预读处理；JNI 新增 nativeSkip，两份 Java ABI 声明同步更新，Hadoop 仅委派并更新位置。零/负跳过在 Hadoop 层检查流状态后直接返回 0。
+
+同一回归普通桶/PFS 的 skip(8) 均为 0 次 GET，后续读到正确字节；覆盖 Long.MAX_VALUE 到 EOF、EOF 后继续跳过、seek 超过 EOF、零/负值与 skipBytes。Rust 新增 3 项覆盖 u64 极值不溢出、取消半途读取后基于恢复位置跳过、跳至 EOF 取消预读并归还并发许可。既有 seek 版本错误及范围复用测试仍通过。独立 JVM 冒烟覆盖新的 nativeSkip，并确认对输出流调用被拒绝后仍可正常写入。
+
+显式重建 debug/release JNI 库；Rust workspace 两种配置均 **388 通过、0 失败、16 ignored**，append-diagnostics **390 通过、0 失败、16 ignored**。Hadoop debug/release 各 **343 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的库路径；两种库的基础/异常 JVM 冒烟均通过。新的 Java 调用需要配套重建的 JNI 库，不能只替换 Java 类。
+
+这是确定性的 GET 请求数对照，不是吞吐或 p99 基准。与 seek 相同，跳过区间不下载也不验证内容；后续实际读取继续遵循既有版本检查，长度使用打开时快照。skip-* 日志、汇总 JSON 和 DLL/class 仅保留在工作区，不上传。
