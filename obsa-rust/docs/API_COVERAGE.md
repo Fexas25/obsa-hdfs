@@ -59,6 +59,20 @@ PFS 追加底层调用的是固定 position 的 `PUT ?modify`，不是普通桶 
 truncate 重放保持相同长度，rename/MPU 初始化与完成仍不自动重试。这里的幂等性针对相同定点操作，
 不保证与外部并发写入隔离，也不能把重试成功解释为远端只执行过一次。
 
+## JNI JSON 参数边界
+
+`nativeCall` 的参数必须是 JSON 对象。显式 path/destination 必须是字符串，
+recursive/files_only/overwrite/create_parent 必须是布尔值，permission 必须是 0..=u32::MAX 整数；
+不再把错误类型当作默认值，也不把更大的权限值截断。marker、owner、group 允许省略或 null，
+非 null 时必须是字符串。检查发生在对应文件系统操作之前，错误映射为 IllegalArgumentException。
+这是传输类型校验，不替代 Rust 的路径可见性、权限模式或操作语义校验。
+
+省略字段保留已有默认值，包括省略 path 时的根目录；setPermission 仍必须显式传 permission。
+未知字段不作为新的功能声明，未被操作消费的字段不进行全面 schema 校验。
+Hadoop 包装层仍显式传入路径；低层 JNI 调用方应同样显式指定目标。
+独立 Java 与 Hadoop 的 NativeObs 声明保持一致，均暴露 `nativeReleaseListing`；
+低层调用方可以显式释放未消费完的游标，重复释放无副作用，释放后访问报错。
+
 ## 配置核对
 
 核心配置读取在 obs-rust-core/src/config.rs，Java 入口在 OBSFileSystemRust.initialize / resolveCredentials。附录 G.1 中 endpoint、AK/SK/token、桶模式、连接/超时/TLS、分片、上传并发、预读、缓存、分页、PFS append/inode、trash、寻址方式和访问日志有解析路径；解析路径存在不等于每种取值均通过运行验收。

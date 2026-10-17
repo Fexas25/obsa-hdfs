@@ -1644,3 +1644,11 @@ Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对�
 扩展现有真实 TCP 断连测试：服务器完整接收请求后直接关闭连接、不发送响应。PFS modify 与 truncate 均按配置执行初次加两次重试，每次核验编码路径、同一位置/长度、x-obs-hdfs 头和完全相同正文；请求未因重试推进偏移或改写载荷。原有 rename、MPU 初始化/完成不重试分支同时保留。该测试核验线上请求，不模拟真实远端提交结果或外部并发隔离。
 
 定向测试通过，完整 wire debug/release 各 **79 通过、0 失败、0 ignored**。仅扩展现有测试和文档，没有增加测试函数或修改生产代码；workspace 上次仍为 389/0/16、诊断 391/0/16，Hadoop 上批两配置各 353/0/0/12，不冒充本批全部重跑。Clippy 在定向运行前再次通过；pfs-replay-* 日志和核验产物只保留本地。接口类型及官方资料链接见 API_COVERAGE.md。
+
+### 2026-10-17：JNI 操作参数类型与声明一致性
+
+修复 nativeCall 对显式错误类型静默回退的问题：参数根必须是对象，非字符串 path 不再退到根目录，布尔参数不再把字符串/数字/null 当默认值，permission 超过 u32 不再截断。marker/owner/group 保留合法 null，省略字段的既有默认值保留。所有校验在对应文件系统调用前完成；未知字段未做全面 schema 拒绝。
+
+新增两项 Rust 参数测试及一个实际 Hadoop/JNI 用例：普通桶/PFS 的错误 JSON 根、路径、权限、布尔、目标和元数据类型均抛 IllegalArgumentException，HEAD/LIST/GET/元数据写入计数为零，哨兵对象完整，省略 path 的根状态仍可读取。另发现独立 Java NativeObs 漏声明已有 nativeReleaseListing，补齐并与 Hadoop 声明逐字节核验一致；独立 JVM 冒烟验证显式/重复释放和释放后访问拒绝。
+
+显式重建两种原生库后，Rust workspace debug/release 各 **391/0/16**，实际 JVM 基础/并发/错误冒烟通过，完整 Hadoop debug/release 各 **354 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的库路径。Clippy 保持既有 16 项告警。核心算法未改，append-diagnostics 未重复，上次仍为 391/0/16（该配置只测核心，不含新增两项 JNI 单元测试）。新增独立 Java 冒烟初次缺 IOException 类型引用，修正后两配置重跑通过；初次日志单独保存。jni-arguments-* 日志、原生库和核验结果只留本地。
