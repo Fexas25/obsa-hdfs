@@ -1632,3 +1632,9 @@ Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对�
 新增可配置 LIST 等待和持续预热，正式记录同时包含参数，采样脚本拒绝不匹配的二进制输出。新增普通桶/PFS 页面顺序与目录别名回归，以及独立集合分配/插入/析构探针。最终同配置基线/候选的 80 条大目录记录、1600 条预热小目录记录未证明单页借用 HashSet 的稳定全路径收益，已撤回该生产优化；方法与结果见 [LISTING_SCALE.md](LISTING_SCALE.md)。一次提前复制旧二进制的预备测量已作废，不计入结果。
 
 恢复原实现并显式构建两种 JNI DLL 后，Rust workspace debug/release 各 **389 通过、0 失败、16 ignored**，append-diagnostics **391/0/16**。实际 debug/release JVM 基础、并发和异常冒烟通过；Hadoop 两种库各 **352 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的原生库路径。Clippy 全目标/全特性仍为既有 16 项告警，无新增。生产 fs.rs 与已发布基线逐字节一致；只发布测试、复现工具和文档。listing-probes-* 日志、listing-page-* 冻结程序、哈希清单与原始数据仅保留本地。
+
+### 2026-10-17：Hadoop 继承查询的服务型 404
+
+模拟 LIST 可注入带请求 ID 的 NoSuchBucket/NoSuchUpload。新增一个普通桶/PFS 集成用例，遍历 exists、isFile/isDirectory、精确/通配 glob、getUsed、默认 getContentSummary、resolvePath、Path 版块位置、access、多路径 listStatus：错误必须保留 IOException 分类、服务码和请求 ID，每次重新到达后端；恢复服务并创建同名对象后立即可见，不被负缓存遮挡。另验证真实缺失仍返回 false/null。生产代码无需修改。
+
+定向用例通过后，完整 release/debug 各 **353 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的实际 JNI 库路径。Rust 和独立 JNI 未重复，上一批 389/0/16、诊断 391/0/16、两种 JVM 冒烟通过仍有效。另核对本地 Hadoop 3.3.6 字节码，文档明确 getStatus 仍是通用容量占位值，不代表云桶配额/可用性；尚未接入真实容量服务。inherited-service404-* 日志和报告只留本地。

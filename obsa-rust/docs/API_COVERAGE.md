@@ -47,6 +47,8 @@
 - copyToLocalFile：委派 Hadoop FileUtil 并将 false 转成 IOException，避免远端删除未完成仍报告移动成功；deleteSource=true 时先依据 Rust 状态拒绝移动根目录，普通复制根目录仍允许；本地测试通过第二段 GET 耗尽重试验证移动失败保留远端源、恢复后重试成功；目标为测试专用免 chmod 的 LocalFileSystem，未验收真实 Windows winutils/权限传播。 下载作用域主动释放中断递归复制遗留的分页游标；本地 mkdirs false 立即报错，避免 Hadoop 忽略子目录复制失败后删除未复制源。目录移动仍非事务性。
 
 - globStatus、多路径 listStatus 与 PathFilter、getUsed：已验证普通桶隐藏后代不出现在结果/用量中，显式隐藏路径被拒绝；glob 的无匹配返回遵循 Hadoop 语义。
+- 服务型 404：普通桶/PFS 下，exists、isFile/isDirectory、精确/通配 glob、getUsed、默认 getContentSummary、resolvePath、Path 版块位置、access 和多路径 listStatus 均验证 NoSuchBucket/NoSuchUpload 继续抛 IOException，并保留错误码/请求 ID。错误不写入缺失缓存，恢复后同一路径可见；真实缺失仍遵循 false/null 约定。此测试故障发生在状态回退 LIST，不代表所有 HTTP 阶段都逐项验收。
+- getStatus(Path)/getStatus() 尚沿用 Hadoop 3.3.6 的通用容量占位值（capacity/remaining 为 Long.MAX_VALUE、used 为 0），不查询云桶配额或路径，也不能用来证明服务可用。它与已接通 Rust/目录遍历的 getUsed/getContentSummary 不同；真实配额/容量接口未实现。
 
 - setReplication：校验正数参数并通过 Rust 查询路径后返回 false，不宣称改变 OBS 副本策略。
 - setTimes：先通过 Rust 查询路径；两个参数均为 -1 时不修改，否则明确 UnsupportedOperationException。要求保留时间的上层复制任务应处理此能力限制。
