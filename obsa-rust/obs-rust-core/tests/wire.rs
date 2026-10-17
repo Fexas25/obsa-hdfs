@@ -29,7 +29,7 @@ async fn http_owned_body_is_not_charged_again_by_input_and_shares_upload_budget(
 
 #[tokio::test]
 async fn response_disconnect_retries_only_idempotent_requests() {
-    for operation in 0..6 {
+    for operation in 0..8 {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let (stop, mut stopped) = tokio::sync::oneshot::channel::<()>();
@@ -78,6 +78,8 @@ async fn response_disconnect_retries_only_idempotent_requests() {
             }]).await.map(|_| ()),
             2 => store.posix_rename("source", "target").await,
             3 => store.get("file", None, None).await.map(|_| ()),
+            6 => store.posix_append("file with space", 17, bytes::Bytes::from_static(b"payload")).await,
+            7 => store.posix_truncate("file with space", 17).await,
             _ => {
                 let idempotent = operation == 5;
                 obs_rust_core::transport::HttpPool::new(config).execute(
@@ -90,10 +92,19 @@ async fn response_disconnect_retries_only_idempotent_requests() {
         let _ = stop.send(());
         let requests = server.await.unwrap();
         assert!(matches!(result, Err(obs_rust_core::ObsError::Transport(_))), "operation={operation}");
-        assert_eq!(requests.len(), if operation == 3 || operation == 5 { 3 } else { 1 },
+        assert_eq!(requests.len(), if matches!(operation, 3 | 5 | 6 | 7) { 3 } else { 1 },
             "operation={operation}");
         if operation == 1 { assert!(requests[0].contains("CompleteMultipartUpload")); }
         if operation == 4 { assert!(requests[0].ends_with("payload")); }
+        if operation == 6 || operation == 7 {
+            let query = if operation == 6 { "modify&position=17" } else { "truncate&length=17" };
+            for request in &requests {
+                assert!(request.starts_with(&format!("PUT /bucket/file%20with%20space?{query} HTTP/1.1\r\n")));
+                let (headers, body) = request.split_once("\r\n\r\n").unwrap();
+                assert!(headers.to_ascii_lowercase().contains("x-obs-hdfs: true"));
+                assert_eq!(body, if operation == 6 { "payload" } else { "" });
+            }
+        }
     }
 }
 
