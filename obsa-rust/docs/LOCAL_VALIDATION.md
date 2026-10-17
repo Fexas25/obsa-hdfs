@@ -1538,3 +1538,10 @@ ECJ + debug JNI 完整 Hadoop 回归 **336 项、0 失败、0 错误、12 跳过
 修复后标准 JDK 17 javac 干净构建，release JNI 完整 Hadoop 回归 **338 项、0 失败、0 错误、12 跳过**；核验 16 份 XML 均使用 target/release。此前游标修复阶段 debug 完整回归 337 项通过，mkdir false 修复 focused debug 回归通过；最终完整结果以上述 release 338 为准。Rust/JNI 生产代码未改，未重复核心构建。
 
 本次不是事务性目录移动：更早成功复制或删除的兄弟文件不回滚，失败后可能留下本地部分结果。FileUtil 其他布尔失败分支仍需继续核对。directory-download-*、directory-mkdir-*、directory-copy-* 日志与核验文件仅保存在工作区，不上传。
+
+
+### 2026-10-17：退出删除登记与取消统一根路径别名
+
+Hadoop Path/URI 归一化保留超过根目录的前导 /..，Rust path_to_key 则在根处停止向上遍历。旧实现用 /../../exit-alias 登记 deleteOnExit 后，用 /exit-alias 取消返回 false；两者实际操作同一个 Rust 文件。登记及取消现在使用同一词法路径标识，先验证文件系统归属、解析当前工作目录，再按 Rust 既有规则处理点段并限定 URI。不增加状态查询，也不改变 Rust 文件操作语义。
+
+新增普通桶/PFS 两向回归：根路径别名登记可用规范路径取消，规范路径登记可用别名取消，关闭文件系统后内容仍保留。既有相对路径、工作目录变更和不同 URI 形式取消测试继续通过。完整 Hadoop debug 回归 **339 项、0 失败、0 错误、12 跳过**；解析 16 份 XML 确认 target/debug。此批未改 Rust/JNI，未重跑 release；上一批 release 338 为独立历史结果。exit-alias-* 日志与核验文件不上传。
