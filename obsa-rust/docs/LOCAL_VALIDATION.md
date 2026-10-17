@@ -1511,3 +1511,10 @@ Hadoop 完整回归 **333 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 执行 cargo clippy --locked --workspace --all-targets --all-features，退出成功，初次输出 17 条诊断（包含 lib/test 重复项）。其中 await_holding_lock 指向追加容量诊断测试；代码已显式 drop MutexGuard 后再 await，不是已确认的运行时死锁。将该测试的锁与断言改为词法作用域，明确在后续异步 LIST 前结束 guard 生命周期，生产代码不变。
 
 对应 all-features 文件系统测试 **1 通过、0 失败**；再次完整 Clippy 检查退出成功，await_holding_lock 提示消失，剩余 16 条为 manual_map、len_without_is_empty、参数数量、类型复杂度及测试布局等提示，未为清零提示进行大范围改写。本次不是无警告门禁，也不是没有其他缺陷的证明。未重复执行未变生产代码的完整回归，沿用 release Rust 385、Hadoop 333 与 debug/release JNI 冒烟结果。clippy-audit*、diagnostic-lock-scope-* 输出仅保存在本地。
+
+
+### 2026-10-17：定位读取失败后的顺序位置恢复
+
+补充实际 Hadoop FSDataInputStream → JNI → Rust → 本地 HTTP 的两项回归，均覆盖普通桶与 PFS。指定偏移 GET 连续 503 耗尽初次请求和两次重试后，定位 readFully 抛 IOException，顺序位置保持不变；清除故障后顺序读取与定位读取内容正确。另覆盖定位 readFully 越过 EOF、定位 read 返回 EOF、负位置和无效缓冲区范围，断言原位置与后续顺序读取仍正确。
+
+现有 Hadoop 继承实现通过这些检查，未改生产逻辑。完整 Hadoop 回归 **335 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS；使用默认 debug JNI 库。Rust/JNI 生产源码未变，沿用此前 release Rust 385 和 debug/release JVM 冒烟结果；本批未重跑 release Hadoop。positioned-read-regression.log 仅保存在本地。
