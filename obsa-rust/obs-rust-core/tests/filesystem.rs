@@ -2371,10 +2371,34 @@ async fn benchmark_large_sequential_read() {
 #[tokio::test]
 #[ignore = "release listing benchmark; scripts/build-windows.ps1 -BenchmarkListing"]
 async fn benchmark_paginated_listing() {
-    for (entries, cache) in [(10_000, 0), (100_000, 0), (10_000, 4096)] {
-        for trial in 0..=5 {
+    let cases = match std::env::var("OBS_LIST_BENCH_ENTRIES") {
+        Ok(value) => {
+            let entries: usize = value.parse().expect("OBS_LIST_BENCH_ENTRIES must be an integer");
+            assert!((1..=1_000_000).contains(&entries), "entries must be 1..1000000");
+            vec![(entries, 0)]
+        }
+        Err(std::env::VarError::NotPresent) => vec![(10_000, 0), (100_000, 0), (10_000, 4096)],
+        Err(error) => panic!("invalid listing entries: {error}"),
+    };
+    let trials: usize = std::env::var("OBS_LIST_BENCH_TRIALS")
+        .map(|value| value.parse().expect("OBS_LIST_BENCH_TRIALS must be an integer"))
+        .unwrap_or(5);
+    assert!((1..=20).contains(&trials), "trials must be 1..20");
+    let selected = match std::env::var("OBS_LIST_BENCH_VARIANT").as_deref() {
+        Ok("eager") => Some(false),
+        Ok("paged") => Some(true),
+        Err(std::env::VarError::NotPresent) => None,
+        _ => panic!("OBS_LIST_BENCH_VARIANT must be eager or paged"),
+    };
+    for (entries, cache) in cases {
+        for trial in 0..=trials {
             // Alternate order to avoid always favoring the second variant.
-            for paged in if trial % 2 == 0 { [false, true] } else { [true, false] } {
+            let variants = match selected {
+                Some(paged) => vec![paged],
+                None if trial % 2 == 0 => vec![false, true],
+                None => vec![true, false],
+            };
+            for paged in variants {
                 let store = Arc::new(MemoryStore { synthetic_listing: Some(entries), ..Default::default() });
                 let fs = ObsFileSystem::with_store(ObsConfig {
                     paging_maximum: 1000, metadata_cache_size: cache,
@@ -2383,6 +2407,7 @@ async fn benchmark_paginated_listing() {
                 let start = std::time::Instant::now();
                 let first_ms;
                 let first_requests;
+                let first_heads;
                 let count;
                 let total_ms;
                 if paged {
@@ -2390,6 +2415,7 @@ async fn benchmark_paginated_listing() {
                     let first = cursor.next_page(&fs).await.unwrap();
                     first_ms = start.elapsed().as_secs_f64() * 1000.0;
                     first_requests = store.count("list:");
+                    first_heads = store.count("head:");
                     let mut seen = first.entries.len();
                     let mut more = first.next_marker.is_some();
                     drop(first);
@@ -2405,17 +2431,19 @@ async fn benchmark_paginated_listing() {
                     total_ms = start.elapsed().as_secs_f64() * 1000.0;
                     first_ms = total_ms;
                     first_requests = store.count("list:");
+                    first_heads = store.count("head:");
                     count = statuses.len();
                 }
                 assert_eq!(count, entries);
-                assert_eq!(store.count("list:"), entries / 1000);
+                assert_eq!(store.count("list:"), entries.div_ceil(1000));
                 if trial != 0 {
                     println!("BENCH_JSON {}", serde_json::json!({
                         "variant": if paged { "paged" } else { "eager" },
                         "entries": entries, "cache_entries": cache, "trial": trial,
                         "page_size": 1000, "simulated_delay_ms": 1,
                         "first_ms": first_ms, "total_ms": total_ms,
-                        "first_requests": first_requests, "requests": store.count("list:")
+                        "first_requests": first_requests, "requests": store.count("list:"),
+                        "first_heads": first_heads, "heads": store.count("head:")
                     }));
                 }
             }
