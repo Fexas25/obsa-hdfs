@@ -2,6 +2,8 @@ param(
     [Parameter(Mandatory = $true)][string]$TestExecutable,
     [ValidateRange(1, 1000000)][int[]]$Entries = @(100000, 1000000),
     [ValidateRange(1, 20)][int]$Trials = 3,
+    [ValidateRange(0, 1000)][int]$DelayMs = 1,
+    [ValidateRange(0, 10000)][int]$WarmupMs = 0,
     [switch]$ReverseOrder,
     [string]$OutputDirectory
 )
@@ -33,6 +35,8 @@ foreach ($count in $Entries) {
         $start.EnvironmentVariables['OBS_LIST_BENCH_ENTRIES'] = [string]$count
         $start.EnvironmentVariables['OBS_LIST_BENCH_TRIALS'] = [string]$Trials
         $start.EnvironmentVariables['OBS_LIST_BENCH_VARIANT'] = $variant
+        $start.EnvironmentVariables['OBS_LIST_BENCH_DELAY_MS'] = [string]$DelayMs
+        $start.EnvironmentVariables['OBS_LIST_BENCH_WARMUP_MS'] = [string]$WarmupMs
         $child = New-Object System.Diagnostics.Process
         $child.StartInfo = $start
         $peak = 0L
@@ -58,7 +62,7 @@ foreach ($count in $Entries) {
             })
             if ($rows.Count -ne $Trials) { throw 'Unexpected number of benchmark rows; rebuild the configured test executable.' }
             foreach ($row in $rows) {
-                if ($row.entries -ne $count -or $row.variant -ne $variant -or
+                if ($row.entries -ne $count -or $row.variant -ne $variant -or $row.simulated_delay_ms -ne $DelayMs -or $row.warmup_ms -ne $WarmupMs -or
                     $row.requests -ne [Math]::Ceiling($count / 1000.0)) {
                     throw 'Benchmark workload or request counts do not match the requested configuration.'
                 }
@@ -69,6 +73,8 @@ foreach ($count in $Entries) {
             if ($peak -le 0) { throw 'No working-set sample captured; increase the workload.' }
             $summary = [ordered]@{
                 entries = $count; variant = $variant; trials = $Trials
+                simulated_delay_ms = $DelayMs
+                warmup_ms = $WarmupMs
                 peak_working_set_bytes_observed = $peak
                 process_wall_ms = $watch.Elapsed.TotalMilliseconds
                 process_cpu_ms = $child.TotalProcessorTime.TotalMilliseconds

@@ -1216,6 +1216,7 @@ struct MemoryStore {
     put_pauses: AtomicUsize,
     put_failures: AtomicUsize,
     synthetic_listing: Option<usize>,
+    synthetic_listing_delay_ms: u64,
     metadata_failure: bool,
     head_errors: BTreeMap<String, ObsError>,
     head_delay_ms: u64,
@@ -1435,7 +1436,9 @@ impl ObjectStore for MemoryStore {
         }
         if let Some(total) = self.synthetic_listing {
             assert_eq!(delimiter, "");
-            tokio::time::sleep(Duration::from_millis(1)).await;
+            if self.synthetic_listing_delay_ms > 0 {
+                tokio::time::sleep(Duration::from_millis(self.synthetic_listing_delay_ms)).await;
+            }
             let start = marker.map(|value| value.rsplit("file").next().unwrap().parse::<usize>().unwrap() + 1).unwrap_or(0);
             let end = (start + maximum).min(total);
             return Ok(ListPage {
@@ -2384,6 +2387,14 @@ async fn benchmark_paginated_listing() {
         .map(|value| value.parse().expect("OBS_LIST_BENCH_TRIALS must be an integer"))
         .unwrap_or(5);
     assert!((1..=20).contains(&trials), "trials must be 1..20");
+    let delay_ms: u64 = std::env::var("OBS_LIST_BENCH_DELAY_MS")
+        .map(|value| value.parse().expect("OBS_LIST_BENCH_DELAY_MS must be an integer"))
+        .unwrap_or(1);
+    assert!(delay_ms <= 1000, "delay must be 0..1000 ms");
+    let warmup_ms: u64 = std::env::var("OBS_LIST_BENCH_WARMUP_MS")
+        .map(|value| value.parse().expect("OBS_LIST_BENCH_WARMUP_MS must be an integer"))
+        .unwrap_or(0);
+    assert!(warmup_ms <= 10_000, "warmup must be 0..10000 ms");
     let selected = match std::env::var("OBS_LIST_BENCH_VARIANT").as_deref() {
         Ok("eager") => Some(false),
         Ok("paged") => Some(true),
@@ -2391,7 +2402,9 @@ async fn benchmark_paginated_listing() {
         _ => panic!("OBS_LIST_BENCH_VARIANT must be eager or paged"),
     };
     for (entries, cache) in cases {
-        for trial in 0..=trials {
+        let warmup_until = std::time::Instant::now() + Duration::from_millis(warmup_ms);
+        let mut trial = 0;
+        loop {
             // Alternate order to avoid always favoring the second variant.
             let variants = match selected {
                 Some(paged) => vec![paged],
@@ -2399,7 +2412,10 @@ async fn benchmark_paginated_listing() {
                 None => vec![true, false],
             };
             for paged in variants {
-                let store = Arc::new(MemoryStore { synthetic_listing: Some(entries), ..Default::default() });
+                let store = Arc::new(MemoryStore {
+                    synthetic_listing: Some(entries), synthetic_listing_delay_ms: delay_ms,
+                    ..Default::default()
+                });
                 let fs = ObsFileSystem::with_store(ObsConfig {
                     paging_maximum: 1000, metadata_cache_size: cache,
                     metadata_cache_ttl_ms: 60_000, ..Default::default()
@@ -2440,13 +2456,16 @@ async fn benchmark_paginated_listing() {
                     println!("BENCH_JSON {}", serde_json::json!({
                         "variant": if paged { "paged" } else { "eager" },
                         "entries": entries, "cache_entries": cache, "trial": trial,
-                        "page_size": 1000, "simulated_delay_ms": 1,
+                        "page_size": 1000, "simulated_delay_ms": delay_ms, "warmup_ms": warmup_ms,
                         "first_ms": first_ms, "total_ms": total_ms,
                         "first_requests": first_requests, "requests": store.count("list:"),
                         "first_heads": first_heads, "heads": store.count("head:")
                     }));
                 }
             }
+            if trial == 0 && std::time::Instant::now() < warmup_until { continue; }
+            if trial == trials { break; }
+            trial += 1;
         }
     }
 }
@@ -3789,6 +3808,30 @@ async fn pager_validation_failure_is_sticky_without_more_requests() {
     assert!(pager.next_page().await.is_err());
     assert!(pager.next_page().await.is_err());
     assert_eq!(store.count("list:"), 1);
+}
+
+#[tokio::test]
+async fn status_page_preserves_order_and_merges_directory_aliases() {
+    for pfs in [false, true] {
+        let store = Arc::new(MemoryStore { pfs, ..Default::default() });
+        store.list_pages.lock().unwrap().push_back(ListPage {
+            contents: vec![
+                ListEntry { key: "dir/z".into(), size: 7, ..Default::default() },
+                ListEntry { key: "dir/a".into(), size: 3, ..Default::default() },
+                ListEntry { key: "dir/sub/".into(), ..Default::default() },
+            ],
+            common_prefixes: vec!["dir/sub/".into(), "dir/sub/".into()],
+            ..Default::default()
+        });
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store);
+        let page = fs.list_status_page("/dir", None).await.unwrap();
+        assert_eq!(page.entries.iter().map(|s| s.path.as_str()).collect::<Vec<_>>(),
+            ["/dir/z", "/dir/a", "/dir/sub"]);
+        assert_eq!(page.entries[0].length, 7);
+        assert_eq!(page.entries[1].length, 3);
+        assert!(page.entries[2].is_dir);
+        assert!(page.next_marker.is_none());
+    }
 }
 
 #[tokio::test]
