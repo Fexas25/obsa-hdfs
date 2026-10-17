@@ -1955,6 +1955,99 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void copyFromLocalDirectoryPreservesTreeAndMovesOnlyAfterCopy() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "copy-local-tree-");
+    java.nio.file.Path source = directory.resolve("source");
+    java.nio.file.Path nested = source.resolve("nested");
+    try {
+      for (boolean pfs : new boolean[] {false, true}) {
+        open(pfs);
+        fs.getConf().setClass("fs.file.impl", NioListingLocalFileSystem.class, FileSystem.class);
+        fs.getConf().setBoolean("fs.file.impl.disable.cache", true);
+        data.clear();
+        java.nio.file.Files.createDirectories(nested);
+        java.nio.file.Files.write(source.resolve("a"), new byte[] {1, 2});
+        java.nio.file.Files.write(nested.resolve("b"), new byte[] {3, 4});
+        Path local = new Path(source.toAbsolutePath().toUri());
+        fs.copyFromLocalFile(false, false, local, new Path("/tree-copy"));
+        assertArrayEquals(new byte[] {1, 2}, data.get("tree-copy/a"));
+        assertArrayEquals(new byte[] {3, 4}, data.get("tree-copy/nested/b"));
+        assertTrue(java.nio.file.Files.exists(nested.resolve("b")));
+        fs.copyFromLocalFile(true, false, local, new Path("/tree-move"));
+        assertArrayEquals(new byte[] {1, 2}, data.get("tree-move/a"));
+        assertArrayEquals(new byte[] {3, 4}, data.get("tree-move/nested/b"));
+        assertFalse(java.nio.file.Files.exists(source));
+      }
+    } finally {
+      java.nio.file.Files.deleteIfExists(nested.resolve("b"));
+      java.nio.file.Files.deleteIfExists(source.resolve("a"));
+      java.nio.file.Files.deleteIfExists(nested);
+      java.nio.file.Files.deleteIfExists(source);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
+
+  @Test
+  public void multiSourceUploadFailurePreservesFailedSourceAndReportsPartialProgress() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "copy-local-multiple-");
+    try {
+      for (boolean pfs : new boolean[] {false, true}) {
+        open(pfs);
+        data.clear();
+        fs.mkdirs(new Path("/batch"));
+        Path[] sources = new Path[3];
+        for (int i = 0; i < 3; i++) {
+          java.nio.file.Path local = directory.resolve(String.valueOf((char) ('a' + i)));
+          java.nio.file.Files.write(local, new byte[] {(byte) (i + 1)});
+          sources[i] = new Path(local.toAbsolutePath().toUri());
+        }
+        server.failPutKey = "batch/b";
+        int failures = server.putFailures.get();
+        assertThrows(IOException.class, () -> fs.copyFromLocalFile(true, false, sources, new Path("/batch")));
+        assertTrue(server.putFailures.get() > failures);
+        // Hadoop attempts other sources; successful moves are not rolled back.
+        assertArrayEquals(new byte[] {1}, data.get("batch/a"));
+        assertArrayEquals(new byte[] {3}, data.get("batch/c"));
+        assertFalse(data.containsKey("batch/b"));
+        assertFalse(java.nio.file.Files.exists(directory.resolve("a")));
+        assertFalse(java.nio.file.Files.exists(directory.resolve("c")));
+        assertArrayEquals(new byte[] {2}, java.nio.file.Files.readAllBytes(directory.resolve("b")));
+        server.failPutKey = null;
+        fs.copyFromLocalFile(true, false, sources[1], new Path("/batch"));
+        assertArrayEquals(new byte[] {2}, data.get("batch/b"));
+        assertFalse(java.nio.file.Files.exists(directory.resolve("b")));
+      }
+    } finally {
+      server.failPutKey = null;
+      for (String name : new String[] {"a", "b", "c"})
+        java.nio.file.Files.deleteIfExists(directory.resolve(name));
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
+
+  /** Avoid unavailable Windows NativeIO in this test's local directory enumeration only. */
+  public static final class NioListingLocalFileSystem extends LocalFileSystem {
+    public NioListingLocalFileSystem() {
+      super(new RawLocalFileSystem() {
+        @Override
+        public FileStatus[] listStatus(Path path) throws IOException {
+          FileStatus status = getFileStatus(path);
+          if (!status.isDirectory()) return new FileStatus[] {status};
+          List<FileStatus> children = new ArrayList<>();
+          try (java.nio.file.DirectoryStream<java.nio.file.Path> entries =
+              java.nio.file.Files.newDirectoryStream(pathToFile(path).toPath())) {
+            for (java.nio.file.Path entry : entries)
+              children.add(getFileStatus(new Path(entry.toAbsolutePath().toUri())));
+          }
+          return children.toArray(new FileStatus[0]);
+        }
+      });
+    }
+  }
+
+  @Test
   public void copyFromLocalMovesSourceOnlyAfterSuccessfulUpload() throws Exception {
     java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
         java.nio.file.Paths.get("target"), "copy-local-success-");
