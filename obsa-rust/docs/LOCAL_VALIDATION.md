@@ -1610,3 +1610,11 @@ Hadoop NativeInput 原先继承 InputStream.skip，逐段读取后丢弃内容�
 初次完整运行 351 项中目录测试报 Windows NativeIO.access0 缺失，发生在 RawLocalFileSystem 目录列举、进入 Rust 上传之前。新增测试专用 NioListingLocalFileSystem，仅用 NIO DirectoryStream 替代本地列举；文件打开、状态、删除与 Rust 上传仍走原路径。定向测试通过后完整 release **351 项、0 失败、0 错误、12 跳过**，16 份 XML 确认 target/release。不能据此声称 Windows Hadoop 原生目录权限/NativeIO 已验收。
 
 生产代码未改，Rust/JVM 未重复；debug 仍为上一批 347 项。multi-source-hadoop-release.log 保留初次环境失败，multi-source-hadoop-release-verified.log 为最终通过记录；日志、NIO 临时目录与产物不上传。
+
+### 2026-10-17：直接缓冲的并发与固定版本
+
+实际 JVM 冒烟用八线程绕过 Hadoop Java 流锁，直接共享一个 JNI 输入句柄，每线程独占目标缓冲；200 个标记记录验证不重不漏、不交错、最终 EOF，等待线程完整退出。debug/release 两种库均通过基础、并发和错误分类冒烟；这是正确性测试，不是多线程性能基准。
+
+Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对象；首次 GET 与后续 GET 两分支均验证 RemoteFileChanged、流/缓冲位置不变以及 seek 后持续失败、不再 GET。首版用例错误地把写后无 ETag 的缓存当作已有 HEAD 修订，已修正前置条件；生产仍允许缺少初始 ETag 时由首次 GET 固定版本，PFS 不承诺对象快照。
+
+定向通过后完整 debug/release 各 **352 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验对应库目录。仅新增测试与说明，Rust/生产代码未改；上次 Rust 两配置仍为 388/0/16。direct-concurrency-hadoop-release.log 为初次前置条件失败，带 verified 后缀为最终 release 通过，其他日志与产物同样不上传。
