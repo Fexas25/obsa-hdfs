@@ -1602,6 +1602,49 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void completeLocalOutputPreservesStagingFileOnRejectedOrFailedUpload() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "complete-local-output-");
+    java.nio.file.Path local = directory.resolve("staged");
+    byte[] content = "staged-content".getBytes(StandardCharsets.UTF_8);
+    try {
+      for (boolean pfs : new boolean[] {false, true}) {
+        open(pfs);
+        data.clear();
+        java.nio.file.Files.write(local, content);
+        Path temporary = new Path(local.toAbsolutePath().toUri());
+        Path destination = new Path("/completed-output");
+        assertEquals(temporary, fs.startLocalOutput(destination, temporary));
+        server.failPutKey = "completed-output";
+        server.failPutAfterCommit = false;
+        assertThrows(IOException.class, () -> fs.completeLocalOutput(destination, temporary));
+        assertArrayEquals(content, java.nio.file.Files.readAllBytes(local));
+        assertFalse(data.containsKey("completed-output"));
+        server.failPutKey = null;
+        fs.completeLocalOutput(destination, temporary);
+        assertFalse(java.nio.file.Files.exists(local));
+        assertArrayEquals(content, data.get("completed-output"));
+      }
+      open(false);
+      data.clear();
+      data.put("blocking-file", new byte[] {1});
+      data.put("blocking-file/hidden", new byte[] {2});
+      java.nio.file.Files.write(local, content);
+      Path temporary = new Path(local.toAbsolutePath().toUri());
+      assertThrows(IOException.class,
+          () -> fs.completeLocalOutput(new Path("/blocking-file/hidden"), temporary));
+      assertArrayEquals(content, java.nio.file.Files.readAllBytes(local));
+      assertEquals(2, data.size());
+      assertArrayEquals(new byte[] {1}, data.get("blocking-file"));
+      assertArrayEquals(new byte[] {2}, data.get("blocking-file/hidden"));
+    } finally {
+      server.failPutKey = null;
+      java.nio.file.Files.deleteIfExists(local);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
+
+  @Test
   public void copyFromLocalMovesSourceOnlyAfterSuccessfulUpload() throws Exception {
     java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
         java.nio.file.Paths.get("target"), "copy-local-success-");
