@@ -54,3 +54,7 @@ Hyper/TLS/内核自身的网络缓冲、外部 Bytes 不可见的底层容量、
 或新的性能对比。预算关闭时保留 Vec 原位扩容机会。
 
 主动放弃上传及崩溃后清理见 [上传恢复说明](UPLOAD_RECOVERY.md)。
+
+ByteBuffer 读取的 direct 目标由调用方分配和持有，与 Java 数组同样不计入 Rust 预算。
+新路径省去 JNI 临时 Vec，但 HTTP 与范围缓存继续按原规则计费；不是 JVM 内存总量限制。
+见 [JNI 读取的所有权与测量边界](JNI_READ_BUFFER.md)。

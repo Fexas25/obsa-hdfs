@@ -9,7 +9,7 @@
 3. getUri / getDefaultPort：URI 已实现；defaultPort 未单独覆盖，继承行为未专项验收。
 4. 工作目录：Java 解析相对路径，Rust 也有路径归一化；当前不是共享一份工作目录状态，需核对直接 Rust 调用与 JNI 一致性。
 5. getHomeDirectory：继承 Hadoop 3.3.6 当前 UGI 短用户名语义；初始工作目录已改为初始化时 UGI 的短用户名。普通桶/PFS 的 remote/proxy 用户 doAs、相对路径读写、工作目录切换已专项验证；切换调用用户不重置已有工作目录，home 随当前调用用户变化。此项不是服务端权限隔离或 Kerberos 认证验收。
-6. open(Path,int)：JNI → Rust 输入流接通；缓存、版本检测、预取已测。skip/skipBytes 委派 Rust 定位，按打开时长度截断且不读取被跳过区间；EOF、溢出和取消恢复已有本地回归。
+6. open(Path,int)：JNI → Rust 输入流接通；缓存、版本检测、预取已测。skip/skipBytes 委派 Rust 定位，按打开时长度截断且不读取被跳过区间；EOF、溢出和取消恢复已有本地回归。ByteBufferReadable 支持可写 heap/direct 缓冲，声明 in:readbytebuffer；尚未实现 positioned ByteBuffer、vectored 或增强零拷贝读取，见 JNI_READ_BUFFER.md。
 7. open(Path,jobConf)：原扩展重载未接通；openFile 的 status hints 尚未下传；已验证提示不会绕过 Rust 可见性检查或覆盖真实长度/内容。
 8. create 基础重载：已接通 Rust 输出流；权限/overwrite 已传入，bufferSize/replication/blockSize 参数并未全部下传。
 9. create flags：递归（含 ChecksumOpt 重载）、非递归及 primitiveCreate 统一校验 CREATE/OVERWRITE/APPEND 组合与存在性，追加走 Rust append；未实现的存储标志明确拒绝。ChecksumOpt 尚未下传，不代表实现自定义校验和。createFile/appendFile builder 已验证非法组合、被文件阻断的后代路径以及正常 PFS 创建追加。

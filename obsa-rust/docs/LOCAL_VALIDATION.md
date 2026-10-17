@@ -1588,3 +1588,11 @@ Hadoop NativeInput 原先继承 InputStream.skip，逐段读取后丢弃内容�
 显式重建 debug/release JNI 库；Rust workspace 两种配置均 **388 通过、0 失败、16 ignored**，append-diagnostics **390 通过、0 失败、16 ignored**。Hadoop debug/release 各 **343 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的库路径；两种库的基础/异常 JVM 冒烟均通过。新的 Java 调用需要配套重建的 JNI 库，不能只替换 Java 类。
 
 这是确定性的 GET 请求数对照，不是吞吐或 p99 基准。与 seek 相同，跳过区间不下载也不验证内容；后续实际读取继续遵循既有版本检查，长度使用打开时快照。skip-* 日志、汇总 JSON 和 DLL/class 仅保留在工作区，不上传。
+
+### 2026-10-17：显式 ByteBuffer 读取
+
+新增 Hadoop ByteBufferReadable 与 JNI nativeReadDirect。可写 heap 缓冲复用 byte[]；direct 缓冲由 Rust 写入调用方区域，省去 JNI 临时 Vec 和末次数组复制。仅声明 in:readbytebuffer，不声明 positioned/vectored/增强零拷贝能力；错误时恢复流与缓冲位置，内容可能部分覆盖。JNI 自行校验类型、只读和容量，单次最多 16 MiB。
+
+两次独立七轮缓存对照共 84 条记录，所有测量阶段 GET=0。1 MiB 每对吞吐方向一致，但 1 B/4 KiB direct 更慢，因此不替换原 byte[] 路径。方法、线程 CPU、分位数和限制详见 [JNI_READ_BUFFER.md](JNI_READ_BUFFER.md)；可复现源文件/脚本属于项目，原始 CSV 和产物不上传。
+
+显式重建 debug/release JNI；Rust workspace 各 **388 通过、0 失败、16 ignored**，实际 JVM 基础/异常冒烟均通过。Hadoop 两种库各 **347 项、0 失败、0 错误、12 跳过**，分别校验 16 份 XML 的库路径。新增四项 Hadoop 用例验证普通桶/PFS 的 heap/direct 切片、EOF、错误参数、关闭和中途错误恢复；JNI 冒烟另验证 16 MiB 截断与余量、非法句柄及边界。Clippy 全目标/全特性保持既有 16 项告警，无新增。append-diagnostics 本批未重跑，上次结果仍为 390/0/16。direct-buffer-* 日志、核验 JSON、DLL/class 只在工作区。

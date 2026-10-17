@@ -83,7 +83,9 @@ Store 和 HttpPool 现在共用重试次数、状态/错误分类与线性退避
 
 现状：固定块预读有利于顺序读取；顺序访问证据改为连续完成的块数，块内重复小 read 不再触发预读；失败/取消时通过检查点同时恢复位置、顺序块数与预读窗口，避免重读重复累计进度；seek 已复用当前缓存块和目标预读的就绪/在途数据，避免丢弃目标请求，其他预读仍取消。列式 footer、小范围随机读仍可能产生下载放大；JNI byte[] 仍有复制，positioned read 复用单流锁。
 
-下一步：借鉴 S3A input policy，区分 sequential/random/adaptive；接入 openFile status hints、vectored ranges 合并、独立 positioned read；测量后决定是否增加 direct buffer。
+本地缓存对照支持增加显式 ByteBuffer 读取：大块 direct 路径省去 JNI 临时复制，小块仍保留原 byte[] 路径；见 [JNI 读取对照](JNI_READ_BUFFER.md)。这不是云端吞吐验收。
+
+下一步：借鉴 S3A input policy，区分 sequential/random/adaptive；接入 openFile status hints、vectored ranges 合并、独立 positioned read；补真实作业和有延迟读取对照。
 
 验收：Parquet/ORC 风格访问轨迹、1 B/4 KiB/1 MiB 请求、随机 seek、多线程读取；同时统计有效字节、下载字节、请求数、CPU 与 p50/p95/p99，不只报顺序吞吐。
 
