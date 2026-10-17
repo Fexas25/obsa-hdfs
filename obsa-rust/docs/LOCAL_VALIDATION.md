@@ -1518,3 +1518,12 @@ Hadoop 完整回归 **333 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 补充实际 Hadoop FSDataInputStream → JNI → Rust → 本地 HTTP 的两项回归，均覆盖普通桶与 PFS。指定偏移 GET 连续 503 耗尽初次请求和两次重试后，定位 readFully 抛 IOException，顺序位置保持不变；清除故障后顺序读取与定位读取内容正确。另覆盖定位 readFully 越过 EOF、定位 read 返回 EOF、负位置和无效缓冲区范围，断言原位置与后续顺序读取仍正确。
 
 现有 Hadoop 继承实现通过这些检查，未改生产逻辑。完整 Hadoop 回归 **335 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS；使用默认 debug JNI 库。Rust/JNI 生产源码未变，沿用此前 release Rust 385 和 debug/release JVM 冒烟结果；本批未重跑 release Hadoop。positioned-read-regression.log 仅保存在本地。
+
+
+### 2026-10-17：本地临时输出提交入口与标准 javac 构建
+
+新增 completeLocalOutput 回归：普通桶/PFS 上传提交前 503 后本地暂存文件保留，恢复后重新提交成功且移除暂存文件；普通桶被文件遮住的目标拒绝提交，暂存文件和两个原始对象均保留。startLocalOutput 仍按 Hadoop 默认行为返回给定临时路径，不提前上传；completeLocalOutput 委派 moveFromLocalFile，沿用已接入的 Rust 检查，未改生产逻辑。
+
+ECJ + debug JNI 完整 Hadoop 回归 **336 项、0 失败、0 错误、12 跳过**。随后不用 ecj profile，使用 JDK 17 标准 javac 执行 Maven clean test，从干净的 Hadoop 模块 target 构建，release JNI 完整回归同为 **336 项、0 失败、0 错误、12 跳过**。解析全部 16 份 Surefire XML，确认实际 java.library.path 为 target/release。默认编译器存在 source 8 bootstrap class path 和既有 deprecated API 提示，不是无警告构建。
+
+此结果验证本机默认 Maven 编译路径，不代表 GitHub 托管 runner 或真实 OBS/PFS 已验收。Rust/JNI 生产源码未变；工作流仅在工作区保存待确认草案，未随本批上传。complete-local-output-* 日志及核验 JSON 不上传。
