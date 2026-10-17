@@ -61,6 +61,27 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void authorityOnlyPathsCannotSelectAnotherBucket() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      write("/authority-file", "keep");
+      Path other = new Path("//other/authority-file");
+      assertEquals("other", other.toUri().getAuthority());
+      assertNull(other.toUri().getScheme());
+      assertThrows(IllegalArgumentException.class, () -> fs.getFileStatus(other));
+      assertThrows(IllegalArgumentException.class, () -> fs.delete(other, false));
+      assertThrows(IllegalArgumentException.class, () -> fs.rename(other, new Path("/moved")));
+      assertThrows(IllegalArgumentException.class,
+          () -> fs.rename(new Path("/authority-file"), new Path("//other/moved")));
+      assertThrows(IllegalArgumentException.class, () -> fs.setWorkingDirectory(new Path("//other/work")));
+      assertTrue(fs.getFileStatus(new Path("//bucket/authority-file")).isFile());
+      assertEquals(1, data.size());
+      assertArrayEquals("keep".getBytes(StandardCharsets.UTF_8), data.get("authority-file"));
+    }
+  }
+
+  @Test
   public void canonicalServiceNameUsesBucketIdentityWithoutTokenSupport() throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
       open(pfs);

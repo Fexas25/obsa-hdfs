@@ -115,6 +115,17 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   @Override
+  protected void checkPath(Path path) {
+    super.checkPath(path);
+    URI supplied = path.toUri();
+    // Hadoop skips authority checks entirely when the scheme is omitted.
+    if (supplied.getScheme() == null && supplied.getAuthority() != null && uri != null
+        && !supplied.getAuthority().equalsIgnoreCase(uri.getAuthority())) {
+      throw new IllegalArgumentException("Wrong FS: " + path + ", expected: " + uri);
+    }
+  }
+
+  @Override
   public long getDefaultBlockSize() {
     return defaultBlockSize;
   }
