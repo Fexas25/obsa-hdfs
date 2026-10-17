@@ -73,6 +73,10 @@ Hadoop 包装层仍显式传入路径；低层 JNI 调用方应同样显式指�
 独立 Java 与 Hadoop 的 NativeObs 声明保持一致，均暴露 `nativeReleaseListing`；
 低层调用方可以显式释放未消费完的游标，重复释放无副作用，释放后访问报错。
 
+Rust create/mkdirs 将权限参数归一到 `0o7777`，保留权限和特殊权限位，忽略文件类型等高位。
+create 的上传 mode 再补 `S_IFREG`，写后缓存使用同一权限值，避免完整 mode 污染缓存或类型元数据。
+冷 HEAD 继续按相同掩码提取权限；这是状态与请求的一致性修复，不是新增服务端 ACL 能力。
+
 ## 配置核对
 
 核心配置读取在 obs-rust-core/src/config.rs，Java 入口在 OBSFileSystemRust.initialize / resolveCredentials。附录 G.1 中 endpoint、AK/SK/token、桶模式、连接/超时/TLS、分片、上传并发、预读、缓存、分页、PFS append/inode、trash、寻址方式和访问日志有解析路径；解析路径存在不等于每种取值均通过运行验收。

@@ -1658,3 +1658,11 @@ Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对�
 新增确定性实际 JNI 用例：HEAD 请求到达后用 CountDownLatch 阻塞响应，调用 nativeClose 完成，再放行成功 HEAD。已经关闭的 owner 必须使在途 open 返回 IOException（closed while opening stream），不能向 Java 发布晚注册的流句柄；重复关闭安全，工作线程完整退出，HTTP 服务关闭。屏障控制因果顺序，不依赖 sleep 猜测竞态窗口。
 
 定向通过后完整 release/debug 各 **355 项、0 失败、0 错误、12 跳过**，16 份 XML 分别确认实际库目录。现有注册保护已正确处理此场景，生产代码无需修改；Rust/JVM 独立冒烟未重复，上批 workspace 391/0/16 和两种实际 JVM 冒烟通过仍有效。native-open-close-* 记录及产物仅保留本地。
+
+### 2026-10-17：创建权限与文件类型位隔离
+
+先复现两个失败：mkdirs 的完整 mode 被原样写入状态缓存；create 把调用方的目录类型位与 S_IFREG 相或后发送到真实 HTTP 请求，缓存权限也与 HEAD 掩码结果不一致。修复只在 create/mkdirs 归一到 0o7777，创建文件元数据再补 S_IFREG。保留权限与特殊权限位，不增加额外请求、不修改缓存策略。
+
+新增普通桶/PFS 内存回归验证目录/文件缓存权限与类型，另用真实 TCP 协议用例同时验证 PUT 的 mode=100640、写后缓存和新实例 HEAD 权限一致。修复前两个用例均失败，修复后定向通过。完整 Rust debug/release workspace 各 **393/0/16**，append-diagnostics 核心配置 **393/0/16**；两种原生库显式重建，实际 JVM 冒烟通过，完整 Hadoop debug/release 各 **355 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的库路径。Clippy 保持原 16 项告警。
+
+原失败日志 permission-mode-repro.log、permission-header-repro.log 与修复后 focused/full 日志、DLL 和核验 JSON 都只留工作区。这里验证的是权限字段投影与请求一致性，不声称完成真实 OBS/PFS ACL 验收。
