@@ -61,6 +61,20 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void canonicalServiceNameUsesBucketIdentityWithoutTokenSupport() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      int before = heads.get();
+      assertEquals("obs://bucket", fs.getCanonicalServiceName());
+      assertNull(fs.getDelegationToken("renewer"));
+      org.apache.hadoop.security.Credentials credentials = new org.apache.hadoop.security.Credentials();
+      assertEquals(0, fs.addDelegationTokens("renewer", credentials).length);
+      assertEquals(0, credentials.numberOfTokens());
+      assertEquals("Service identity must not query object metadata", before, heads.get());
+    }
+  }
+
+  @Test
   public void appendFollowsFileAndParentRenames() throws Exception {
     open(true);
     fs.mkdirs(new Path("/parent"));

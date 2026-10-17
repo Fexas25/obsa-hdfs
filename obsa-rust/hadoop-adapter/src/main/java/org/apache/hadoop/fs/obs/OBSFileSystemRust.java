@@ -109,6 +109,12 @@ public final class OBSFileSystemRust extends FileSystem {
   }
 
   @Override
+  public String getCanonicalServiceName() {
+    // The URI host is a bucket identifier, not a resolvable service endpoint.
+    return uri == null ? null : getScheme() + "://" + uri.getHost();
+  }
+
+  @Override
   public long getDefaultBlockSize() {
     return defaultBlockSize;
   }
