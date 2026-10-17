@@ -677,6 +677,51 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void positionedReadFailureRestoresSequentialPosition() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/positioned-failure", "abcdefghijklmnop");
+      try (FSDataInputStream input = fs.open(new Path("/positioned-failure"))) {
+        input.seek(1);
+        server.failedRangeStart = 8;
+        server.rangeFailures.set(3);
+        byte[] bytes = new byte[4];
+        assertThrows(IOException.class, () -> input.readFully(8, bytes));
+        assertEquals("The injected request and retries must run", 0, server.rangeFailures.get());
+        assertEquals(1, input.getPos());
+        server.failedRangeStart = -1;
+        assertEquals('b', input.read());
+        input.readFully(8, bytes);
+        assertArrayEquals("ijkl".getBytes(StandardCharsets.UTF_8), bytes);
+        assertEquals(2, input.getPos());
+      } finally {
+        server.failedRangeStart = -1;
+        server.rangeFailures.set(0);
+      }
+    }
+  }
+
+  @Test
+  public void positionedReadEofAndInvalidArgumentsPreservePosition() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/positioned-eof", "abcdefgh");
+      try (FSDataInputStream input = fs.open(new Path("/positioned-eof"))) {
+        input.seek(2);
+        byte[] bytes = new byte[4];
+        assertThrows(EOFException.class, () -> input.readFully(6, bytes));
+        assertEquals(2, input.getPos());
+        assertEquals(-1, input.read(100, bytes, 0, bytes.length));
+        assertEquals(2, input.getPos());
+        assertThrows(EOFException.class, () -> input.read(-1, bytes, 0, 1));
+        assertThrows(IndexOutOfBoundsException.class, () -> input.read(0, bytes, 3, 2));
+        assertEquals(2, input.getPos());
+        assertEquals('c', input.read());
+      }
+    }
+  }
+
+  @Test
   public void overwriteAndEmptyFile() throws Exception {
     write("/file", "first");
     try {
