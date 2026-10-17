@@ -220,6 +220,7 @@ pub struct CreateOptions {
     pub buffer_size: usize,
     pub replication: i16,
     pub block_size: i64,
+    /// Permission/special bits (0o7777); file type bits are supplied by create.
     pub permission: u32,
     pub create_parent: bool,
 }

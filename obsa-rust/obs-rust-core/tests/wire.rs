@@ -539,6 +539,30 @@ fn session_token_is_part_of_signature() {
 }
 
 #[tokio::test]
+async fn create_mode_header_and_cached_permission_match_head_projection() {
+    let (store, server) = server(vec![
+        ("404 Not Found", "", ""),
+        ("200 OK", "", "<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>"),
+        ("200 OK", "ETag: \"created\"\r\n", ""),
+        ("200 OK", "x-obs-meta-mode: 100640\r\n", ""),
+    ]).await;
+    let store = std::sync::Arc::new(store);
+    let fs = obs_rust_core::ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    fs.create("/file", CreateOptions { permission: 0o040640, ..Default::default() })
+        .await.unwrap().close().await.unwrap();
+    let cached = fs.get_file_status("/file").await.unwrap();
+    let fresh = obs_rust_core::ObsFileSystem::with_store(ObsConfig {
+        metadata_cache_size: 0, ..Default::default()
+    }, store).get_file_status("/file").await.unwrap();
+    let requests = server.await.unwrap();
+    assert!(requests[2].starts_with("PUT /bucket/file HTTP/1.1\r\n"));
+    assert!(requests[2].to_ascii_lowercase().contains("x-obs-meta-mode: 100640\r\n"));
+    assert_eq!(cached.permission, fresh.permission);
+    assert_eq!(cached.permission, 0o640);
+    assert!(!cached.is_dir && !fresh.is_dir);
+}
+
+#[tokio::test]
 async fn pfs_mutations_all_send_hdfs_header() {
     let (store, server) = server(vec![
         ("200 OK", "", ""),

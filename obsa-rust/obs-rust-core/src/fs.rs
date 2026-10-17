@@ -343,7 +343,7 @@ impl ObsFileSystem {
         let cache = self.cache.clone();
         let epoch = cache.snapshot_epoch();
         let callback_key = key.clone();
-        let permission = options.permission;
+        let permission = options.permission & 0o7777;
         let block_size = self.default_block_size();
         // The callback owns this guard even when it is never invoked: dropping
         // a failed/cancelled stream invalidates potentially committed writes.
@@ -360,7 +360,7 @@ impl ObsFileSystem {
         .with_buffer_budget(self.buffer_budget.clone())
         .with_journal(journal)
         .with_headers(PutHeaders {
-            user_meta: vec![("mode".into(), format!("{:o}", options.permission | S_IFREG))],
+            user_meta: vec![("mode".into(), format!("{:o}", permission | S_IFREG))],
             hdfs_client: self.is_pfs(),
             ..Default::default()
         })
@@ -372,6 +372,7 @@ impl ObsFileSystem {
         }))
     }
     pub async fn mkdirs(&self, path: &str, permission: u32) -> ObsResult<bool> {
+        let permission = permission & 0o7777;
         let key = self.key(path)?;
         self.ensure_visible_path(&key).await?;
         if key.is_empty() {

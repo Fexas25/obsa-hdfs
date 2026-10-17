@@ -971,6 +971,25 @@ async fn uncontended_mutations_keep_status_cache_and_permissions() {
 }
 
 #[tokio::test]
+async fn create_and_mkdir_cache_only_permission_bits_from_full_modes() {
+    for pfs in [false, true] {
+        let store = Arc::new(MemoryStore { pfs, ..Default::default() });
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store);
+        fs.mkdirs("/dir", 0o100750).await.unwrap();
+        let directory = fs.get_file_status("/dir").await.unwrap();
+        assert!(directory.is_dir);
+        assert_eq!(directory.permission, 0o750);
+        let output = fs.create("/file", CreateOptions {
+            permission: 0o040640, ..Default::default()
+        }).await.unwrap();
+        output.close().await.unwrap();
+        let file = fs.get_file_status("/file").await.unwrap();
+        assert!(!file.is_dir);
+        assert_eq!(file.permission, 0o640);
+    }
+}
+
+#[tokio::test]
 async fn delayed_create_completion_cannot_cache_deleted_or_overwritten_file() {
     for pfs in [false, true] {
         for overwrite in [false, true] {
