@@ -1652,3 +1652,9 @@ Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对�
 新增两项 Rust 参数测试及一个实际 Hadoop/JNI 用例：普通桶/PFS 的错误 JSON 根、路径、权限、布尔、目标和元数据类型均抛 IllegalArgumentException，HEAD/LIST/GET/元数据写入计数为零，哨兵对象完整，省略 path 的根状态仍可读取。另发现独立 Java NativeObs 漏声明已有 nativeReleaseListing，补齐并与 Hadoop 声明逐字节核验一致；独立 JVM 冒烟验证显式/重复释放和释放后访问拒绝。
 
 显式重建两种原生库后，Rust workspace debug/release 各 **391/0/16**，实际 JVM 基础/并发/错误冒烟通过，完整 Hadoop debug/release 各 **354 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的库路径。Clippy 保持既有 16 项告警。核心算法未改，append-diagnostics 未重复，上次仍为 391/0/16（该配置只测核心，不含新增两项 JNI 单元测试）。新增独立 Java 冒烟初次缺 IOException 类型引用，修正后两配置重跑通过；初次日志单独保存。jni-arguments-* 日志、原生库和核验结果只留本地。
+
+### 2026-10-17：关闭与在途 open 注册竞态
+
+新增确定性实际 JNI 用例：HEAD 请求到达后用 CountDownLatch 阻塞响应，调用 nativeClose 完成，再放行成功 HEAD。已经关闭的 owner 必须使在途 open 返回 IOException（closed while opening stream），不能向 Java 发布晚注册的流句柄；重复关闭安全，工作线程完整退出，HTTP 服务关闭。屏障控制因果顺序，不依赖 sleep 猜测竞态窗口。
+
+定向通过后完整 release/debug 各 **355 项、0 失败、0 错误、12 跳过**，16 份 XML 分别确认实际库目录。现有注册保护已正确处理此场景，生产代码无需修改；Rust/JVM 独立冒烟未重复，上批 workspace 391/0/16 和两种实际 JVM 冒烟通过仍有效。native-open-close-* 记录及产物仅保留本地。
