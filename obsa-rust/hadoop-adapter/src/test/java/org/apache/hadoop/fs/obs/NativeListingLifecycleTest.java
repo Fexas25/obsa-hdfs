@@ -105,4 +105,65 @@ public class NativeListingLifecycleTest {
       }
     }
   }
+
+  @Test
+  public void filesystemCloseDuringOpenPreventsLateStreamRegistration() throws Exception {
+    java.util.concurrent.CountDownLatch entered = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.CountDownLatch resume = new java.util.concurrent.CountDownLatch(1);
+    java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+    com.sun.net.httpserver.HttpServer server = com.sun.net.httpserver.HttpServer.create(
+        new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext("/bucket/", exchange -> {
+      try {
+        if (!exchange.getRequestMethod().equals("HEAD")) {
+          exchange.sendResponseHeaders(500, -1);
+          return;
+        }
+        entered.countDown();
+        if (!resume.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+          exchange.sendResponseHeaders(500, -1);
+          return;
+        }
+        exchange.getResponseHeaders().set("Content-Length", "4");
+        exchange.getResponseHeaders().set("ETag", "\"revision\"");
+        exchange.sendResponseHeaders(200, -1);
+      } catch (InterruptedException interrupted) {
+        Thread.currentThread().interrupt();
+      } finally {
+        exchange.close();
+      }
+    });
+    server.start();
+    long handle = 0;
+    try {
+      ObjectNode config = JSON.createObjectNode().put("bucket", "bucket")
+          .put("endpoint", "127.0.0.1:" + server.getAddress().getPort()).put("secure", false)
+          .put("bucket_mode", "object").put("access_key", "test").put("secret_key", "test");
+      handle = NativeObs.nativeCreate(config.toString());
+      final long owner = handle;
+      java.util.concurrent.Future<String> opening = worker.submit(
+          () -> NativeObs.nativeCall(owner, "open", "{\"path\":\"/file\"}"));
+      assertTrue("Open must reach HEAD before close", entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+      NativeObs.nativeClose(owner);
+      resume.countDown();
+      try {
+        String unexpected = opening.get(5, java.util.concurrent.TimeUnit.SECONDS);
+        NativeObs.nativeCloseStream(Long.parseLong(unexpected));
+        fail("An open completed after owner close must not publish a stream handle");
+      } catch (java.util.concurrent.ExecutionException expected) {
+        assertTrue(expected.getCause() instanceof IOException);
+        assertTrue(expected.getCause().getMessage(),
+            expected.getCause().getMessage().contains("filesystem closed while opening stream"));
+      }
+    } finally {
+      resume.countDown();
+      if (handle != 0) NativeObs.nativeClose(handle);
+      worker.shutdownNow();
+      try {
+        assertTrue("Open worker must finish", worker.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS));
+      } finally {
+        server.stop(0);
+      }
+    }
+  }
 }
