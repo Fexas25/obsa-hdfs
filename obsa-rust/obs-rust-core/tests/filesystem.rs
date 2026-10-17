@@ -4595,15 +4595,16 @@ async fn append_reserved_capacity_and_growth_diagnostics_preserve_data() {
     store.posix_append("file-0", 1, Bytes::from_static(b"Y")).await.unwrap();
     assert_eq!(snapshot.as_ref(), b"abc");
     assert_eq!(store.objects.lock().unwrap()["file-0"].as_ref(), b"aYc\0\0z");
-    let timings = profile.operations[0].lock().unwrap();
-    assert_eq!(timings.len(), 3);
-    assert!(timings[0].capacity_before >= 32);
-    assert_eq!(timings[0].capacity_before, timings[0].capacity_after);
-    assert!(!timings[0].copy_fallback);
-    assert!(timings[1].copy_fallback);
-    assert!(timings[1].capacity_after > timings[1].capacity_before);
-    assert!(!timings[2].copy_fallback);
-    drop(timings);
+    {
+        let timings = profile.operations[0].lock().unwrap();
+        assert_eq!(timings.len(), 3);
+        assert!(timings[0].capacity_before >= 32);
+        assert_eq!(timings[0].capacity_before, timings[0].capacity_after);
+        assert!(!timings[0].copy_fallback);
+        assert!(timings[1].copy_fallback);
+        assert!(timings[1].capacity_after > timings[1].capacity_before);
+        assert!(!timings[2].copy_fallback);
+    }
     let page = store.list("absent/", "/", None, 1).await.unwrap();
     assert!(page.contents.is_empty());
     let lists = profile.lists.lock().unwrap();
