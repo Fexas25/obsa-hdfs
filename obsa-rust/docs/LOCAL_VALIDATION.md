@@ -1618,3 +1618,11 @@ Hadoop NativeInput 原先继承 InputStream.skip，逐段读取后丢弃内容�
 Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对象；首次 GET 与后续 GET 两分支均验证 RemoteFileChanged、流/缓冲位置不变以及 seek 后持续失败、不再 GET。首版用例错误地把写后无 ETag 的缓存当作已有 HEAD 修订，已修正前置条件；生产仍允许缺少初始 ETag 时由首次 GET 固定版本，PFS 不承诺对象快照。
 
 定向通过后完整 debug/release 各 **352 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验对应库目录。仅新增测试与说明，Rust/生产代码未改；上次 Rust 两配置仍为 388/0/16。direct-concurrency-hadoop-release.log 为初次前置条件失败，带 verified 后缀为最终 release 通过，其他日志与产物同样不上传。
+
+### 2026-10-17：百万条目分页工作集与 CPU
+
+先重跑原有分页基准，30 条默认记录的条目/请求断言通过。随后只改 ignored 基准：可配置 entries/trials/eager/paged，记录 HEAD 数，并将非整页 LIST 数断言改为向上取整；1001 条、两种模式各一轮验证两次 LIST。新增 Windows 独立进程采样脚本，先用一万条目验证，再对十万/百万条目分别正序、反序运行，八个进程、24 条正式记录，预热另计。
+
+百万条全量/分页观测工作集分别约 465.5/110.7–111.0 MiB，分页首条约 9.6–13.1 ms，而完整扫描均约 16 秒。包含预热与析构的进程 CPU，分页约 17.3–17.6 秒、全量约 7.7–8.0 秒，不能以总墙钟接近推导 CPU 等价。完整方法、十万条结果、计时边界与复现命令见 [LISTING_SCALE.md](LISTING_SCALE.md)。模拟等待和 Windows 调度影响明显，不是云端/HTTP/Hadoop 或 Linux RSS 验收。
+
+测量结束后 Rust release workspace **388 通过、0 失败、16 ignored**。生产逻辑未变，未重复 debug、JVM、Hadoop；它们上批结果分别仍为 Rust 388/0/16、两种 JNI 冒烟通过、Hadoop 两配置各 352/0/0/12。PowerShell 脚本已实际运行和语法解析，拒绝混用旧输出目录；最后增加重复条目规模的前置拒绝以免日志互相覆盖。listing-memory-* 原始记录、采样输出、二进制和补丁只留工作区。

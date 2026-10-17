@@ -87,6 +87,8 @@ Rust ignored 项是手动基准，未混入上述通过数。全部使用内存�
 
 输入流新增显式 heap/direct ByteBuffer 读取，保留原 byte[] 小请求路径；接口边界、可复现脚本和两次缓存对照见 [JNI_READ_BUFFER.md](docs/JNI_READ_BUFFER.md)。缓存微基准收益不能替代真实网络性能验收。
 
+十万/百万条平坦目录的分页首条延迟、工作集与 CPU 对照见 [LISTING_SCALE.md](docs/LISTING_SCALE.md)。分页仍保留随条目数增长的去重状态，不能视为常量内存。
+
 近期修复包括 [元数据键处理](docs/METADATA_CASE.md)、[对象路径与签名](docs/OBJECT_KEY_PATH.md)、[GET 边界](docs/GET_VALIDATION.md)、[写入结果元数据](docs/WRITE_METADATA.md)、[XML 回车保真](docs/XML_OUTGOING_TEXT.md)、[删除回退预算](docs/DELETE_FALLBACK_BUDGET.md) 和 [分片 ETag/段号](docs/PART_ETAG.md)。
 
 ## 尚未完成
