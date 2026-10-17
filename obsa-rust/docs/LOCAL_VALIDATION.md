@@ -1596,3 +1596,9 @@ Hadoop NativeInput 原先继承 InputStream.skip，逐段读取后丢弃内容�
 两次独立七轮缓存对照共 84 条记录，所有测量阶段 GET=0。1 MiB 每对吞吐方向一致，但 1 B/4 KiB direct 更慢，因此不替换原 byte[] 路径。方法、线程 CPU、分位数和限制详见 [JNI_READ_BUFFER.md](JNI_READ_BUFFER.md)；可复现源文件/脚本属于项目，原始 CSV 和产物不上传。
 
 显式重建 debug/release JNI；Rust workspace 各 **388 通过、0 失败、16 ignored**，实际 JVM 基础/异常冒烟均通过。Hadoop 两种库各 **347 项、0 失败、0 错误、12 跳过**，分别校验 16 份 XML 的库路径。新增四项 Hadoop 用例验证普通桶/PFS 的 heap/direct 切片、EOF、错误参数、关闭和中途错误恢复；JNI 冒烟另验证 16 MiB 截断与余量、非法句柄及边界。Clippy 全目标/全特性保持既有 16 项告警，无新增。append-diagnostics 本批未重跑，上次结果仍为 390/0/16。direct-buffer-* 日志、核验 JSON、DLL/class 只在工作区。
+
+### 2026-10-17：Hadoop 缓冲池继承回退
+
+核对实际 Hadoop 3.3.6 字节码，FSDataInputStream 的池式读取在检测到 ByteBufferReadable 后申请 direct 缓冲，并通过 ByteBufferUtil 回退，不代表支持增强零拷贝。新增两项普通桶/PFS 回归确认小池容量、部分 EOF、EOF/GET 错误/关闭文件系统时归还，成功后的显式归还、重复归还拒绝及流关闭后归还；无池仍明确拒绝。成功返回缓冲后 close 不代替 releaseBuffer，文档已明确。
+
+完整 release Hadoop **349 项、0 失败、0 错误、12 跳过**，16 份 XML 核验 target/release。仅新增测试和文档，生产代码未改，未重复 Rust/JVM；debug 上批为 347。小块池式读取现在选择 direct，可能承担已有微基准中的固定开销，不将 byte[] 路径保持原样误写成所有入口无回退。pooled-buffer-* 日志和核验结果只留本地。
