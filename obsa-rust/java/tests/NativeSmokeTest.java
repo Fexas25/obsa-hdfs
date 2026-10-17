@@ -1,5 +1,6 @@
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
@@ -9,6 +10,39 @@ import org.apache.hadoop.fs.obs.NativeObs;
 public final class NativeSmokeTest {
   private static void check(boolean result, String message) {
     if (!result) throw new AssertionError(message);
+  }
+
+  private interface CheckedCall { void run() throws Exception; }
+
+  private static void invalid(CheckedCall call) throws Exception {
+    try {
+      call.run();
+      throw new AssertionError("invalid direct read accepted");
+    } catch (IllegalArgumentException expected) {
+    }
+  }
+
+  private static void directReads(long input, byte[] payload) throws Exception {
+    ByteBuffer owner = ByteBuffer.allocateDirect(32);
+    for (int i = 0; i < owner.capacity(); i++) owner.put(i, (byte) 77);
+    owner.position(5).limit(21);
+    ByteBuffer slice = owner.slice();
+    owner.clear();
+    NativeObs.nativeSeek(input, 0);
+    check(NativeObs.nativeReadDirect(input, slice, 3, 8) == 8, "direct slice count");
+    for (int i = 0; i < owner.capacity(); i++)
+      check(owner.get(i) == (i >= 8 && i < 16 ? payload[i - 8] : 77), "direct sentinel");
+    check(slice.position() == 0, "low-level read does not change buffer position");
+    invalid(() -> NativeObs.nativeReadDirect(input, ByteBuffer.allocate(32), 0, 1));
+    invalid(() -> NativeObs.nativeReadDirect(input, owner.asReadOnlyBuffer(), 0, 1));
+    invalid(() -> NativeObs.nativeReadDirect(input, null, 0, 0));
+    invalid(() -> NativeObs.nativeReadDirect(-1, owner, 0, 0));
+    for (int[] bounds : new int[][] {{-1, 1}, {0, -1}, {30, 3}, {Integer.MAX_VALUE, 1}, {1, Integer.MAX_VALUE}})
+      invalid(() -> NativeObs.nativeReadDirect(input, owner, bounds[0], bounds[1]));
+    check(NativeObs.nativeRead(input, 1)[0] == payload[8], "invalid calls preserve stream position");
+    NativeObs.nativeSeek(input, payload.length);
+    check(NativeObs.nativeReadDirect(input, ByteBuffer.allocateDirect(0), 0, 0) == 0, "direct empty");
+    check(NativeObs.nativeReadDirect(input, owner, 0, 1) == -1, "direct EOF");
   }
 
   public static void main(String[] args) throws Exception {
@@ -72,6 +106,7 @@ public final class NativeSmokeTest {
           Long.parseLong(
               NativeObs.nativeCall(fs, "create", "{\"path\":\"/file\",\"overwrite\":true}"));
       byte[] payload = "hello native OBS".getBytes(StandardCharsets.UTF_8);
+      invalid(() -> NativeObs.nativeReadDirect(out, ByteBuffer.allocateDirect(1), 0, 1));
       try {
         NativeObs.nativeSkip(out, 1);
         throw new AssertionError("output stream skip must be rejected");
@@ -143,8 +178,27 @@ public final class NativeSmokeTest {
         invalidBounds = true;
       }
       check(invalidBounds, "negative read validation");
+      directReads(input, payload);
       NativeObs.nativeCloseStream(input);
+      invalid(() -> NativeObs.nativeReadDirect(input, ByteBuffer.allocateDirect(1), 0, 1));
       NativeObs.nativeCloseStream(input);
+      byte[] largePayload = new byte[16 * 1024 * 1024 + 8];
+      Arrays.fill(largePayload, (byte) 31);
+      objects.put("large", largePayload);
+      long large = Long.parseLong(NativeObs.nativeCall(fs, "open", "{\"path\":\"/large\"}"));
+      try {
+        ByteBuffer largeBuffer = ByteBuffer.allocateDirect(largePayload.length);
+        check(NativeObs.nativeReadDirect(large, largeBuffer, 0, largeBuffer.capacity()) == 16 * 1024 * 1024,
+            "direct per-call cap");
+        check(largeBuffer.get(0) == 31 && largeBuffer.get(16 * 1024 * 1024 - 1) == 31,
+            "large direct content");
+        check(largeBuffer.get(16 * 1024 * 1024) == 0, "direct cap sentinel");
+        check(NativeObs.nativeReadDirect(large, largeBuffer, 16 * 1024 * 1024, 8) == 8,
+            "direct remainder");
+        check(largeBuffer.get(largeBuffer.capacity() - 1) == 31, "direct remainder content");
+      } finally {
+        NativeObs.nativeCloseStream(large);
+      }
       NativeObs.nativeClose(fs);
       boolean closed = false;
       try {

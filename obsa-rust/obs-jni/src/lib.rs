@@ -1,7 +1,7 @@
 //! JNI bridge for org.apache.hadoop.fs.obs.NativeObs. Handles are opaque IDs;
 //! panics and Rust errors never unwind across the JVM boundary.
 use jni::{
-    objects::{JByteArray, JClass, JString},
+    objects::{JByteArray, JByteBuffer, JClass, JString},
     sys::{jbyteArray, jint, jlong, jstring, JavaVM, JNI_VERSION_1_8},
     JNIEnv,
 };
@@ -299,6 +299,63 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeReadInto(
         env.set_byte_array_region(&data, offset, signed)
             .map_err(io)?;
         Ok(n as jint)
+    })
+}
+#[no_mangle]
+pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeReadDirect(
+    mut env: JNIEnv,
+    _: JClass,
+    id: jlong,
+    data: JByteBuffer,
+    offset: jint,
+    length: jint,
+) -> jint {
+    guard(&mut env, |env| {
+        let capacity = env
+            .get_direct_buffer_capacity(&data)
+            .map_err(|_| invalid("direct buffer required"))?;
+        if offset < 0 || length < 0 {
+            return Err(invalid("direct read bounds"));
+        }
+        let start = offset as usize;
+        let requested = length as usize;
+        if start > capacity || requested > capacity - start {
+            return Err(invalid("direct read bounds"));
+        }
+        if env
+            .call_method(&data, "isReadOnly", "()Z", &[])
+            .map_err(io)?
+            .z()
+            .map_err(io)?
+        {
+            return Err(invalid("read-only direct buffer"));
+        }
+        let actual = requested.min(16 * 1024 * 1024);
+        let address = if actual == 0 {
+            std::ptr::null_mut()
+        } else {
+            env.get_direct_buffer_address(&data).map_err(io)?
+        };
+        let shared = stream(id)?;
+        let n = rt()?.block_on(async {
+            let mut lock = shared.lock().await;
+            match lock.as_mut() {
+                Some(Stream::Input(s)) => {
+                    if actual == 0 {
+                        return s.read(&mut []).await;
+                    }
+                    // SAFETY: JNI validates a writable direct buffer, and the checked
+                    // span fits its capacity. Its local reference keeps the storage
+                    // (including a sliced buffer's attachment) alive until return.
+                    // The caller must exclusively own this region during the call.
+                    // No JVM heap memory is pinned and no pointer is retained afterward.
+                    let bytes = unsafe { std::slice::from_raw_parts_mut(address.add(start), actual) };
+                    s.read(bytes).await
+                }
+                _ => Err(invalid("not an input stream")),
+            }
+        })?;
+        Ok(if n == 0 && requested != 0 { -1 } else { n as jint })
     })
 }
 #[no_mangle]

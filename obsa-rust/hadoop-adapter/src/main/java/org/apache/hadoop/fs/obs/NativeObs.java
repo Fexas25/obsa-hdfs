@@ -24,6 +24,14 @@ public final class NativeObs {
   public static native int nativeReadInto(long stream, byte[] data, int offset, int length)
       throws IOException;
 
+  /**
+   * Read up to 16 MiB into a writable direct buffer; offsets are relative to its capacity.
+   * Does not change buffer position/limit. Caller must exclusively own the region until return.
+   * On failure the stream cursor is restored, but the region may be partially overwritten.
+   */
+  public static native int nativeReadDirect(long stream, java.nio.ByteBuffer data, int offset, int length)
+      throws IOException;
+
   public static native int nativeWrite(long stream, byte[] data, int offset, int length)
       throws IOException;
 

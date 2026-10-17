@@ -4,6 +4,8 @@ import static org.junit.Assert.*;
 
 import java.io.*;
 import java.net.*;
+import java.nio.ByteBuffer;
+import java.nio.ReadOnlyBufferException;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivilegedExceptionAction;
 import java.util.*;
@@ -691,6 +693,124 @@ public class HadoopLocalTest {
       buffered.next();
       fail("must reject closed filesystem");
     } catch (IOException expected) {
+    }
+  }
+
+  @Test
+  public void byteBufferReadsRespectSlicesLimitsAndEof() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/buffer-file", "abcdefghijklmnop");
+      for (boolean direct : new boolean[] {false, true}) {
+        try (FSDataInputStream input = fs.open(new Path("/buffer-file"))) {
+          assertTrue(input.hasCapability(StreamCapabilities.READBYTEBUFFER));
+          assertFalse(input.hasCapability("in:preadbytebuffer"));
+          ByteBuffer owner = direct ? ByteBuffer.allocateDirect(24) : ByteBuffer.allocate(24);
+          for (int i = 0; i < owner.capacity(); i++) owner.put(i, (byte) 77);
+          owner.position(3).limit(21);
+          ByteBuffer slice = owner.slice();
+          owner.clear();
+          slice.position(2).limit(10);
+          int total = 0;
+          while (slice.hasRemaining()) {
+            int count = input.read(slice);
+            assertTrue(count > 0);
+            total += count;
+            assertEquals(total, input.getPos());
+            assertEquals(total + 2, slice.position());
+            assertEquals(10, slice.limit());
+          }
+          for (int i = 0; i < owner.capacity(); i++)
+            assertEquals(i >= 5 && i < 13 ? 'a' + i - 5 : 77, owner.get(i));
+          assertEquals(0, input.read(slice));
+          input.seek(16);
+          slice.position(2);
+          assertEquals(-1, input.read(slice));
+          assertEquals(2, slice.position());
+          assertEquals(16, input.getPos());
+          assertEquals(0, input.read(direct ? ByteBuffer.allocateDirect(0) : ByteBuffer.allocate(0)));
+          assertThrows(ReadOnlyBufferException.class, () -> input.read(slice.asReadOnlyBuffer()));
+          assertThrows(NullPointerException.class, () -> input.read((ByteBuffer) null));
+          assertEquals(16, input.getPos());
+        }
+      }
+    }
+  }
+
+  @Test
+  public void byteBufferReadFailurePreservesPositionsAndCanRetry() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/buffer-failure", "abcdefghijklmnop");
+      for (boolean direct : new boolean[] {false, true}) {
+        try (FSDataInputStream input = fs.open(new Path("/buffer-failure"))) {
+          input.seek(8);
+          ByteBuffer buffer = direct ? ByteBuffer.allocateDirect(8) : ByteBuffer.allocate(8);
+          buffer.position(2).limit(6);
+          server.failedRangeStart = 8;
+          server.rangeFailures.set(3);
+          assertThrows(IOException.class, () -> input.read(buffer));
+          assertEquals(0, server.rangeFailures.get());
+          assertEquals(8, input.getPos());
+          assertEquals(2, buffer.position());
+          assertEquals(6, buffer.limit());
+          server.failedRangeStart = -1;
+          assertEquals(4, input.read(buffer));
+          assertEquals(12, input.getPos());
+          assertEquals(6, buffer.position());
+          for (int i = 0; i < 4; i++) assertEquals('i' + i, buffer.get(2 + i));
+        } finally {
+          server.failedRangeStart = -1;
+          server.rangeFailures.set(0);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void byteBufferFailureAfterCopiedChunksRestoresCursor() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/buffer-partial-failure", "abcdefghijklmnop");
+      for (boolean direct : new boolean[] {false, true}) {
+        try (FSDataInputStream input = fs.open(new Path("/buffer-partial-failure"))) {
+          ByteBuffer buffer = direct ? ByteBuffer.allocateDirect(20) : ByteBuffer.allocate(20);
+          buffer.position(2).limit(18);
+          server.failedRangeStart = 8;
+          server.rangeFailures.set(3);
+          assertThrows(IOException.class, () -> input.read(buffer));
+          assertEquals(0, server.rangeFailures.get());
+          assertEquals(0, input.getPos());
+          assertEquals(2, buffer.position());
+          assertEquals(18, buffer.limit());
+          // Contents may be partially overwritten on failure; positions must roll back.
+          server.failedRangeStart = -1;
+          assertEquals(16, input.read(buffer));
+          assertEquals(16, input.getPos());
+          assertEquals(18, buffer.position());
+          for (int i = 0; i < 16; i++) assertEquals('a' + i, buffer.get(2 + i));
+        } finally {
+          server.failedRangeStart = -1;
+          server.rangeFailures.set(0);
+        }
+      }
+    }
+  }
+
+  @Test
+  public void byteBufferReadRejectsClosedStreamAndFilesystem() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/buffer-closed", "abcd");
+      try (FSDataInputStream closed = fs.open(new Path("/buffer-closed"));
+          FSDataInputStream orphan = fs.open(new Path("/buffer-closed"))) {
+        closed.close();
+        assertThrows(IOException.class, () -> closed.read(ByteBuffer.allocateDirect(4)));
+        assertThrows(IOException.class, () -> closed.read(ByteBuffer.allocate(0)));
+        fs.close();
+        assertThrows(IOException.class, () -> orphan.read(ByteBuffer.allocateDirect(4)));
+        assertThrows(IOException.class, () -> orphan.read(ByteBuffer.allocate(0)));
+      }
     }
   }
 

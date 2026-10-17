@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.*;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.ReadOnlyBufferException;
 import java.util.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.*;
@@ -765,7 +767,7 @@ public final class OBSFileSystemRust extends FileSystem {
     }
   }
 
-  private final class NativeInput extends FSInputStream {
+  private final class NativeInput extends FSInputStream implements ByteBufferReadable, StreamCapabilities {
     private final long filesystemHandle = nativeHandle;
     private long handle, position;
     private final byte[] one = new byte[1];
@@ -797,6 +799,34 @@ public final class OBSFileSystemRust extends FileSystem {
         statistics.incrementBytesRead(count);
       }
       return count;
+    }
+
+    @Override
+    public synchronized int read(ByteBuffer buffer) throws IOException {
+      checkOpen();
+      Objects.requireNonNull(buffer);
+      if (buffer.isReadOnly()) throw new ReadOnlyBufferException();
+      if (!buffer.hasRemaining()) return 0;
+      int start = buffer.position();
+      int count;
+      if (buffer.hasArray()) {
+        count = read(buffer.array(), buffer.arrayOffset() + start, buffer.remaining());
+      } else if (buffer.isDirect()) {
+        count = NativeObs.nativeReadDirect(handle, buffer, start, buffer.remaining());
+        if (count > 0) {
+          position += count;
+          statistics.incrementBytesRead(count);
+        }
+      } else {
+        throw new IllegalArgumentException("Unsupported buffer storage");
+      }
+      if (count > 0) buffer.position(start + count);
+      return count;
+    }
+
+    @Override
+    public boolean hasCapability(String capability) {
+      return StreamCapabilities.READBYTEBUFFER.equalsIgnoreCase(capability);
     }
 
     @Override
