@@ -14,6 +14,10 @@
     <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.2.5</version><configuration><argLine>-Djava.library.path=&quot;${obs.native.library.path}&quot;</argLine></configuration></plugin>
   </plugins></build>
   <profiles>
+    <!-- On newer JDKs, check Java 8 APIs as well as the bytecode target. -->
+    <profile><id>java8-api</id><activation><jdk>[9,)</jdk></activation>
+      <properties><maven.compiler.release>8</maven.compiler.release></properties>
+    </profile>
     <!-- Optional compiler for Windows sandboxes that deny JDK ZipFS toRealPath. -->
     <profile><id>ecj</id><build><plugins><plugin>
       <groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId>
