@@ -1545,3 +1545,10 @@ ECJ + debug JNI 完整 Hadoop 回归 **336 项、0 失败、0 错误、12 跳过
 Hadoop Path/URI 归一化保留超过根目录的前导 /..，Rust path_to_key 则在根处停止向上遍历。旧实现用 /../../exit-alias 登记 deleteOnExit 后，用 /exit-alias 取消返回 false；两者实际操作同一个 Rust 文件。登记及取消现在使用同一词法路径标识，先验证文件系统归属、解析当前工作目录，再按 Rust 既有规则处理点段并限定 URI。不增加状态查询，也不改变 Rust 文件操作语义。
 
 新增普通桶/PFS 两向回归：根路径别名登记可用规范路径取消，规范路径登记可用别名取消，关闭文件系统后内容仍保留。既有相对路径、工作目录变更和不同 URI 形式取消测试继续通过。完整 Hadoop debug 回归 **339 项、0 失败、0 错误、12 跳过**；解析 16 份 XML 确认 target/debug。此批未改 Rust/JNI，未重跑 release；上一批 release 338 为独立历史结果。exit-alias-* 日志与核验文件不上传。
+
+
+### 2026-10-17：带选项重命名识别同一路径别名
+
+带 Options.Rename 的 Hadoop 重命名要求拒绝相同源/目标。旧 Java 检查仅比较原始路径字符串，对 /../../same-file 与 /same-file 的 OVERWRITE 调用未抛错，Rust 将其识别为同一文件并返回成功 no-op。现在在已存在的源/目标状态查询之后比较 Rust 返回的规范路径，统一抛 FileAlreadyExistsException，不增加额外查询。不改变无选项布尔 rename 或 Rust 核心同文件 no-op 的既有语义。
+
+普通桶/PFS 回归覆盖文件两向根路径别名和目录别名，内容与对象数量不变；旧实现新增测试未抛异常。完整 Hadoop release 回归 **340 项、0 失败、0 错误、12 跳过**，16 份报告确认 target/release；包含此前目录下载与退出删除修复。Rust/JNI 未修改，未重复核心构建。rename-alias-* 本地日志与核验 JSON 不上传。
