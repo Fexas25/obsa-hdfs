@@ -9,6 +9,40 @@ import org.junit.Test;
 
 public class NativeConfigurationTest {
   private static final ObjectMapper JSON = new ObjectMapper();
+  @Test
+  public void missingHeadLengthFailsWithoutCachingEmptyFile() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      try (LocalObsServer server = new LocalObsServer(pfs)) {
+        server.data.put("file", new byte[] {7, 8});
+        server.omitHeadLength = true;
+        org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration(false);
+        config.set("fs.obs.endpoint", server.endpoint());
+        config.setBoolean("fs.obs.connection.ssl.enabled", false);
+        config.set("fs.obs.bucket.mode", pfs ? "pfs" : "object");
+        config.set("fs.obs.access.key", "test");
+        config.set("fs.obs.secret.key", "test");
+        config.setInt("fs.obs.retry.max.attempts", 0);
+        try (OBSFileSystemRust fs = new OBSFileSystemRust()) {
+          fs.initialize(java.net.URI.create("obs://bucket"), config);
+          org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path("/file");
+          java.io.IOException status = assertThrows(java.io.IOException.class,
+              () -> fs.getFileStatus(path));
+          assertTrue(status.getMessage(), status.getMessage().contains("Content-Length"));
+          assertFalse(status instanceof java.io.FileNotFoundException);
+          assertThrows(java.io.IOException.class, () -> fs.open(path));
+          assertEquals(0, server.gets.get());
+          server.omitHeadLength = false;
+          assertEquals(2, fs.getFileStatus(path).getLen());
+          try (org.apache.hadoop.fs.FSDataInputStream stream = fs.open(path)) {
+            assertEquals(7, stream.read());
+            assertEquals(8, stream.read());
+            assertEquals(-1, stream.read());
+          }
+        }
+      }
+    }
+  }
+
   private static final long EXCESSIVE =
       "32".equals(System.getProperty("sun.arch.data.model")) ? Integer.MAX_VALUE : Long.MAX_VALUE;
   private static final String[][] KEYS = {

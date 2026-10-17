@@ -23,6 +23,7 @@ final class LocalObsServer implements AutoCloseable {
   final AtomicInteger directoryLists = new AtomicInteger();
   volatile boolean malformedContinuation;
   volatile String listErrorCode;
+  volatile boolean omitHeadLength;
   final Queue<String> listResponses = new java.util.concurrent.ConcurrentLinkedQueue<>();
   boolean pfs;
   volatile boolean failCopy;
@@ -89,7 +90,8 @@ final class LocalObsServer implements AutoCloseable {
           e.sendResponseHeaders(404, -1);
           return;
         }
-        e.getResponseHeaders().set("Content-Length", Integer.toString(current.length));
+        if (!omitHeadLength)
+          e.getResponseHeaders().set("Content-Length", Integer.toString(current.length));
         e.getResponseHeaders()
             .set("ETag", "\"" + Integer.toHexString(Arrays.hashCode(current)) + "\"");
         e.getResponseHeaders().set("x-obs-meta-mode", key.endsWith("/") ? "40755" : "100644");

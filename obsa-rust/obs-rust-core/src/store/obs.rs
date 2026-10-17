@@ -233,6 +233,11 @@ impl ObjectStore for ObsStore {
         let resp = self.signed_execute(builder, "", "").await?;
         let resp = self.map_response(resp)?;
 
+        // A successful HEAD has no body from which to infer the object length.
+        // Missing metadata must not turn a nonempty object into an empty stream.
+        if resp.content_length().is_none() {
+            return Err(ObsError::Io("HEAD response missing or invalid Content-Length".into()));
+        }
         let meta = Self::meta_from_headers(key, &resp.headers);
         if let Some(dht) = meta.dht_id {
             self.inode_state.update_dht(dht);

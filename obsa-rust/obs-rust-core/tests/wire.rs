@@ -829,6 +829,62 @@ async fn head_content_length_is_object_size_not_body_size() {
     assert!(response.body.is_empty());
 }
 
+async fn raw_head_endpoint(raw: &'static str) -> (ObsStore, tokio::task::JoinHandle<String>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let task = tokio::spawn(async move {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0];
+            while !request.ends_with(b"\r\n\r\n") {
+                socket.read_exact(&mut byte).await.unwrap();
+                request.push(byte[0]);
+            }
+            socket.write_all(raw.as_bytes()).await.unwrap();
+            String::from_utf8(request).unwrap()
+        }).await.unwrap()
+    });
+    let store = ObsStore::new(ObsConfig {
+        endpoint: address.to_string(), bucket: "bucket".into(), secure: false,
+        retry_max_attempts: 0, request_timeout_ms: 2000, http_response_max_bytes: 4,
+        ..Default::default()
+    }, CredentialChain::new(Credentials::new("AK", "SK")));
+    (store, task)
+}
+
+#[tokio::test]
+async fn head_requires_known_length_without_confusing_zero_or_missing_objects() {
+    for (raw, expected) in [
+        ("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n", None),
+        ("HTTP/1.1 200 OK\r\nContent-Length: -1\r\nConnection: close\r\n\r\n", None),
+        ("HTTP/1.1 200 OK\r\nContent-Length: invalid\r\nConnection: close\r\n\r\n", None),
+        ("HTTP/1.1 200 OK\r\nContent-Length: 18446744073709551616\r\nConnection: close\r\n\r\n", None),
+        ("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", Some(0)),
+        ("HTTP/1.1 200 OK\r\nContent-Length: 999999999\r\nConnection: close\r\n\r\n", Some(999999999)),
+    ] {
+        let (store, task) = raw_head_endpoint(raw).await;
+        let result = store.head("file").await;
+        assert!(task.await.unwrap().starts_with("HEAD /bucket/file HTTP/1.1\r\n"));
+        match expected {
+            Some(length) => assert_eq!(result.unwrap().content_length, length),
+            None => assert!(result.is_err(), "invalid HEAD must not invent an empty object"),
+        }
+    }
+    let (store, task) = raw_head_endpoint("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n").await;
+    assert!(store.head("file").await.unwrap_err().is_path_not_found());
+    task.await.unwrap();
+}
+
+#[tokio::test]
+async fn open_rejects_unknown_head_length_instead_of_returning_empty_stream() {
+    let (store, task) = raw_head_endpoint("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n").await;
+    let fs = obs_rust_core::ObsFileSystem::with_store(ObsConfig::default(), std::sync::Arc::new(store));
+    let result = fs.open("/file", OpenOptions::default()).await;
+    assert!(task.await.unwrap().starts_with("HEAD /bucket/file HTTP/1.1\r\n"));
+    assert!(result.is_err(), "unknown length is not EOF");
+}
+
 #[tokio::test]
 async fn copy_and_complete_preserve_fragmented_etags() {
     for copy in [false, true] {
