@@ -1559,3 +1559,12 @@ Hadoop Path/URI 归一化保留超过根目录的前导 /..，Rust path_to_key �
 Hadoop 默认 getCanonicalServiceName 经 SecurityUtil.buildDTServiceName 将 URI host 当作网络主机。普通本地桶名 bucket 在新增测试中触发 IllegalArgumentException(UnknownHostException)，即使实际 HTTP endpoint 为本机地址。适配器现在对已初始化实例直接返回 obs://桶名，与仓库原 Java 参考实现没有 token manager 时的实际代码路径一致，不尝试解析桶名的 DNS；未初始化实例返回 null。原参考代码的旧注释测试与实际实现不同，本次以实际实现为依据，没有启用旧 getcanonicalservicename 配置开关。
 
 普通桶/PFS 回归验证稳定服务名、getDelegationToken 仍为 null、addDelegationTokens 返回空数组且不写入凭据，并且不发对象 HEAD。该修复只是服务身份接线，不实现委托令牌、认证刷新或安全隔离。完整 Hadoop debug 回归 **341 项、0 失败、0 错误、12 跳过**；16 份报告均为 target/debug。Rust/JNI 未改，最近独立 release 结果为上一批 340，本批未重跑 release。service-name-* 日志与核验 JSON 不上传。
+
+
+### 2026-10-17：无 scheme 路径仍检查桶 authority
+
+Hadoop 默认 checkPath 对 scheme 为 null 的路径直接返回，包含 //other/file 这种 authority 非空的路径。Java 后续将 getPath 传给 Rust，因此旧实现查询 //other/authority-file 没有报错，而是落到当前桶同名文件。这不是访问了另一个真实桶；缺陷是丢失调用方给出的桶归属。
+
+适配器覆盖 checkPath，保留 Hadoop 原有检查，并在无 scheme、authority 非空时检查是否属于当前 URI。普通桶/PFS 回归验证异桶 authority 的状态、删除、重命名两个方向及工作目录变更均在进入 JNI 前拒绝；同桶 //bucket/file 继续有效，原对象内容与数量不变。未改变普通相对路径、绝对路径和完整 URI 的既有规则。
+
+完整 Hadoop release 回归 **342 项、0 失败、0 错误、12 跳过**，16 份 XML 确认 target/release。Rust/JNI 未改，未重复核心构建；上一批独立 debug 结果为 341。authority-path-* 日志与核验 JSON 不上传。
