@@ -1033,6 +1033,25 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void overwriteRenameRejectsAliasesOfTheSameRustPath() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      write("/same-file", "unchanged");
+      assertThrows(FileAlreadyExistsException.class, () -> renameWithOptions(
+          new Path("/../../same-file"), new Path("/same-file"), Options.Rename.OVERWRITE));
+      assertThrows(FileAlreadyExistsException.class, () -> renameWithOptions(
+          new Path("/same-file"), new Path("/../same-file"), Options.Rename.OVERWRITE));
+      fs.mkdirs(new Path("/same-directory"));
+      assertThrows(FileAlreadyExistsException.class, () -> renameWithOptions(
+          new Path("/same-directory"), new Path("/../same-directory"), Options.Rename.OVERWRITE));
+      assertEquals("unchanged", read("/same-file"));
+      assertTrue(fs.getFileStatus(new Path("/same-directory")).isDirectory());
+      assertEquals(2, data.size());
+    }
+  }
+
+  @Test
   public void overwriteRenameReplacesFileThroughNativeCore() throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
     open(pfs);

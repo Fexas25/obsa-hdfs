@@ -538,6 +538,8 @@ public final class OBSFileSystemRust extends FileSystem {
       // Other service failures must propagate without modifying either path.
     }
     if (destinationStatus != null) {
+      if (sourceStatus.getPath().equals(destinationStatus.getPath()))
+        throw new FileAlreadyExistsException("Source and destination are the same path");
       if (!overwrite) throw new FileAlreadyExistsException(destination.toString());
       if (sourceStatus.isDirectory() != destinationStatus.isDirectory())
         throw new IOException("Source and destination must have the same type");
