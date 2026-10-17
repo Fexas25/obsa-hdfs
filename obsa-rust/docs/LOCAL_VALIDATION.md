@@ -1568,3 +1568,12 @@ Hadoop 默认 checkPath 对 scheme 为 null 的路径直接返回，包含 //oth
 适配器覆盖 checkPath，保留 Hadoop 原有检查，并在无 scheme、authority 非空时检查是否属于当前 URI。普通桶/PFS 回归验证异桶 authority 的状态、删除、重命名两个方向及工作目录变更均在进入 JNI 前拒绝；同桶 //bucket/file 继续有效，原对象内容与数量不变。未改变普通相对路径、绝对路径和完整 URI 的既有规则。
 
 完整 Hadoop release 回归 **342 项、0 失败、0 错误、12 跳过**，16 份 XML 确认 target/release。Rust/JNI 未改，未重复核心构建；上一批独立 debug 结果为 341。authority-path-* 日志与核验 JSON 不上传。
+
+
+### 2026-10-17：Java 8 API 编译基线
+
+仅 source/target=8 约束语法和 class 版本，不能阻止新 JDK 编译时引用 Java 8 不存在的 API。先用 JDK 17 标准 javac 显式 --release 8 干净构建并运行 release JNI Hadoop 全套：**342 项、0 失败、0 错误、12 跳过**，未发现当前源码引用较新 API 的问题。
+
+POM 新增自动 java8-api profile，在 JDK 9 及以上设置 maven.compiler.release=8；JDK 8 的配置分支保持原 source/target=8。无显式 release 命令参数下，标准 javac 与可选 ECJ 分别 clean test-compile 成功，两个日志均确认生产/测试使用 release 8。最终 ECJ 生成的 39 个项目 class 文件逐一核验 major=52。无新增编译依赖。
+
+这是 API/字节码兼容检查，不是实际 Java 8 JVM 运行验收；本机仍使用 JDK 17，独立 JNI 冒烟脚本仍按 README 要求使用 JDK 17+。POM 自动激活后只补编译检查，完整 342 项运行证据来自相同 release 8 参数的前置验证，未将编译成功记为再次测试通过。java8-api-* 日志和核验 JSON 不上传。

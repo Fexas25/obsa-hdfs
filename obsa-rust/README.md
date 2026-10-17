@@ -44,6 +44,8 @@ mvn -f hadoop-adapter/pom.xml '-Dobs.native.profile=release' test
 
 脚本和 Maven 默认仍选 debug；JNI 脚本也兼容 -Profile 别名。Maven 也支持 `-Dobs.native.library.path=...` 指向自定义原生库目录；路径有空格时请将整个参数加引号。JNI 冒烟脚本会先检查所选 DLL 是否存在，并输出实际库目录。构建脚本使用 Cargo.lock（`--locked`）。
 
+Hadoop Maven 构建在 JDK 9+ 自动启用 Java 8 API 基线（`--release 8`），兼容标准 javac 与可选 ECJ；JDK 8 配置分支保留原 source/target=8。该检查不代表已经在 Java 8 JVM 上运行验收；完整本地验证和独立 JNI 冒烟仍使用 JDK 17+。
+
 Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.version=...` 指定并重新验证。Windows JDK ZipFS 受限时可选 `-Pecj` 编译器配置。
 
 ## Hadoop 接入
