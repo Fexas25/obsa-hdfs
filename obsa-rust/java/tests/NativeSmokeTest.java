@@ -45,6 +45,38 @@ public final class NativeSmokeTest {
     check(NativeObs.nativeReadDirect(input, owner, 0, 1) == -1, "direct EOF");
   }
 
+  private static void concurrentDirectReads(long input) throws Exception {
+    java.util.concurrent.ExecutorService workers = java.util.concurrent.Executors.newFixedThreadPool(8);
+    java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+    java.util.Set<Integer> seen = ConcurrentHashMap.newKeySet();
+    java.util.List<java.util.concurrent.Future<?>> results = new java.util.ArrayList<>();
+    try {
+      for (int worker = 0; worker < 8; worker++) {
+        results.add(workers.submit(() -> {
+          ByteBuffer buffer = ByteBuffer.allocateDirect(16);
+          start.await();
+          for (int read = 0; read < 25; read++) {
+            check(NativeObs.nativeReadDirect(input, buffer, 0, 16) == 16, "concurrent read length");
+            int record = buffer.get(0) & 255;
+            for (int i = 1; i < 16; i++) check((buffer.get(i) & 255) == record, "torn record");
+            check(seen.add(record), "duplicate record");
+          }
+          return null;
+        }));
+      }
+      start.countDown();
+      for (java.util.concurrent.Future<?> result : results)
+        result.get(30, java.util.concurrent.TimeUnit.SECONDS);
+      check(seen.size() == 200, "all records read exactly once");
+      for (int i = 0; i < 200; i++) check(seen.contains(i), "missing record");
+      check(NativeObs.nativeReadDirect(input, ByteBuffer.allocateDirect(1), 0, 1) == -1, "concurrent EOF");
+    } finally {
+      start.countDown();
+      workers.shutdownNow();
+      check(workers.awaitTermination(30, java.util.concurrent.TimeUnit.SECONDS), "reader threads stopped");
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     ConcurrentHashMap<String, byte[]> objects = new ConcurrentHashMap<>();
     HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -198,6 +230,16 @@ public final class NativeSmokeTest {
         check(largeBuffer.get(largeBuffer.capacity() - 1) == 31, "direct remainder content");
       } finally {
         NativeObs.nativeCloseStream(large);
+      }
+      byte[] records = new byte[200 * 16];
+      for (int record = 0; record < 200; record++)
+        Arrays.fill(records, record * 16, (record + 1) * 16, (byte) record);
+      objects.put("records", records);
+      long concurrent = Long.parseLong(NativeObs.nativeCall(fs, "open", "{\"path\":\"/records\"}"));
+      try {
+        concurrentDirectReads(concurrent);
+      } finally {
+        NativeObs.nativeCloseStream(concurrent);
       }
       NativeObs.nativeClose(fs);
       boolean closed = false;

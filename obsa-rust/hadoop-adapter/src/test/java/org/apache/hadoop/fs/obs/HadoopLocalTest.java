@@ -1107,6 +1107,39 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void directBufferReadsRejectVersionChangesWithoutAdvancingPositions() throws Exception {
+    open(false); // Mutable PFS files do not claim object snapshot semantics.
+    for (boolean firstGet : new boolean[] {true, false}) {
+      String key = "direct-changing-" + firstGet;
+      data.put(key, "abcdefgh".getBytes(StandardCharsets.UTF_8));
+      Path path = new Path("/" + key);
+      fs.getFileStatus(path); // Seed a real HEAD revision; create-cache entries may omit ETag.
+      try (FSDataInputStream input = fs.open(path)) {
+        if (!firstGet) assertEquals(4, input.read(ByteBuffer.allocateDirect(4)));
+        long position = input.getPos();
+        data.put(key, "12345678".getBytes(StandardCharsets.UTF_8));
+        ByteBuffer target = ByteBuffer.allocateDirect(8);
+        for (int i = 0; i < target.capacity(); i++) target.put(i, (byte) 77);
+        target.position(2).limit(6);
+        IOException changed = assertThrows(IOException.class, () -> input.read(target));
+        assertTrue(changed.getMessage().contains("RemoteFileChanged"));
+        assertEquals(position, input.getPos());
+        assertEquals(2, target.position());
+        assertEquals(6, target.limit());
+        ByteBuffer inspect = target.duplicate();
+        inspect.clear();
+        for (int i = 0; i < inspect.capacity(); i++) assertEquals(77, inspect.get(i));
+        int requests = server.gets.get();
+        input.seek(0);
+        assertThrows(IOException.class, () -> input.read(target));
+        assertEquals("Version failure remains latched", requests, server.gets.get());
+        assertEquals(0, input.getPos());
+        assertEquals(2, target.position());
+      }
+    }
+  }
+
+  @Test
   public void sameLengthOverwriteFailsInsteadOfMixingVersions() throws Exception {
     write("/changing", "abcdefgh");
     try (FSDataInputStream in = fs.open(new Path("/changing"))) {
