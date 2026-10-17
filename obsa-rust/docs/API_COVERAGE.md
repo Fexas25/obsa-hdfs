@@ -32,7 +32,7 @@
 26. getFileBlockLocations：未单独覆盖 Java；本轮已验证单文件继承块位置的 offset/length，以及 Rust 状态与默认逻辑块大小配置一致性；完整继承语义仍待核对。
 27. getFileChecksum：两种重载现在通过 Rust 校验路径，负长度拒绝；有效路径仍返回 null 表示没有 Hadoop 兼容校验和，不把 ETag 当 MD5。
 28. xattrs：未接通。
-29. copyFromLocalFile：覆盖单源/多源重载并委派 Hadoop FileUtil，false 结果转为 IOException，避免本地源删除失败仍报告移动成功；本地已验证单文件普通桶/PFS 复制和移动，以及目标隐藏/禁止覆盖时保留本地源与原对象。单 PUT 提交前/后 503 均验证保留本地源，恢复后可重新移动；目录、多源、MPU 及网络中断的完整兼容性仍待专项验证。
+29. copyFromLocalFile：覆盖单源/多源重载并委派 Hadoop FileUtil，false 结果转为 IOException，避免本地源删除失败仍报告移动成功；本地已验证普通桶/PFS 单文件、嵌套目录复制和移动，以及目标隐藏/禁止覆盖时保留本地源与原对象。单 PUT 提交前/后 503 均验证保留本地源，恢复后可重新移动；三源中一个失败时整批报错，失败源保留，已成功项不回滚且其他项继续尝试。目录用例仅将本地目录枚举替换为测试专用 NIO，未验收 Windows NativeIO；MPU、网络中断及完整本地权限兼容仍待验证。
 30. close：Hadoop deleteOnExit 在释放原生句柄前处理，仍经过 Rust 冲突检查，注册/取消统一按调用时工作目录限定路径，并与 Rust 一致处理超过根目录的点段别名，工作目录切换不改变既有删除目标；取消注册与重复关闭已本地验证；JNI 文件系统/流清理已接通；列表游标新增 EOF/错误/显式释放/所属 FS 关闭清理。MPU 远端清理仍 best effort。
 31. delegation tokens：未接入原 Java token manager。
 32. checkPermission / AuthorizeProvider：未接入原 Java 扩展。

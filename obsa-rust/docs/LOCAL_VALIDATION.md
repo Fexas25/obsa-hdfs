@@ -1602,3 +1602,11 @@ Hadoop NativeInput 原先继承 InputStream.skip，逐段读取后丢弃内容�
 核对实际 Hadoop 3.3.6 字节码，FSDataInputStream 的池式读取在检测到 ByteBufferReadable 后申请 direct 缓冲，并通过 ByteBufferUtil 回退，不代表支持增强零拷贝。新增两项普通桶/PFS 回归确认小池容量、部分 EOF、EOF/GET 错误/关闭文件系统时归还，成功后的显式归还、重复归还拒绝及流关闭后归还；无池仍明确拒绝。成功返回缓冲后 close 不代替 releaseBuffer，文档已明确。
 
 完整 release Hadoop **349 项、0 失败、0 错误、12 跳过**，16 份 XML 核验 target/release。仅新增测试和文档，生产代码未改，未重复 Rust/JVM；debug 上批为 347。小块池式读取现在选择 direct，可能承担已有微基准中的固定开销，不将 byte[] 路径保持原样误写成所有入口无回退。pooled-buffer-* 日志和核验结果只留本地。
+
+### 2026-10-17：目录上传与多源部分失败
+
+新增两项普通桶/PFS 回归：嵌套本地目录复制后源仍存在，移动后源树移除且目标内容完整；三源上传中第二项 PUT 失败时整批抛异常，第二项本地源保留，第一/第三项复制移动完成，恢复后可单独补传失败项。这遵循 Hadoop FileUtil 非事务行为，不承诺批次原子性或回滚。
+
+初次完整运行 351 项中目录测试报 Windows NativeIO.access0 缺失，发生在 RawLocalFileSystem 目录列举、进入 Rust 上传之前。新增测试专用 NioListingLocalFileSystem，仅用 NIO DirectoryStream 替代本地列举；文件打开、状态、删除与 Rust 上传仍走原路径。定向测试通过后完整 release **351 项、0 失败、0 错误、12 跳过**，16 份 XML 确认 target/release。不能据此声称 Windows Hadoop 原生目录权限/NativeIO 已验收。
+
+生产代码未改，Rust/JVM 未重复；debug 仍为上一批 347 项。multi-source-hadoop-release.log 保留初次环境失败，multi-source-hadoop-release-verified.log 为最终通过记录；日志、NIO 临时目录与产物不上传。
