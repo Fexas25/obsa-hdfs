@@ -1720,6 +1720,111 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void directoryMoveDoesNotDeleteSourceWhenLocalChildMkdirReturnsFalse() throws Exception {
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "directory-mkdir-failure-");
+    java.nio.file.Path destination = directory.resolve("destination");
+    try {
+      for (int mode = 0; mode < 4; mode++) {
+        boolean pfs = (mode & 1) != 0;
+        boolean raw = (mode & 2) != 0;
+        open(pfs);
+        fs.getConf().setClass("fs.file.impl", RefusingDirectoryLocalFileSystem.class, FileSystem.class);
+        fs.getConf().setBoolean("fs.file.impl.disable.cache", true);
+        data.clear();
+        data.put("move-directory/", new byte[0]);
+        data.put("move-directory/blocked/", new byte[0]);
+        data.put("move-directory/blocked/file", new byte[] {7});
+        boolean failed = false;
+        try {
+          fs.copyToLocalFile(true, new Path("/move-directory"),
+              new Path(destination.toAbsolutePath().toUri()), raw);
+        } catch (IOException expected) {
+          failed = true;
+        }
+        assertEquals("Uncopied remote subtree must survive", 3, data.size());
+        assertTrue("A failed child mkdir must fail the move", failed);
+        assertArrayEquals(new byte[] {7}, data.get("move-directory/blocked/file"));
+        assertFalse(java.nio.file.Files.exists(destination.resolve("blocked")));
+        java.nio.file.Files.deleteIfExists(destination);
+      }
+    } finally {
+      java.nio.file.Files.deleteIfExists(destination.resolve("blocked/file"));
+      java.nio.file.Files.deleteIfExists(destination.resolve("blocked"));
+      java.nio.file.Files.deleteIfExists(destination);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
+
+  /** Deterministic local mkdir false response, with no host permission dependency. */
+  public static final class RefusingDirectoryLocalFileSystem extends LocalFileSystem {
+    public RefusingDirectoryLocalFileSystem() {
+      super(new RawLocalFileSystem() {
+        @Override
+        public void setPermission(Path path, FsPermission permission) {}
+
+        @Override
+        public boolean mkdirs(Path path) throws IOException {
+          return !path.getName().equals("blocked") && super.mkdirs(path);
+        }
+
+        @Override
+        public boolean mkdirs(Path path, FsPermission permission) throws IOException {
+          return !path.getName().equals("blocked") && super.mkdirs(path, permission);
+        }
+      });
+    }
+  }
+
+  @Test
+  public void failedDirectoryDownloadReleasesUnfinishedListing() throws Exception {
+    java.lang.reflect.Field liveField = ListingCleanup.class.getDeclaredField("LIVE");
+    liveField.setAccessible(true);
+    Set<?> live = (Set<?>) liveField.get(null);
+    Set<Object> previous = new HashSet<>(live);
+    java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
+        java.nio.file.Paths.get("target"), "directory-download-failure-");
+    java.nio.file.Path destination = directory.resolve("destination");
+    try {
+      for (boolean pfs : new boolean[] {false, true}) {
+        open(pfs);
+        fs.getConf().setClass("fs.file.impl", PermissionlessLocalFileSystem.class, FileSystem.class);
+        fs.getConf().setBoolean("fs.file.impl.disable.cache", true);
+        data.clear();
+        data.put("download-directory/", new byte[0]);
+        data.put("download-directory/nested/", new byte[0]);
+        for (int i = 0; i < 12; i++) {
+          data.put(String.format("download-directory/z%02d", i), new byte[] {1});
+          data.put(String.format("download-directory/nested/file%02d", i),
+              "abcdefghijkl".getBytes(StandardCharsets.UTF_8));
+        }
+        server.failedRangeStart = 4;
+        server.rangeFailures.set(3);
+        assertThrows(IOException.class, () -> fs.copyToLocalFile(false,
+            new Path("/download-directory"), new Path(destination.toAbsolutePath().toUri()), true));
+        assertEquals(0, server.rangeFailures.get());
+        Set<Object> added = new HashSet<>(live);
+        added.removeAll(previous);
+        assertTrue("Download must explicitly release unfinished directory cursors", added.isEmpty());
+        assertEquals(26, data.size());
+        assertTrue("Download cleanup must not close its owner", fs.exists(new Path("/download-directory")));
+        java.nio.file.Files.deleteIfExists(destination.resolve("nested/file00"));
+        java.nio.file.Files.deleteIfExists(destination.resolve("nested"));
+        java.nio.file.Files.deleteIfExists(destination);
+      }
+    } finally {
+      server.failedRangeStart = -1;
+      server.rangeFailures.set(0);
+      for (Object cleanup : new HashSet<>(live))
+        if (!previous.contains(cleanup)) ((ListingCleanup) cleanup).release();
+      java.nio.file.Files.deleteIfExists(destination.resolve("nested/file00"));
+      java.nio.file.Files.deleteIfExists(destination.resolve("nested"));
+      java.nio.file.Files.deleteIfExists(destination);
+      java.nio.file.Files.deleteIfExists(directory);
+    }
+  }
+
+  @Test
   public void failedDownloadMoveKeepsRemoteSourceAndCanRetry() throws Exception {
     java.nio.file.Path directory = java.nio.file.Files.createTempDirectory(
         java.nio.file.Paths.get("target"), "download-failure-");

@@ -433,9 +433,54 @@ public final class OBSFileSystemRust extends FileSystem {
     }
     Configuration conf = getConf();
     LocalFileSystem local = FileSystem.getLocal(conf);
-    FileSystem target = useRawLocalFileSystem ? local.getRawFileSystem() : local;
-    if (!FileUtil.copy(this, source, target, destination, deleteSource, conf)) {
-      throw new IOException("Copy to local did not complete: " + source + " -> " + destination);
+    FileSystem target = new FilterFileSystem(useRawLocalFileSystem ? local.getRawFileSystem() : local) {
+      @Override
+      public boolean mkdirs(Path path) throws IOException {
+        // FileUtil ignores false from recursive child copies; fail before source deletion.
+        if (!super.mkdirs(path)) throw new IOException("Cannot create local copy directory: " + path);
+        return true;
+      }
+    };
+    try (CopySource scopedSource = new CopySource()) {
+      if (!FileUtil.copy(scopedSource, source, target, destination, deleteSource, conf)) {
+        throw new IOException("Copy to local did not complete: " + source + " -> " + destination);
+      }
+    }
+  }
+
+  /** FileUtil does not close directory iterators when a child copy fails. */
+  private final class CopySource extends FilterFileSystem {
+    private final Set<NativeStatusIterator> active = new HashSet<>();
+
+    CopySource() {
+      super(OBSFileSystemRust.this);
+    }
+
+    @Override
+    public RemoteIterator<FileStatus> listStatusIterator(Path path) throws IOException {
+      NativeStatusIterator iterator = statusIterator(path, false, false);
+      active.add(iterator);
+      return new RemoteIterator<FileStatus>() {
+        @Override
+        public boolean hasNext() throws IOException {
+          if (iterator.hasNext()) return true;
+          active.remove(iterator);
+          iterator.close();
+          return false;
+        }
+
+        @Override
+        public FileStatus next() throws IOException {
+          return iterator.next();
+        }
+      };
+    }
+
+    @Override
+    public void close() {
+      // Scope owns only its cursors, never the enclosing filesystem.
+      for (NativeStatusIterator iterator : active) iterator.close();
+      active.clear();
     }
   }
 
