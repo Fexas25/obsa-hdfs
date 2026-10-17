@@ -1552,3 +1552,10 @@ Hadoop Path/URI 归一化保留超过根目录的前导 /..，Rust path_to_key �
 带 Options.Rename 的 Hadoop 重命名要求拒绝相同源/目标。旧 Java 检查仅比较原始路径字符串，对 /../../same-file 与 /same-file 的 OVERWRITE 调用未抛错，Rust 将其识别为同一文件并返回成功 no-op。现在在已存在的源/目标状态查询之后比较 Rust 返回的规范路径，统一抛 FileAlreadyExistsException，不增加额外查询。不改变无选项布尔 rename 或 Rust 核心同文件 no-op 的既有语义。
 
 普通桶/PFS 回归覆盖文件两向根路径别名和目录别名，内容与对象数量不变；旧实现新增测试未抛异常。完整 Hadoop release 回归 **340 项、0 失败、0 错误、12 跳过**，16 份报告确认 target/release；包含此前目录下载与退出删除修复。Rust/JNI 未修改，未重复核心构建。rename-alias-* 本地日志与核验 JSON 不上传。
+
+
+### 2026-10-17：服务名使用桶身份，避免默认 DNS 解析失败
+
+Hadoop 默认 getCanonicalServiceName 经 SecurityUtil.buildDTServiceName 将 URI host 当作网络主机。普通本地桶名 bucket 在新增测试中触发 IllegalArgumentException(UnknownHostException)，即使实际 HTTP endpoint 为本机地址。适配器现在对已初始化实例直接返回 obs://桶名，与仓库原 Java 参考实现没有 token manager 时的实际代码路径一致，不尝试解析桶名的 DNS；未初始化实例返回 null。原参考代码的旧注释测试与实际实现不同，本次以实际实现为依据，没有启用旧 getcanonicalservicename 配置开关。
+
+普通桶/PFS 回归验证稳定服务名、getDelegationToken 仍为 null、addDelegationTokens 返回空数组且不写入凭据，并且不发对象 HEAD。该修复只是服务身份接线，不实现委托令牌、认证刷新或安全隔离。完整 Hadoop debug 回归 **341 项、0 失败、0 错误、12 跳过**；16 份报告均为 target/debug。Rust/JNI 未改，最近独立 release 结果为上一批 340，本批未重跑 release。service-name-* 日志与核验 JSON 不上传。

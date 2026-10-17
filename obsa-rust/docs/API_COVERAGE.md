@@ -37,7 +37,7 @@
 31. delegation tokens：未接入原 Java token manager。
 32. checkPermission / AuthorizeProvider：未接入原 Java 扩展。
 33. MemArtsCC：未接入；这是原规格允许保留 Java 的 Hybrid 能力，不能据此声称当前自动具备。
-34. getCanonicalServiceName：未接入原配置开关，继承行为未专项验收。
+34. getCanonicalServiceName：已初始化实例直接返回 obs://桶名，避免 Hadoop 默认将桶名当作主机解析 DNS；与参考实现无 token manager 时的实际路径一致。普通桶/PFS 服务名和空委托令牌枚举已本地验证；旧配置开关和 token manager 未接入。
 35. metrics / traffic / audit：Rust 有可选请求日志，Java 流有 bytesRead/bytesWritten 统计；原 metrics consumer、audit、完整 IOStatistics 未对齐。
 
 ## 其他继承入口
