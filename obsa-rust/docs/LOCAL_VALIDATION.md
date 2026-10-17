@@ -1490,3 +1490,12 @@ Hadoop 完整回归 **332 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 测试夹具针对指定 PFS 文件的目录键/文件键 DELETE 都返回 NoSuchKey，同时保留对象，以确定性触发 Rust dual_key_delete 的 false 分支；这是人工故障响应，不代表正常服务会如此保留对象。旧实现新增测试未抛错。修复后 raw 与带校验和本地目标均报告失败，断言确实出现两次删除响应、本地内容完整、模拟远端对象保留；恢复正常删除后重试成功。目标仍使用测试专用免 chmod LocalFileSystem，不覆盖真实 Windows 权限传播。
 
 Hadoop 完整回归 **333 项、0 失败、0 错误、12 跳过**，BUILD SUCCESS。复制与删除仍非事务性，报错不回滚本地文件，也不能推断真实远端对象仍然存在。Rust/JNI 未变，沿用同源码 debug/release 385、诊断 387 和 JVM 冒烟结果。download-result-* 日志不上传。
+
+
+### 2026-10-17：明确选择 debug/release 验证库
+
+项目 build-windows.ps1 新增 -Release，普通构建与测试均使用 --locked；默认仍为 debug，既有基准继续使用 release。test-jni.ps1 新增受限的 -Profile debug/release 参数，运行前检查对应 DLL 并输出库目录。Maven 用 obs.native.profile（默认 debug）及可覆盖的 obs.native.library.path 选择原生库；Surefire 参数对库路径加引号，避免带空格的目录被拆分。
+
+实际运行新脚本的 release workspace 构建和测试：**385 通过、0 失败、16 ignored**；release JNI 基础/异常冒烟通过。Hadoop release 全套 **333 项、0 失败、0 错误、12 跳过**，并逐一解析 16 份 Surefire XML，确认 java.library.path 都解析到 target/release。默认 debug 构建（SkipTests）及 JNI 两类冒烟通过；额外 3 项 NativeConfigurationTest 验证 Maven 默认路径为 target/debug，另 3 项验证带空格的自定义路径实际生效。
+
+此批不修改 Rust/JNI 或 Hadoop 生产算法，不宣称跨平台验收。Windows linker 将正常创建导入库/对象的 stdout 标成 linker_messages 警告，构建退出成功；本地下载目标仍有前述 winutils 权限验证限制。validation-profile-* 日志、路径核验 JSON 和复制到 target 下的验证 DLL 均不上传。
