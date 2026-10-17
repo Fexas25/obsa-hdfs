@@ -1526,6 +1526,23 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void deleteOnExitCancellationMatchesRustRootClamping() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      write("/exit-alias", "keep");
+      assertTrue(fs.deleteOnExit(new Path("/../../exit-alias")));
+      assertTrue("Canonical path must cancel a root-clamped alias",
+          fs.cancelDeleteOnExit(new Path("/exit-alias")));
+      assertTrue(fs.deleteOnExit(new Path("/exit-alias")));
+      assertTrue("Root-clamped alias must cancel the canonical path",
+          fs.cancelDeleteOnExit(new Path("/../exit-alias")));
+      fs.close();
+      assertArrayEquals("keep".getBytes(StandardCharsets.UTF_8), data.get("exit-alias"));
+    }
+  }
+
+  @Test
   public void inheritedGlobMultiPathAndUsageRespectVisibleNamespace() throws Exception {
     open(false);
     data.clear();

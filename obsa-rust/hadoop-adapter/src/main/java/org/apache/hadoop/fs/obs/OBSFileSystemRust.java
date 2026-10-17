@@ -486,14 +486,24 @@ public final class OBSFileSystemRust extends FileSystem {
 
   @Override
   public boolean deleteOnExit(Path path) throws IOException {
-    path(path);
-    return super.deleteOnExit(path.makeQualified(uri, workingDirectory));
+    return super.deleteOnExit(deletionIdentity(path));
   }
 
   @Override
   public boolean cancelDeleteOnExit(Path path) {
-    path(path);
-    return super.cancelDeleteOnExit(path.makeQualified(uri, workingDirectory));
+    return super.cancelDeleteOnExit(deletionIdentity(path));
+  }
+
+  private Path deletionIdentity(Path value) {
+    // Hadoop URI normalization retains leading /..; Rust clamps traversal at root.
+    // Registration and cancellation must identify the same object without requiring I/O.
+    Deque<String> components = new ArrayDeque<>();
+    for (String component : path(value).split("/")) {
+      if (component.isEmpty() || component.equals(".")) continue;
+      if (component.equals("..")) components.pollLast();
+      else components.addLast(component);
+    }
+    return new Path(uri.getScheme(), uri.getAuthority(), "/" + String.join("/", components));
   }
 
   @Override
