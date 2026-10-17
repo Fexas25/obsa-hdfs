@@ -42,7 +42,7 @@
 
 ## 其他继承入口
 
-- copyToLocalFile：委派 Hadoop FileUtil 并将 false 转成 IOException，避免远端删除未完成仍报告移动成功；deleteSource=true 时先依据 Rust 状态拒绝移动根目录，普通复制根目录仍允许；本地测试通过第二段 GET 耗尽重试验证移动失败保留远端源、恢复后重试成功；目标为测试专用免 chmod 的 LocalFileSystem，未验收真实 Windows winutils/权限传播。
+- copyToLocalFile：委派 Hadoop FileUtil 并将 false 转成 IOException，避免远端删除未完成仍报告移动成功；deleteSource=true 时先依据 Rust 状态拒绝移动根目录，普通复制根目录仍允许；本地测试通过第二段 GET 耗尽重试验证移动失败保留远端源、恢复后重试成功；目标为测试专用免 chmod 的 LocalFileSystem，未验收真实 Windows winutils/权限传播。 下载作用域主动释放中断递归复制遗留的分页游标；本地 mkdirs false 立即报错，避免 Hadoop 忽略子目录复制失败后删除未复制源。目录移动仍非事务性。
 
 - globStatus、多路径 listStatus 与 PathFilter、getUsed：已验证普通桶隐藏后代不出现在结果/用量中，显式隐藏路径被拒绝；glob 的无匹配返回遵循 Hadoop 语义。
 

@@ -1527,3 +1527,14 @@ Hadoop 完整回归 **333 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 ECJ + debug JNI 完整 Hadoop 回归 **336 项、0 失败、0 错误、12 跳过**。随后不用 ecj profile，使用 JDK 17 标准 javac 执行 Maven clean test，从干净的 Hadoop 模块 target 构建，release JNI 完整回归同为 **336 项、0 失败、0 错误、12 跳过**。解析全部 16 份 Surefire XML，确认实际 java.library.path 为 target/release。默认编译器存在 source 8 bootstrap class path 和既有 deprecated API 提示，不是无警告构建。
 
 此结果验证本机默认 Maven 编译路径，不代表 GitHub 托管 runner 或真实 OBS/PFS 已验收。Rust/JNI 生产源码未变；工作流仅在工作区保存待确认草案，未随本批上传。complete-local-output-* 日志及核验 JSON 不上传。
+
+
+### 2026-10-17：目录下载失败释放游标，拒绝创建子目录时保留源
+
+核对 Hadoop 3.3.6 FileUtil 实际字节码并复现两条问题。其目录递归复制在子文件抛错后没有关闭尚未遍历完的 RemoteIterator；新增测试旧实现仍留下 ListingCleanup 登记。下载现在使用只管理该次复制游标的 FilterFileSystem 作用域，正常 EOF 及时移除并关闭游标，复制退出时释放剩余游标，不关闭原文件系统。普通桶/PFS 的嵌套目录 GET 故障测试覆盖两层未完成分页游标，并确认 owner 仍可使用。GC 兜底仍用于其他调用方放弃的游标。
+
+更严重的是 FileUtil 忽略递归子复制返回的 false。本地目标子目录 mkdirs 返回 false 的模拟回归中，旧流程将未复制的 3 个远端对象全部删除。下载目标现在用薄包装将 mkdirs false 转为 IOException，阻止继续执行源目录删除。回归覆盖普通桶/PFS × raw/带校验和本地目标四种组合，未复制源对象全部保留。夹具明确覆盖 RawLocalFileSystem 的 mkdirs 两种重载，不依赖真实主机权限拒绝。
+
+修复后标准 JDK 17 javac 干净构建，release JNI 完整 Hadoop 回归 **338 项、0 失败、0 错误、12 跳过**；核验 16 份 XML 均使用 target/release。此前游标修复阶段 debug 完整回归 337 项通过，mkdir false 修复 focused debug 回归通过；最终完整结果以上述 release 338 为准。Rust/JNI 生产代码未改，未重复核心构建。
+
+本次不是事务性目录移动：更早成功复制或删除的兄弟文件不回滚，失败后可能留下本地部分结果。FileUtil 其他布尔失败分支仍需继续核对。directory-download-*、directory-mkdir-*、directory-copy-* 日志与核验文件仅保存在工作区，不上传。
