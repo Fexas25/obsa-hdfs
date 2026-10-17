@@ -1504,3 +1504,10 @@ Hadoop 完整回归 **333 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 ### 2026-10-17：JNI 脚本避免覆盖 PowerShell 自动变量
 
 将 JNI 冒烟脚本的参数变量改为 NativeProfile，保留 -Profile 作为别名，避免与 PowerShell 自动变量 $PROFILE 同名。库存在检查要求实际文件。通过 -NativeProfile release 和 -Profile debug 分别运行实际 JVM 基础/异常冒烟，均通过且输出正确库目录。仅脚本与文档改变，未重复运行未变的 Rust/Hadoop 回归；沿用上一批 release Rust 385、Hadoop 333 的完整验证。native-profile-name-* 日志不上传。
+
+
+### 2026-10-17：全目标静态检查与诊断测试锁作用域
+
+执行 cargo clippy --locked --workspace --all-targets --all-features，退出成功，初次输出 17 条诊断（包含 lib/test 重复项）。其中 await_holding_lock 指向追加容量诊断测试；代码已显式 drop MutexGuard 后再 await，不是已确认的运行时死锁。将该测试的锁与断言改为词法作用域，明确在后续异步 LIST 前结束 guard 生命周期，生产代码不变。
+
+对应 all-features 文件系统测试 **1 通过、0 失败**；再次完整 Clippy 检查退出成功，await_holding_lock 提示消失，剩余 16 条为 manual_map、len_without_is_empty、参数数量、类型复杂度及测试布局等提示，未为清零提示进行大范围改写。本次不是无警告门禁，也不是没有其他缺陷的证明。未重复执行未变生产代码的完整回归，沿用 release Rust 385、Hadoop 333 与 debug/release JNI 冒烟结果。clippy-audit*、diagnostic-lock-scope-* 输出仅保存在本地。
