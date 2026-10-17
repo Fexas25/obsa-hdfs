@@ -22,6 +22,7 @@ final class LocalObsServer implements AutoCloseable {
   final AtomicInteger flatLists = new AtomicInteger();
   final AtomicInteger directoryLists = new AtomicInteger();
   volatile boolean malformedContinuation;
+  volatile String listErrorCode;
   final Queue<String> listResponses = new java.util.concurrent.ConcurrentLinkedQueue<>();
   boolean pfs;
   volatile boolean failCopy;
@@ -98,6 +99,11 @@ final class LocalObsServer implements AutoCloseable {
         e.sendResponseHeaders(200, -1);
       } else if (method.equals("GET") && key.isEmpty()) {
         lists.incrementAndGet();
+        if (listErrorCode != null) {
+          e.getResponseHeaders().set("x-obs-request-id", "hadoop-list-error");
+          error(e, 404, listErrorCode);
+          return;
+        }
         String scripted = listResponses.poll();
         if (scripted != null) {
           send(e, 200, scripted);

@@ -1893,6 +1893,47 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void inheritedQueriesPropagateService404AndRecoverWithoutNegativeCache() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      data.clear();
+      Path path = new Path("/service-query");
+      for (String code : new String[] {"NoSuchBucket", "NoSuchUpload"}) {
+        server.listErrorCode = code;
+        org.junit.function.ThrowingRunnable[] queries = {
+            () -> fs.exists(path),
+            () -> fs.isFile(path),
+            () -> fs.isDirectory(path),
+            () -> fs.globStatus(path),
+            () -> fs.globStatus(new Path(path, "*")),
+            () -> fs.getUsed(path),
+            () -> fs.getContentSummary(path),
+            () -> fs.resolvePath(path),
+            () -> fs.getFileBlockLocations(path, 0, 1),
+            () -> fs.access(path, org.apache.hadoop.fs.permission.FsAction.READ),
+            () -> fs.listStatus(new Path[] {path})
+        };
+        for (org.junit.function.ThrowingRunnable query : queries) {
+          int before = server.lists.get();
+          IOException error = assertThrows(IOException.class, query);
+          assertFalse("Service 404 must not become a missing file", error instanceof FileNotFoundException);
+          assertTrue(error.getMessage(), error.getMessage().contains(code));
+          assertTrue(error.getMessage(), error.getMessage().contains("hadoop-list-error"));
+          assertTrue("Each query must reach the backend after a service error", server.lists.get() > before);
+        }
+      }
+      server.listErrorCode = null;
+      data.put("service-query", new byte[] {1, 2, 3});
+      assertTrue("Service failures must not populate the missing-path cache", fs.isFile(path));
+      assertEquals(3, fs.getUsed(path));
+      Path missing = new Path("/truly-missing");
+      assertFalse(fs.isFile(missing));
+      assertFalse(fs.isDirectory(missing));
+      assertNull(fs.globStatus(missing));
+    }
+  }
+
+  @Test
   public void openFileBuilderHintsCannotBypassRustVisibilityOrSupplyContents() throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
       open(pfs);
