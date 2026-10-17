@@ -72,6 +72,12 @@ public final class NativeSmokeTest {
           Long.parseLong(
               NativeObs.nativeCall(fs, "create", "{\"path\":\"/file\",\"overwrite\":true}"));
       byte[] payload = "hello native OBS".getBytes(StandardCharsets.UTF_8);
+      try {
+        NativeObs.nativeSkip(out, 1);
+        throw new AssertionError("output stream skip must be rejected");
+      } catch (IllegalArgumentException expected) {
+        // Subsequent writes prove the rejected output handle remains usable.
+      }
       for (int[] bounds :
           new int[][] {{-1, 1}, {0, -1}, {Integer.MAX_VALUE, 1}, {1, Integer.MAX_VALUE}}) {
         boolean rejected = false;
@@ -100,7 +106,10 @@ public final class NativeSmokeTest {
 
       check(Arrays.equals(NativeObs.nativeRead(input, payload.length), payload), "native read");
       check(NativeObs.nativeRead(input, 1).length == 0, "EOF");
-      NativeObs.nativeSeek(input, 6);
+      check(NativeObs.nativeSkip(input, 1) == 0, "skip at EOF");
+      NativeObs.nativeSeek(input, 0);
+      check(NativeObs.nativeSkip(input, 6) == 6, "skip count");
+      check(NativeObs.nativeSkip(input, -1) == 0, "negative skip");
       check(
           new String(NativeObs.nativeRead(input, 6), StandardCharsets.UTF_8).equals("native"),
           "seek/read");

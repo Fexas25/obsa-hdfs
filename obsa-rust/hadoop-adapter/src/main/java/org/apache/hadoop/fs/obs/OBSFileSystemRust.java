@@ -800,6 +800,15 @@ public final class OBSFileSystemRust extends FileSystem {
     }
 
     @Override
+    public synchronized long skip(long amount) throws IOException {
+      checkOpen();
+      if (amount <= 0) return 0;
+      long skipped = NativeObs.nativeSkip(handle, amount);
+      position += skipped;
+      return skipped;
+    }
+
+    @Override
     public synchronized void seek(long value) throws IOException {
       checkOpen();
       if (value < 0) throw new EOFException("Negative seek");

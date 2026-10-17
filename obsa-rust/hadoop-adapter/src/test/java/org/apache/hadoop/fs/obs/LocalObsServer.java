@@ -15,6 +15,7 @@ final class LocalObsServer implements AutoCloseable {
   final HttpServer server;
   final NavigableMap<String, byte[]> data = new ConcurrentSkipListMap<>();
   final AtomicInteger heads = new AtomicInteger();
+  final AtomicInteger gets = new AtomicInteger();
   final AtomicInteger lists = new AtomicInteger();
   final Map<String, Map<String, String>> metadata = new java.util.concurrent.ConcurrentHashMap<>();
   final AtomicInteger metadataWrites = new AtomicInteger();
@@ -151,6 +152,7 @@ final class LocalObsServer implements AutoCloseable {
         if (truncated) body.append("<NextMarker>").append(xml(last)).append("</NextMarker>");
         send(e, 200, body.append("</ListBucketResult>").toString());
       } else if (method.equals("GET")) {
+        gets.incrementAndGet();
         if (current == null) {
           error(e, 404, "NoSuchKey");
           return;

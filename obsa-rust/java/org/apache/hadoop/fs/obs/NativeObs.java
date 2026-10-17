@@ -29,6 +29,8 @@ public final class NativeObs {
 
   public static native void nativeSeek(long stream, long position) throws IOException;
 
+  public static native long nativeSkip(long stream, long amount) throws IOException;
+
   public static native void nativeFlush(long stream) throws IOException;
 
   /** Consumes a create stream without committing; input/append handles are rejected intact. */

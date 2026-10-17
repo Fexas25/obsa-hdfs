@@ -695,6 +695,34 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void skipAdvancesWithoutDownloadingSkippedRanges() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/skip-file", "abcdefghijklmnop");
+      try (FSDataInputStream input = fs.open(new Path("/skip-file"))) {
+        int before = server.gets.get();
+        assertEquals(8, input.skip(8));
+        assertEquals(8, input.getPos());
+        assertEquals("Skipping must not fetch discarded bytes", before, server.gets.get());
+        assertEquals('i', input.read());
+        before = server.gets.get();
+        assertEquals(7, input.skip(Long.MAX_VALUE));
+        assertEquals(16, input.getPos());
+        assertEquals(before, server.gets.get());
+        assertEquals(-1, input.read());
+        input.seek(100);
+        assertEquals(0, input.skip(1));
+        assertEquals(100, input.getPos());
+        assertEquals(0, input.skip(-1));
+        input.seek(0);
+        assertEquals(0, input.skip(0));
+        assertEquals(3, input.skipBytes(3));
+        assertEquals('d', input.read());
+      }
+    }
+  }
+
+  @Test
   public void createReadSeekAndPositionedRead() throws Exception {
     write("/file", "abcdefghijklmnop");
     assertEquals(16, fs.getFileStatus(new Path("/file")).getLen());

@@ -1930,6 +1930,71 @@ async fn rename_file_to_itself_and_missing_parent() {
 }
 
 #[tokio::test]
+async fn skip_clamps_to_opened_length_without_fetching_ranges_or_overflow() {
+    let store = Arc::new(MemoryStore::default());
+    store.put("file", Bytes::from_static(b"abcdefghijklmnop"), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 4, readahead_max_chunks: 0, ..Default::default()
+    };
+    let mut stream = ObsInputStream::new(store.clone(), &config, "file".into(), 16, None);
+    assert_eq!(stream.skip(8).unwrap(), 8);
+    assert_eq!(stream.position(), 8);
+    assert_eq!(store.count("get:"), 0);
+    let mut byte = [0];
+    assert_eq!(stream.read(&mut byte).await.unwrap(), 1);
+    assert_eq!(&byte, b"i");
+    assert_eq!(stream.skip(u64::MAX).unwrap(), 7);
+    assert_eq!(stream.position(), 16);
+    assert_eq!(stream.read(&mut byte).await.unwrap(), 0);
+    assert_eq!(store.count("get:"), 1);
+    stream.seek(100).unwrap();
+    assert_eq!(stream.skip(u64::MAX).unwrap(), 0);
+    assert_eq!(stream.position(), 100);
+    let mut huge = ObsInputStream::new(store.clone(), &config, "unused".into(), u64::MAX, None);
+    huge.seek(u64::MAX - 2).unwrap();
+    assert_eq!(huge.skip(u64::MAX).unwrap(), 2);
+    assert_eq!(huge.position(), u64::MAX);
+    assert_eq!(huge.skip(1).unwrap(), 0);
+    assert_eq!(store.count("get:"), 1);
+}
+
+#[tokio::test]
+async fn skip_after_cancelled_read_uses_restored_position() {
+    let control = AppendControl::blocked();
+    let store = Arc::new(MemoryStore {
+        get_control: Some((4, control.clone())), ..Default::default()
+    });
+    store.put("file", Bytes::from_static(b"abcdefgh"), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 4, readahead_max_chunks: 0, ..Default::default()
+    };
+    let mut stream = ObsInputStream::new(store, &config, "file".into(), 8, None);
+    let mut bytes = [0; 8];
+    {
+        let read = stream.read(&mut bytes);
+        tokio::pin!(read);
+        tokio::select! { _ = &mut read => panic!("read must block"), _ = control.started.notified() => {} }
+    }
+    assert_eq!(&bytes[..4], b"abcd");
+    assert_eq!(stream.position(), 0);
+    assert_eq!(stream.skip(2).unwrap(), 2);
+    assert_eq!(stream.position(), 2);
+    assert_eq!(stream.read(&mut bytes[..2]).await.unwrap(), 2);
+    assert_eq!(&bytes[..2], b"cd");
+}
+
+#[tokio::test]
+async fn skip_to_eof_cancels_prefetch_and_releases_permits() {
+    let (_, mut stream, control, gate) = stream_with_blocked_seek_target().await;
+    assert_eq!(stream.skip(u64::MAX).unwrap(), 12);
+    assert_eq!(stream.position(), 24);
+    tokio::time::timeout(Duration::from_secs(2), control.stopped.notified()).await.unwrap();
+    let permits = tokio::time::timeout(Duration::from_secs(2), gate.acquire_many(2)).await.unwrap().unwrap();
+    drop(permits);
+    assert_eq!(stream.read(&mut [0]).await.unwrap(), 0);
+}
+
+#[tokio::test]
 async fn nearby_seeks_reuse_cached_range() {
     let store = Arc::new(MemoryStore::default());
     store

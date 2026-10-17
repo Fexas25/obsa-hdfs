@@ -104,6 +104,14 @@ impl ObsInputStream {
         self.read_start
             .map_or(self.position, |start| start.position)
     }
+    /// Skip within the opened length without fetching discarded bytes.
+    /// Reuse seek's cancelled-read restoration and prefetch cleanup.
+    pub fn skip(&mut self, amount: u64) -> ObsResult<u64> {
+        let position = self.position();
+        let skipped = amount.min(self.length.saturating_sub(position));
+        self.seek(position + skipped)?;
+        Ok(skipped)
+    }
     fn restore_cancelled_read(&mut self) {
         if let Some(start) = self.read_start.take() {
             self.position = start.position;

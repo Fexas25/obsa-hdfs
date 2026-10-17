@@ -350,6 +350,24 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeWrite(
     })
 }
 #[no_mangle]
+pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeSkip(
+    mut env: JNIEnv,
+    _: JClass,
+    id: jlong,
+    amount: jlong,
+) -> jlong {
+    guard(&mut env, |_| {
+        let shared = stream(id)?;
+        rt()?.block_on(async {
+            let mut lock = shared.lock().await;
+            match lock.as_mut() {
+                Some(Stream::Input(s)) => s.skip(amount.max(0) as u64).map(|n| n as jlong),
+                _ => Err(invalid("not an input stream")),
+            }
+        })
+    })
+}
+#[no_mangle]
 pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeSeek(
     mut env: JNIEnv,
     _: JClass,
