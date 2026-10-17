@@ -134,6 +134,15 @@ public final class NativeSmokeTest {
               + "\",\"bucket\":\"bucket\",\"secure\":false,\"bucket_mode\":\"object\",\"access_key\":\"test\",\"secret_key\":\"test\"}";
       fs = NativeObs.nativeCreate(config);
       check(fs > 0, "valid filesystem handle");
+      long listing = Long.parseLong(NativeObs.nativeCall(fs, "listCursorOpen", "{}"));
+      NativeObs.nativeReleaseListing(listing);
+      NativeObs.nativeReleaseListing(listing);
+      try {
+        NativeObs.nativeCall(fs, "listCursorNext", "{\"cursor\":" + listing + "}");
+        throw new AssertionError("released listing handle must be rejected");
+      } catch (java.io.IOException expected) {
+        check(expected.getMessage().contains("listing"), "released listing error");
+      }
       long out =
           Long.parseLong(
               NativeObs.nativeCall(fs, "create", "{\"path\":\"/file\",\"overwrite\":true}"));

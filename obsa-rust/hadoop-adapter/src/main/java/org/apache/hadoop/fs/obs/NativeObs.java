@@ -15,6 +15,9 @@ public final class NativeObs {
   /**
    * JSON operation dispatch. recoverPendingUploads accepts {"limit":1..10000} and returns
    * {"aborted":count,"active":count,"errors":[messages]}; requires a configured upload journal.
+   * Arguments must be an object. Fields consumed by an operation must have their declared types;
+   * permission is an unsigned 32-bit integer. Invalid values throw IllegalArgumentException.
+   * Omitted fields retain defaults (including root path); marker/owner/group may be null.
    */
   public static native String nativeCall(long handle, String operation, String argsJson)
       throws IOException;

@@ -1,5 +1,6 @@
 //! JNI bridge for org.apache.hadoop.fs.obs.NativeObs. Handles are opaque IDs;
 //! panics and Rust errors never unwind across the JVM boundary.
+mod arguments;
 use jni::{
     objects::{JByteArray, JByteBuffer, JClass, JString},
     sys::{jbyteArray, jint, jlong, jstring, JavaVM, JNI_VERSION_1_8},
@@ -202,7 +203,8 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeCall(
         let fs = filesystem(id)?;
         let op = string(env, &op)?;
         let args: Value = serde_json::from_str(&string(env, &args)?).map_err(invalid_json)?;
-        let path = args.get("path").and_then(Value::as_str).unwrap_or("/");
+        if !args.is_object() { return Err(invalid("native arguments must be a JSON object")); }
+        let path = arguments::text(&args, "path", false)?.unwrap_or("/");
         let value=rt()?.block_on(async{match op.as_str(){
             "isPfs"=>Ok(json!(fs.is_pfs())),
             "blockSize"=>Ok(json!(fs.default_block_size())),
@@ -217,20 +219,24 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeCall(
             "status"=>serde_json::to_value(fs.get_file_status(path).await?).map_err(io),
             "exists"=>Ok(json!(fs.exists(path).await?)),
             "list"=>serde_json::to_value(fs.list_status(path).await?).map_err(io),
-            "listPage"=>serde_json::to_value(fs.list_status_page(path,args.get("marker").and_then(Value::as_str)).await?).map_err(io),
-            "listCursorOpen"=>Ok(json!(add_listing(id,path.to_owned(), if args["files_only"].as_bool().unwrap_or(false) { Some(args["recursive"].as_bool().unwrap_or(false)) } else { None })?)),
+            "listPage"=>serde_json::to_value(fs.list_status_page(path,arguments::text(&args,"marker",true)?).await?).map_err(io),
+            "listCursorOpen"=>{
+                let files=arguments::boolean(&args,"files_only",false)?;
+                let recursive=arguments::boolean(&args,"recursive",false)?;
+                Ok(json!(add_listing(id,path.to_owned(),files.then_some(recursive))?))
+            },
             "listCursorNext"=>listing_next(id,args["cursor"].as_i64().ok_or_else(||invalid("cursor required"))?,&fs).await,
             "listFiles"=>serde_json::to_value(fs.list_files_recursive(path).await?).map_err(io),
-            "mkdirs"=>Ok(json!(fs.mkdirs(path,args["permission"].as_u64().unwrap_or(0o755) as u32).await?)),
-            "delete"=>Ok(json!(fs.delete(path,args["recursive"].as_bool().unwrap_or(false)).await?)),
-            "rename"=>Ok(json!(fs.rename(path,args["destination"].as_str().ok_or_else(||invalid("destination required"))?,args["overwrite"].as_bool().unwrap_or(false)).await?)),
+            "mkdirs"=>Ok(json!(fs.mkdirs(path,arguments::permission(&args,Some(0o755))?).await?)),
+            "delete"=>Ok(json!(fs.delete(path,arguments::boolean(&args,"recursive",false)?).await?)),
+            "rename"=>Ok(json!(fs.rename(path,arguments::text(&args,"destination",false)?.ok_or_else(||invalid("destination required"))?,arguments::boolean(&args,"overwrite",false)?).await?)),
             "truncate"=>{fs.truncate(path,args["length"].as_u64().ok_or_else(||invalid("nonnegative length required"))?).await?;Ok(json!(true))},
             "summary"=>{let s=fs.get_content_summary(path).await?;Ok(json!({"length":s.length,"file_count":s.file_count,"directory_count":s.directory_count,"space_consumed":s.space_consumed}))},
             "open"=>Ok(json!(add_stream(id,Stream::Input(fs.open(path,OpenOptions::default()).await?))?)),
-            "create"=>Ok(json!(add_stream(id,Stream::Output(fs.create(path,CreateOptions{overwrite:args["overwrite"].as_bool().unwrap_or(false),create_parent:args["create_parent"].as_bool().unwrap_or(true),permission:args["permission"].as_u64().unwrap_or(0o644) as u32,..Default::default()}).await?))?)),
+            "create"=>Ok(json!(add_stream(id,Stream::Output(fs.create(path,CreateOptions{overwrite:arguments::boolean(&args,"overwrite",false)?,create_parent:arguments::boolean(&args,"create_parent",true)?,permission:arguments::permission(&args,Some(0o644))?,..Default::default()}).await?))?)),
             "append"=>{let s=fs.get_file_status(path).await?;if s.is_dir{return Err(invalid("cannot append to directory"));}Ok(json!(add_stream(id,Stream::Append(fs.append_stream(path,s.length).await?))?))},
-            "setPermission"=>{fs.set_hadoop_permission(path,args["permission"].as_u64().ok_or_else(||invalid("permission required"))? as u32).await?;Ok(Value::Null)},
-            "setOwner"=>{fs.set_hadoop_owner(path,args.get("owner").and_then(Value::as_str),args.get("group").and_then(Value::as_str)).await?;Ok(Value::Null)},
+            "setPermission"=>{fs.set_hadoop_permission(path,arguments::permission(&args,None)?).await?;Ok(Value::Null)},
+            "setOwner"=>{fs.set_hadoop_owner(path,arguments::text(&args,"owner",true)?,arguments::text(&args,"group",true)?).await?;Ok(Value::Null)},
             _=>Err(ObsError::Unsupported(format!("native operation: {op}"))),
         }})?;
         Ok(env.new_string(value.to_string()).map_err(io)?.into_raw())

@@ -70,4 +70,53 @@ public class NativeConfigurationTest {
       assertRejected(config, key[1]);
     }
   }
+
+  @Test
+  public void malformedNativeArgumentsFailBeforeRequestsOrMutation() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      try (LocalObsServer server = new LocalObsServer(pfs)) {
+        server.data.put("sentinel", new byte[] {7});
+        ObjectNode config = JSON.createObjectNode().put("bucket", "bucket")
+            .put("endpoint", server.endpoint()).put("secure", false)
+            .put("bucket_mode", pfs ? "pfs" : "object")
+            .put("access_key", "test").put("secret_key", "test");
+        final long fs = NativeObs.nativeCreate(config.toString());
+        try {
+          for (String malformed : new String[] {"null", "[]", "true", "123", "\"path\""}) {
+            assertThrows(IllegalArgumentException.class,
+                () -> NativeObs.nativeCall(fs, "status", malformed));
+          }
+          String[][] invalid = {
+              {"delete", "{\"path\":null,\"recursive\":true}"},
+              {"delete", "{\"path\":12,\"recursive\":true}"},
+              {"delete", "{\"path\":\"/sentinel\",\"recursive\":\"false\"}"},
+              {"rename", "{\"path\":\"/sentinel\",\"destination\":42}"},
+              {"rename", "{\"path\":\"/sentinel\",\"destination\":\"/target\",\"overwrite\":1}"},
+              {"create", "{\"path\":\"/new\",\"permission\":4294967296}"},
+              {"create", "{\"path\":\"/new\",\"overwrite\":null}"},
+              {"create", "{\"path\":\"/new\",\"create_parent\":\"false\"}"},
+              {"mkdirs", "{\"path\":\"/new\",\"permission\":-1}"},
+              {"setPermission", "{\"path\":\"/sentinel\",\"permission\":4294967296}"},
+              {"setOwner", "{\"path\":\"/sentinel\",\"owner\":123,\"group\":\"team\"}"},
+              {"listPage", "{\"path\":\"/\",\"marker\":42}"},
+              {"listCursorOpen", "{\"path\":\"/\",\"files_only\":1}"},
+              {"listCursorOpen", "{\"path\":\"/\",\"recursive\":\"false\"}"}
+          };
+          for (String[] call : invalid) {
+            assertThrows(call[0] + ": " + call[1], IllegalArgumentException.class,
+                () -> NativeObs.nativeCall(fs, call[0], call[1]));
+          }
+          assertTrue(JSON.readTree(NativeObs.nativeCall(fs, "status", "{}")).path("is_dir").asBoolean());
+          assertEquals(0, server.heads.get());
+          assertEquals(0, server.lists.get());
+          assertEquals(0, server.gets.get());
+          assertEquals(0, server.metadataWrites.get());
+          assertEquals(1, server.data.size());
+          assertArrayEquals(new byte[] {7}, server.data.get("sentinel"));
+        } finally {
+          NativeObs.nativeClose(fs);
+        }
+      }
+    }
+  }
 }
