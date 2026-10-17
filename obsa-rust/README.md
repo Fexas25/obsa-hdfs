@@ -38,11 +38,11 @@ mvn -f hadoop-adapter/pom.xml test
 
 ```powershell
 .\scripts\build-windows.ps1 -Release
-.\scripts\test-jni.ps1 -Profile release
+.\scripts\test-jni.ps1 -NativeProfile release
 mvn -f hadoop-adapter/pom.xml '-Dobs.native.profile=release' test
 ```
 
-脚本和 Maven 默认仍选 debug。Maven 也支持 `-Dobs.native.library.path=...` 指向自定义原生库目录；路径有空格时请将整个参数加引号。JNI 冒烟脚本会先检查所选 DLL 是否存在，并输出实际库目录。构建脚本使用 Cargo.lock（`--locked`）。
+脚本和 Maven 默认仍选 debug；JNI 脚本也兼容 -Profile 别名。Maven 也支持 `-Dobs.native.library.path=...` 指向自定义原生库目录；路径有空格时请将整个参数加引号。JNI 冒烟脚本会先检查所选 DLL 是否存在，并输出实际库目录。构建脚本使用 Cargo.lock（`--locked`）。
 
 Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.version=...` 指定并重新验证。Windows JDK ZipFS 受限时可选 `-Pecj` 编译器配置。
 

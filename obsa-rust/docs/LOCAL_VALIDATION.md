@@ -1499,3 +1499,8 @@ Hadoop 完整回归 **333 项、0 失败、0 错误、12 跳过**，BUILD SUCCES
 实际运行新脚本的 release workspace 构建和测试：**385 通过、0 失败、16 ignored**；release JNI 基础/异常冒烟通过。Hadoop release 全套 **333 项、0 失败、0 错误、12 跳过**，并逐一解析 16 份 Surefire XML，确认 java.library.path 都解析到 target/release。默认 debug 构建（SkipTests）及 JNI 两类冒烟通过；额外 3 项 NativeConfigurationTest 验证 Maven 默认路径为 target/debug，另 3 项验证带空格的自定义路径实际生效。
 
 此批不修改 Rust/JNI 或 Hadoop 生产算法，不宣称跨平台验收。Windows linker 将正常创建导入库/对象的 stdout 标成 linker_messages 警告，构建退出成功；本地下载目标仍有前述 winutils 权限验证限制。validation-profile-* 日志、路径核验 JSON 和复制到 target 下的验证 DLL 均不上传。
+
+
+### 2026-10-17：JNI 脚本避免覆盖 PowerShell 自动变量
+
+将 JNI 冒烟脚本的参数变量改为 NativeProfile，保留 -Profile 作为别名，避免与 PowerShell 自动变量 $PROFILE 同名。库存在检查要求实际文件。通过 -NativeProfile release 和 -Profile debug 分别运行实际 JVM 基础/异常冒烟，均通过且输出正确库目录。仅脚本与文档改变，未重复运行未变的 Rust/Hadoop 回归；沿用上一批 release Rust 385、Hadoop 333 的完整验证。native-profile-name-* 日志不上传。
