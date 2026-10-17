@@ -1666,3 +1666,11 @@ Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对�
 新增普通桶/PFS 内存回归验证目录/文件缓存权限与类型，另用真实 TCP 协议用例同时验证 PUT 的 mode=100640、写后缓存和新实例 HEAD 权限一致。修复前两个用例均失败，修复后定向通过。完整 Rust debug/release workspace 各 **393/0/16**，append-diagnostics 核心配置 **393/0/16**；两种原生库显式重建，实际 JVM 冒烟通过，完整 Hadoop debug/release 各 **355 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的库路径。Clippy 保持原 16 项告警。
 
 原失败日志 permission-mode-repro.log、permission-header-repro.log 与修复后 focused/full 日志、DLL 和核验 JSON 都只留工作区。这里验证的是权限字段投影与请求一致性，不声称完成真实 OBS/PFS ACL 验收。
+
+### 2026-10-17：未知 HEAD 长度不能变成空文件
+
+修复前，成功 HEAD 缺少 Content-Length 会返回长度 0，使 open 误判 EOF。新增真实 TCP 测试先复现失败，再验证缺失、负数、非数字和 u64 溢出均被拒绝，合法零长度、大对象长度及 404 分类保留。HTTP 正文预算仅 4 字节时，HEAD 仍可报告大对象长度。生产改动只在 HEAD 服务错误映射后检查长度，不增加请求，不改变其他操作的共享元数据解析。
+
+新增实际 Hadoop/JNI 回归覆盖普通桶/PFS：状态和 open 报 IOException，未发 GET；恢复正常响应后重新查询长度并读出全部原始内容，证明错误结果没有被缓存为空文件。完整 Rust workspace debug/release 各 **395/0/16**，append-diagnostics 核心配置 **395/0/16**；两种 JNI 动态库显式重建，实际 JVM 冒烟通过，Hadoop debug/release 各 **356 项、0 失败、0 错误、12 跳过**，16 份 XML 分别确认库路径。Clippy 仍为原有 16 项告警。
+
+首次完整 debug 在受限沙箱中无法连接本机模拟服务，多项 wire 超时；同一二进制的失败用例在允许本机连接后通过，随后完整套件重新运行通过。失败日志单独保留，不计作成功证据。head-length-* 日志、核验 JSON、构建产物与备份仅留工作区；未进行真实云服务、Linux 或 Java 8 JVM 验收，也未宣称性能提升。

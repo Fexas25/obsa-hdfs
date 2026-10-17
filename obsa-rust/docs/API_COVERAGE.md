@@ -2,6 +2,8 @@
 
 更新：2026-10-17。依据 PROMPT_NEXT_AI_APPENDIX.md 的 A/G 两节及当前 Rust、JNI、Java 源码。这里的“接通”只表示有实现调用链；本地契约通过不等于真实服务、全部重载或原 Java 扩展全部兼容。未对第三方 Hadoop 默认实现作完整源码审计。
 
+HEAD 长度边界：成功响应缺少或无法解析 Content-Length 会报错，不把未知长度当作空文件。Rust TCP 与实际 Hadoop/JNI 回归覆盖错误传播及恢复后重新查询/读取，详见 [GET_VALIDATION.md](GET_VALIDATION.md)。
+
 ## 原始 35 项方法
 
 1. initialize：Java 配置及凭据解析 → nativeCreate → Rust；MemArtsCC 初始化未接入。
