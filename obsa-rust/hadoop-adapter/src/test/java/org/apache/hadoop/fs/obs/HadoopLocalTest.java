@@ -697,6 +697,97 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void pooledByteBufferFallbackReturnsBuffersAtEofAndOnRelease() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/pooled-buffer", "abcdef");
+      TrackingBufferPool pool = new TrackingBufferPool();
+      try (FSDataInputStream input = fs.open(new Path("/pooled-buffer"))) {
+        ByteBuffer first = input.read(pool, 8);
+        assertTrue(pool.directRequested);
+        assertEquals(0, first.position());
+        assertEquals(4, first.remaining());
+        assertEquals('a', first.get());
+        assertEquals(4, input.getPos());
+        assertEquals(0, pool.returned);
+        input.releaseBuffer(first);
+        assertEquals(1, pool.returned);
+        assertThrows(IllegalArgumentException.class, () -> input.releaseBuffer(first));
+        assertEquals(1, pool.returned);
+        ByteBuffer tail = input.read(pool, 8);
+        assertEquals(2, tail.remaining());
+        assertEquals('e', tail.get());
+        assertEquals('f', tail.get());
+        input.releaseBuffer(tail);
+        assertEquals(2, pool.returned);
+        assertNull(input.read(pool, 8));
+        assertEquals(3, pool.returned);
+        assertEquals(pool.borrowed, pool.returned);
+        assertThrows(UnsupportedOperationException.class, () -> input.read(null, 8));
+        assertEquals(6, input.getPos());
+        input.seek(0);
+        ByteBuffer retained = input.read(pool, 4);
+        input.close();
+        // Hadoop requires explicit release; close does not return borrowed fallback buffers.
+        assertEquals(3, pool.returned);
+        input.releaseBuffer(retained);
+        assertEquals(pool.borrowed, pool.returned);
+      }
+    }
+  }
+
+  @Test
+  public void pooledByteBufferFallbackReturnsBufferAfterReadFailure() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      open(pfs);
+      write("/pooled-failure", "abcdefgh");
+      TrackingBufferPool pool = new TrackingBufferPool();
+      try (FSDataInputStream input = fs.open(new Path("/pooled-failure"))) {
+        server.failedRangeStart = 0;
+        server.rangeFailures.set(3);
+        assertThrows(IOException.class, () -> input.read(pool, 4));
+        assertEquals(0, server.rangeFailures.get());
+        assertEquals(0, input.getPos());
+        assertEquals(1, pool.returned);
+        assertEquals(pool.borrowed, pool.returned);
+        server.failedRangeStart = -1;
+        ByteBuffer recovered = input.read(pool, 4);
+        assertEquals('a', recovered.get());
+        input.releaseBuffer(recovered);
+        fs.close();
+        assertThrows(IOException.class, () -> input.read(pool, 4));
+        assertEquals(3, pool.returned);
+        assertEquals(pool.borrowed, pool.returned);
+      } finally {
+        server.failedRangeStart = -1;
+        server.rangeFailures.set(0);
+      }
+    }
+  }
+
+  private static final class TrackingBufferPool implements org.apache.hadoop.io.ByteBufferPool {
+    int borrowed, returned;
+    boolean directRequested;
+    final Set<ByteBuffer> outstanding = Collections.newSetFromMap(new IdentityHashMap<ByteBuffer, Boolean>());
+
+    @Override
+    public ByteBuffer getBuffer(boolean direct, int length) {
+      directRequested = direct;
+      borrowed++;
+      int size = Math.min(4, length);
+      ByteBuffer value = direct ? ByteBuffer.allocateDirect(size) : ByteBuffer.allocate(size);
+      outstanding.add(value);
+      return value;
+    }
+
+    @Override
+    public void putBuffer(ByteBuffer buffer) {
+      assertTrue("Only return an outstanding buffer once", outstanding.remove(buffer));
+      returned++;
+    }
+  }
+
+  @Test
   public void byteBufferReadsRespectSlicesLimitsAndEof() throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
       open(pfs);
