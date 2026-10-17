@@ -53,6 +53,12 @@
 - setReplication：校验正数参数并通过 Rust 查询路径后返回 false，不宣称改变 OBS 副本策略。
 - setTimes：先通过 Rust 查询路径；两个参数均为 -1 时不修改，否则明确 UnsupportedOperationException。要求保留时间的上层复制任务应处理此能力限制。
 
+PFS 追加底层调用的是固定 position 的 `PUT ?modify`，不是普通桶 `POST ?append`。
+参照[华为云修改写接口](https://support.huaweicloud.com/intl/zh-cn/ally-visitor-1-api-obs/obs_04_0092.html)，
+该接口不要求普通桶 append 的 next-append-position 响应头。断连重放保持原位置、相同正文；
+truncate 重放保持相同长度，rename/MPU 初始化与完成仍不自动重试。这里的幂等性针对相同定点操作，
+不保证与外部并发写入隔离，也不能把重试成功解释为远端只执行过一次。
+
 ## 配置核对
 
 核心配置读取在 obs-rust-core/src/config.rs，Java 入口在 OBSFileSystemRust.initialize / resolveCredentials。附录 G.1 中 endpoint、AK/SK/token、桶模式、连接/超时/TLS、分片、上传并发、预读、缓存、分页、PFS append/inode、trash、寻址方式和访问日志有解析路径；解析路径存在不等于每种取值均通过运行验收。

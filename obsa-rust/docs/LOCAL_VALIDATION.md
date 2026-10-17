@@ -1638,3 +1638,9 @@ Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对�
 模拟 LIST 可注入带请求 ID 的 NoSuchBucket/NoSuchUpload。新增一个普通桶/PFS 集成用例，遍历 exists、isFile/isDirectory、精确/通配 glob、getUsed、默认 getContentSummary、resolvePath、Path 版块位置、access、多路径 listStatus：错误必须保留 IOException 分类、服务码和请求 ID，每次重新到达后端；恢复服务并创建同名对象后立即可见，不被负缓存遮挡。另验证真实缺失仍返回 false/null。生产代码无需修改。
 
 定向用例通过后，完整 release/debug 各 **353 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的实际 JNI 库路径。Rust 和独立 JNI 未重复，上一批 389/0/16、诊断 391/0/16、两种 JVM 冒烟通过仍有效。另核对本地 Hadoop 3.3.6 字节码，文档明确 getStatus 仍是通用容量占位值，不代表云桶配额/可用性；尚未接入真实容量服务。inherited-service404-* 日志和报告只留本地。
+
+### 2026-10-17：PFS 定点变更的断连重放
+
+扩展现有真实 TCP 断连测试：服务器完整接收请求后直接关闭连接、不发送响应。PFS modify 与 truncate 均按配置执行初次加两次重试，每次核验编码路径、同一位置/长度、x-obs-hdfs 头和完全相同正文；请求未因重试推进偏移或改写载荷。原有 rename、MPU 初始化/完成不重试分支同时保留。该测试核验线上请求，不模拟真实远端提交结果或外部并发隔离。
+
+定向测试通过，完整 wire debug/release 各 **79 通过、0 失败、0 ignored**。仅扩展现有测试和文档，没有增加测试函数或修改生产代码；workspace 上次仍为 389/0/16、诊断 391/0/16，Hadoop 上批两配置各 353/0/0/12，不冒充本批全部重跑。Clippy 在定向运行前再次通过；pfs-replay-* 日志和核验产物只保留本地。接口类型及官方资料链接见 API_COVERAGE.md。
