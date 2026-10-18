@@ -1690,3 +1690,11 @@ head-status-repro.log 保留修复前失败，focused/full 日志、XML 核验�
 12 项 ETag 定向回归通过。完整 Rust workspace debug/release 各 **398/0/16**，append-diagnostics 核心配置 **398/0/16**；显式重建两种 JNI 库，实际 JVM 冒烟通过，Hadoop debug/release 各 **358 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验库路径。新增 JVM 用例断言畸形 GET ETag 不改写用户缓冲、不推进位置、错误持续且不再发 GET；重新打开可正常读取。Clippy 保持原 16 项告警。
 
 新增 LIST 测试初次引用错误字段 entries，编译失败后修正为 contents；该日志单独保存，不作为缺陷复现。之后三项运行时断言的失败记录与修复后结果均保留。metadata-etag-* 日志、备份和产物只留本地；未进行真实云、Linux、Java 8 JVM 或生产性能验收。
+
+### 2026-10-18：复制/完成分片的 ETag 与不确定提交结果
+
+扩展现有成功 XML 回归，修复前重复引号 ETag 被 CopyObjectResult/CompleteMultipartUploadResult 接受。结果解析改用共享引号校验，拒绝重复、不平衡和内部引号，仍要求完整结果与非空 ETag。12 项 ETag 定向用例通过，未增加 Rust 测试函数数。
+
+新增实际 Hadoop/JNI 场景在服务端真正写入目标后返回畸形复制确认。rename 报 IOException，源与已提交目标均保留并可读，证明不会在无有效确认时继续删源，也没有伪装远端回滚。普通桶 copy/delete 仍非事务。
+
+完整 Rust workspace debug/release 各 **398/0/16**，append-diagnostics 核心 **398/0/16**；两种原生库显式重建，实际 JVM 冒烟通过，Hadoop debug/release 各 **359 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验库路径。Clippy 仍为原有 16 项告警。result-etag-* 失败复现、通过日志、备份和产物只留本地；未进行真实云、跨平台或生产性能验收。
