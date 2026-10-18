@@ -1682,3 +1682,11 @@ Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对�
 Hadoop/JNI 在普通桶/PFS 下分别注入 201、202、206，验证查询/打开 IOException、无 GET、恢复 200 后长度和完整内容正确。六项 HEAD 定向测试通过；完整 Rust debug/release 各 **396/0/16**，append-diagnostics 核心配置 **396/0/16**。显式构建两种 JNI 库后，实际 JVM 冒烟通过，完整 Hadoop debug/release 各 **357 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验原生库路径。Clippy 保持既有 16 项告警。
 
 head-status-repro.log 保留修复前失败，focused/full 日志、XML 核验、构建产物和备份仅留本地。未进行云端、跨平台、实际 Java 8 JVM 或生产性能验收。
+
+### 2026-10-18：元数据 ETag 引号不能改写版本身份
+
+新增两项 wire 测试并扩展条件 GET 回归，修复前三项失败分别证明：畸形 ETag 被 HEAD 接受、LIST 归一成另一个标识、条件 GET 对错误引号误通过。共享头部元数据及 LIST 现在使用与 UploadPart 相同的单对引号处理，保留合法裸值与已有空值政策。错误头部抛 MissingVersion，LIST 抛解析错误；写入响应报错并不代表远端没有提交。
+
+12 项 ETag 定向回归通过。完整 Rust workspace debug/release 各 **398/0/16**，append-diagnostics 核心配置 **398/0/16**；显式重建两种 JNI 库，实际 JVM 冒烟通过，Hadoop debug/release 各 **358 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验库路径。新增 JVM 用例断言畸形 GET ETag 不改写用户缓冲、不推进位置、错误持续且不再发 GET；重新打开可正常读取。Clippy 保持原 16 项告警。
+
+新增 LIST 测试初次引用错误字段 entries，编译失败后修正为 contents；该日志单独保存，不作为缺陷复现。之后三项运行时断言的失败记录与修复后结果均保留。metadata-etag-* 日志、备份和产物只留本地；未进行真实云、Linux、Java 8 JVM 或生产性能验收。
