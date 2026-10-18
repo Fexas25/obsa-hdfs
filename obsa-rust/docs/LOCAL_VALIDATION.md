@@ -1674,3 +1674,11 @@ Hadoop 新测试先通过 HEAD 固定普通桶 ETag，再覆盖相同长度对�
 新增实际 Hadoop/JNI 回归覆盖普通桶/PFS：状态和 open 报 IOException，未发 GET；恢复正常响应后重新查询长度并读出全部原始内容，证明错误结果没有被缓存为空文件。完整 Rust workspace debug/release 各 **395/0/16**，append-diagnostics 核心配置 **395/0/16**；两种 JNI 动态库显式重建，实际 JVM 冒烟通过，Hadoop debug/release 各 **356 项、0 失败、0 错误、12 跳过**，16 份 XML 分别确认库路径。Clippy 仍为原有 16 项告警。
 
 首次完整 debug 在受限沙箱中无法连接本机模拟服务，多项 wire 超时；同一二进制的失败用例在允许本机连接后通过，随后完整套件重新运行通过。失败日志单独保留，不计作成功证据。head-length-* 日志、核验 JSON、构建产物与备份仅留工作区；未进行真实云服务、Linux 或 Java 8 JVM 验收，也未宣称性能提升。
+
+### 2026-10-18：HEAD 异常成功状态不能成为文件元数据
+
+旧实现把任意 2xx 视为成功 HEAD，新增 TCP 回归先复现 201 被接受。现在无条件对象 HEAD 只接受 200，校验位于服务错误映射之后、长度与元数据解析之前；201/202/203/204/205/206/207/226 均被拒绝，206 带 Content-Range 也不能制造部分对象长度。没有新增请求或调整重试策略。
+
+Hadoop/JNI 在普通桶/PFS 下分别注入 201、202、206，验证查询/打开 IOException、无 GET、恢复 200 后长度和完整内容正确。六项 HEAD 定向测试通过；完整 Rust debug/release 各 **396/0/16**，append-diagnostics 核心配置 **396/0/16**。显式构建两种 JNI 库后，实际 JVM 冒烟通过，完整 Hadoop debug/release 各 **357 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验原生库路径。Clippy 保持既有 16 项告警。
+
+head-status-repro.log 保留修复前失败，focused/full 日志、XML 核验、构建产物和备份仅留本地。未进行云端、跨平台、实际 Java 8 JVM 或生产性能验收。
