@@ -689,6 +689,9 @@ async fn conditional_get_rejects_ignored_precondition_and_missing_etag() {
     for header in [
         "ETag: version-b\r\nContent-Range: bytes 0-3/4\r\n",
         "Content-Range: bytes 0-3/4\r\n",
+        "ETag: \"\"version-a\"\"\r\nContent-Range: bytes 0-3/4\r\n",
+        "ETag: \"version-a\r\nContent-Range: bytes 0-3/4\r\n",
+        "ETag: version-a\"\r\nContent-Range: bytes 0-3/4\r\n",
     ] {
         let (store, task) = server(vec![("206 Partial Content", header, "data")]).await;
         let result = store
@@ -700,6 +703,35 @@ async fn conditional_get_rejects_ignored_precondition_and_missing_etag() {
                 | Err(obs_rust_core::ObsError::MissingVersion(_))
         ));
         assert_eq!(task.await.unwrap().len(), 1);
+    }
+}
+
+#[tokio::test]
+async fn metadata_etags_reject_malformed_quotes_without_rewriting_identity() {
+    for header in ["ETag: \"\"version-a\"\"\r\n", "ETag: \"version-a\r\n", "ETag: version-a\"\r\n"] {
+        for operation in 0..3 {
+            let (store, task) = server(vec![("200 OK", header, "data")]).await;
+            let result = match operation {
+                0 => store.head("key").await.map(|_| ()),
+                1 => store.get("key", None, None).await.map(|_| ()),
+                _ => store.put("key", bytes::Bytes::from_static(b"data"), Default::default()).await.map(|_| ()),
+            };
+            assert_eq!(task.await.unwrap().len(), 1);
+            assert!(result.is_err(), "operation {operation} accepted {header:?}");
+        }
+    }
+}
+
+#[test]
+fn list_etags_reject_malformed_quotes_without_rewriting_identity() {
+    for tag in ["&quot;&quot;version-a&quot;&quot;", "&quot;version-a", "version-a&quot;"] {
+        let body = format!("<ListBucketResult><Contents><Key>key</Key><Size>4</Size><ETag>{tag}</ETag></Contents></ListBucketResult>");
+        assert!(obs_rust_core::xml::parse_list_xml(&body).is_err(), "accepted {tag:?}");
+    }
+    for tag in ["version-a", "&quot;version-a&quot;", "<![CDATA[\"version-a\"]]>"] {
+        let body = format!("<ListBucketResult><Contents><Key>key</Key><Size>4</Size><ETag>{tag}</ETag></Contents></ListBucketResult>");
+        let parsed = obs_rust_core::xml::parse_list_xml(&body).unwrap();
+        assert_eq!(parsed.contents[0].etag.as_deref(), Some("version-a"));
     }
 }
 

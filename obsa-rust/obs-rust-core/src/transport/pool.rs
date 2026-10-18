@@ -231,14 +231,7 @@ impl HttpResponse {
     }
 
     pub fn etag(&self) -> Option<String> {
-        let value = self.header("etag")?;
-        // Remove at most one balanced pair. Trimming arbitrary quotes can
-        // silently manufacture a different part identity from malformed input.
-        let value = if value.starts_with('"') || value.ends_with('"') {
-            value.strip_prefix('"')?.strip_suffix('"')?
-        } else { value };
-        if value.contains('"') { return None; }
-        Some(value.to_owned())
+        crate::types::unquote_etag(self.header("etag")?).map(str::to_owned)
     }
 
     pub fn content_length(&self) -> Option<u64> {

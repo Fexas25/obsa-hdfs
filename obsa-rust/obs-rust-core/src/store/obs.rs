@@ -164,7 +164,7 @@ impl ObsStore {
         Ok(normalized)
     }
 
-    fn meta_from_headers(key: &str, headers: &BTreeMap<String, String>) -> ObjectMeta {
+    fn meta_from_headers(key: &str, headers: &BTreeMap<String, String>) -> ObsResult<ObjectMeta> {
         let get = |name: &str| -> Option<String> {
             headers
                 .iter()
@@ -181,12 +181,16 @@ impl ObsStore {
             }
         }
 
-        ObjectMeta {
+        let etag = get("etag").map(|value| {
+            crate::types::unquote_etag(&value).map(str::to_owned)
+                .ok_or_else(|| ObsError::MissingVersion(format!("malformed ETag for {key}")))
+        }).transpose()?;
+        Ok(ObjectMeta {
             key: key.to_string(),
             content_length: get("content-length")
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0),
-            etag: get("etag").map(|s| s.trim_matches('"').to_string()),
+            etag,
             last_modified: get("last-modified"),
             content_type: get("content-type"),
             mode: get("x-obs-meta-mode").and_then(|s| u32::from_str_radix(&s, 8).ok()),
@@ -196,7 +200,7 @@ impl ObsStore {
             dentry_name: get("x-hws-fs-inode-dentryname"),
             dht_id: get("x-hws-fs-dht-id").and_then(|s| s.parse().ok()),
             user_meta,
-        }
+        })
     }
 
     fn apply_inode_hint(
@@ -242,7 +246,7 @@ impl ObjectStore for ObsStore {
         if resp.content_length().is_none() {
             return Err(ObsError::Io("HEAD response missing or invalid Content-Length".into()));
         }
-        let meta = Self::meta_from_headers(key, &resp.headers);
+        let meta = Self::meta_from_headers(key, &resp.headers)?;
         if let Some(dht) = meta.dht_id {
             self.inode_state.update_dht(dht);
         }
@@ -304,7 +308,7 @@ impl ObjectStore for ObsStore {
             return Err(ObsError::Io(format!(
                 "unexpected status {} for full object GET (expected 200)", resp.status.as_u16())));
         }
-        let mut meta = Self::meta_from_headers(key, &resp.headers);
+        let mut meta = Self::meta_from_headers(key, &resp.headers)?;
         // The transport has already decoded and collected the complete body.
         // Content-Length may be absent for chunked or close-delimited responses.
         meta.content_length = resp.body.len() as u64;
@@ -346,7 +350,7 @@ impl ObjectStore for ObsStore {
             .signed_execute(builder.body(body), &content_md5, ct)
             .await?;
         let resp = self.map_response(resp)?;
-        let mut meta = Self::meta_from_headers(key, &resp.headers);
+        let mut meta = Self::meta_from_headers(key, &resp.headers)?;
         meta.content_length = content_length;
         // The response describes its own entity, not the uploaded object.
         meta.content_type = headers.content_type;
@@ -492,7 +496,7 @@ impl ObjectStore for ObsStore {
             });
         }
         let etag = xml::parse_result_etag(text, "CopyObjectResult")?;
-        let mut meta = Self::meta_from_headers(dst_key, &resp.headers);
+        let mut meta = Self::meta_from_headers(dst_key, &resp.headers)?;
         meta.content_length = 0; // Response XML length is not copied object length.
         meta.content_type = None; // XML response type is not the copied object type.
         meta.etag = Some(etag);
@@ -605,7 +609,7 @@ impl ObjectStore for ObsStore {
             });
         }
         let etag = xml::parse_result_etag(text, "CompleteMultipartUploadResult")?;
-        let mut meta = Self::meta_from_headers(key, &resp.headers);
+        let mut meta = Self::meta_from_headers(key, &resp.headers)?;
         // Part sizes are unavailable here; the output stream supplies the total.
         // As with copy, never expose the response XML length as object size.
         meta.content_length = 0;

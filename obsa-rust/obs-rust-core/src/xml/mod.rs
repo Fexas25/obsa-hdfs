@@ -251,7 +251,8 @@ pub fn parse_list_xml(body: &str) -> ObsResult<ListXmlResult> {
                                     .parse()
                                     .map_err(|_| ObsError::Io("invalid LIST object size".into()))?
                             }
-                            "ETag" => entry.etag = Some(text.trim().trim_matches('"').to_string()),
+                            "ETag" => entry.etag = Some(crate::types::unquote_etag(text.trim())
+                                .ok_or_else(|| ObsError::Io("malformed LIST ETag".into()))?.to_owned()),
                             "LastModified" => entry.last_modified = Some(text.trim().to_string()),
                             "Mode" => entry.mode = ListEntry::parse_mode_octal(text.trim()),
                             "Uid" => entry.uid = text.trim().parse().ok(),

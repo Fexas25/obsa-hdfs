@@ -10,6 +10,41 @@ import org.junit.Test;
 public class NativeConfigurationTest {
   private static final ObjectMapper JSON = new ObjectMapper();
   @Test
+  public void malformedReadEtagNeverDeliversBytesOrAdvancesPosition() throws Exception {
+    try (LocalObsServer server = new LocalObsServer(false)) {
+      byte[] content = new byte[] {7, 8};
+      server.data.put("file", content);
+      String tag = Integer.toHexString(java.util.Arrays.hashCode(content));
+      server.getEtagOverride = "\"\"" + tag + "\"\"";
+      org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration(false);
+      config.set("fs.obs.endpoint", server.endpoint());
+      config.setBoolean("fs.obs.connection.ssl.enabled", false);
+      config.set("fs.obs.bucket.mode", "object");
+      config.set("fs.obs.access.key", "test");
+      config.set("fs.obs.secret.key", "test");
+      try (OBSFileSystemRust fs = new OBSFileSystemRust()) {
+        fs.initialize(java.net.URI.create("obs://bucket"), config);
+        org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path("/file");
+        try (org.apache.hadoop.fs.FSDataInputStream stream = fs.open(path)) {
+          byte[] target = new byte[] {99, 99};
+          java.io.IOException error = assertThrows(java.io.IOException.class, () -> stream.read(target));
+          assertTrue(error.getMessage(), error.getMessage().contains("malformed ETag"));
+          assertArrayEquals(new byte[] {99, 99}, target);
+          assertEquals(0, stream.getPos());
+          server.getEtagOverride = null;
+          assertThrows(java.io.IOException.class, () -> stream.read(target));
+          assertEquals(1, server.gets.get());
+        }
+        try (org.apache.hadoop.fs.FSDataInputStream stream = fs.open(path)) {
+          assertEquals(7, stream.read());
+          assertEquals(8, stream.read());
+          assertEquals(-1, stream.read());
+        }
+      }
+    }
+  }
+
+  @Test
   public void missingHeadLengthFailsWithoutCachingEmptyFile() throws Exception {
     assertInvalidHeadRecovers(200, true, "Content-Length");
   }

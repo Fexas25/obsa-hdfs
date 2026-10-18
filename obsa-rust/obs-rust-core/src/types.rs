@@ -3,6 +3,17 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+/// Strip at most one balanced pair, without manufacturing a different identity.
+/// Bare OBS values remain supported; missing/empty policy belongs to the caller.
+pub(crate) fn unquote_etag(value: &str) -> Option<&str> {
+    let value = if value.starts_with('"') || value.ends_with('"') {
+        value.strip_prefix('"')?.strip_suffix('"')?
+    } else {
+        value
+    };
+    (!value.contains('"')).then_some(value)
+}
+
 #[derive(Debug, Serialize)]
 pub struct FileStatusPage {
     pub entries: Vec<FileStatus>,

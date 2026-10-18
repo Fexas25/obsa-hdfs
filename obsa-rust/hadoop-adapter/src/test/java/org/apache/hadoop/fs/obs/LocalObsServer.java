@@ -25,6 +25,7 @@ final class LocalObsServer implements AutoCloseable {
   volatile String listErrorCode;
   volatile boolean omitHeadLength;
   volatile int headStatus = 200;
+  volatile String getEtagOverride;
   final Queue<String> listResponses = new java.util.concurrent.ConcurrentLinkedQueue<>();
   boolean pfs;
   volatile boolean failCopy;
@@ -173,7 +174,7 @@ final class LocalObsServer implements AutoCloseable {
           error(e, 412, "PreconditionFailed");
           return;
         }
-        e.getResponseHeaders().set("ETag", "\"" + tag + "\"");
+        e.getResponseHeaders().set("ETag", getEtagOverride != null ? getEtagOverride : "\"" + tag + "\"");
         int status = 200;
         if (range != null) {
           String[] pair = range.substring(6).split("-");
