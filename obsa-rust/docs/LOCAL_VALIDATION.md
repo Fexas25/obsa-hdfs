@@ -1698,3 +1698,13 @@ head-status-repro.log 保留修复前失败，focused/full 日志、XML 核验�
 新增实际 Hadoop/JNI 场景在服务端真正写入目标后返回畸形复制确认。rename 报 IOException，源与已提交目标均保留并可读，证明不会在无有效确认时继续删源，也没有伪装远端回滚。普通桶 copy/delete 仍非事务。
 
 完整 Rust workspace debug/release 各 **398/0/16**，append-diagnostics 核心 **398/0/16**；两种原生库显式重建，实际 JVM 冒烟通过，Hadoop debug/release 各 **359 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验库路径。Clippy 仍为原有 16 项告警。result-etag-* 失败复现、通过日志、备份和产物只留本地；未进行真实云、跨平台或生产性能验收。
+
+### 2026-10-18：Hadoop 数值边界与 Rust 逐目录汇总
+
+实际 JNI/HTTP 回归先复现超界文件长度无异常缩窄，再复现 Hadoop 默认汇总累加回绕。新增 Long.MAX_VALUE、其加一和 u64 最大值元数据边界，覆盖 getFileStatus、listStatus、listStatusIterator 和原生汇总；另覆盖默认/平铺两路径的精确最大值、负数回绕和正数回绕。仅注入 HEAD/LIST，GET 数为零，不申请巨大缓冲。
+
+Java 只做 long 表示检查；默认目录汇总转到 Rust summaryDirectory，以既有状态/列表可见性检查和 checked_add 计算，避免在适配层复制汇总算法。两项新 Rust 回归覆盖普通桶/PFS、隐式和空目录、文件遮挡后代、文件路径汇总及 u64 加法溢出。
+
+初次块大小测试是假设不成立：Rust 已限制为正 i64 并对非法配置回退，相关新增测试与改动已撤掉，失败日志保留，不作为块大小缺陷证据。中间版本只改 Java 数值投影曾完成 360 项回归，随后实现扩大到 Rust/JNI，重新执行完整验证，不能复用中间结果证明最终版本。
+
+最终完整 Rust workspace debug/release 各 **400/0/16**，append-diagnostics 核心 **400/0/16**；两种 JNI 库显式重建，实际 JVM 冒烟通过；Hadoop debug/release 各 **361 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验原生库路径。Clippy 仍为原有 16 项告警。hadoop-long-* 与 hadoop-summary-overflow-repro.log、核验和备份仅留本地；未进行真实超大数据集、云端、跨平台或吞吐验收。

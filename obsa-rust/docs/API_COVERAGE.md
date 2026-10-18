@@ -28,7 +28,7 @@ HEAD 响应边界：无条件对象 HEAD 仅接受 200，缺少或无法解析 C
 20. delete：Rust 接通；PFS 双键、递归顺序、普通桶批删及回退已有测试；非事务操作。
 21. rename：Rust 接通；PFS 原生操作，普通桶串行 copy/delete，非原子且源并发变更风险未解决。Java Options.Rename 重载已接管，文件 OVERWRITE 直接调用 Rust，不调用 Hadoop 默认的目标预删除流程；NONE 拒绝已存在目标，已有目录覆盖和 TO_TRASH 明确拒绝。
 22. mkdirs：Rust 接通，两桶模式已有契约测试。primitiveMkdir(createParent) 先按工作目录限定路径，非递归校验父目录，根路径不查询 null 父目录；实际创建仍走 Rust。
-23. getContentSummary：开关开启时 Rust 平铺 LIST 逐页统计；默认关闭时使用 Hadoop super 目录遍历，桶级覆盖由 Rust 解析，已验证两种模式的结果与请求类型。
+23. getContentSummary：开关开启时 Rust 平铺 LIST 逐页统计；默认关闭时使用 Rust 逐目录遍历（保留 Hadoop 默认遍历规则），桶级覆盖由 Rust 解析，已验证两种模式的结果与请求类型。
 24. setPermission：Hadoop 入口现在仅 PFS + permissions.mode=disguise 写 permission 十进制字符串元数据；none/普通桶 no-op。独立 Rust set_permission 仍更新数值 mode，不能混为一谈。
 25. setOwner：Java/JNI → Rust set_hadoop_owner 已接通名称元数据；PFS disguise 模式写 user/group，一个 null 保留对应字段，两个 null 拒绝；none/普通桶 no-op。当前仅非空可打印 ASCII，Unicode 编码和服务端 ACL 尚未实现。独立 Rust set_owner 保持数值 uid/gid 语义。
 26. getFileBlockLocations：未单独覆盖 Java；本轮已验证单文件继承块位置的 offset/length，以及 Rust 状态与默认逻辑块大小配置一致性；完整继承语义仍待核对。
@@ -88,7 +88,7 @@ create 的上传 mode 再补 `S_IFREG`，写后缓存使用同一权限值，避
 - fs.obs.buffer.total.bytes 默认 0 关闭，现覆盖真实后端共享的 HTTP 帧、合并缓冲与读写流受控分配；Vec 按 capacity 计费，包含扩容峰值，HTTP→输入流不重复计费。外部帧不可见容量、TLS 内部等不计入，见 BUFFER_BUDGET.md。
 - fs.obs.upload.journal.dir 是可选本地已知 MPU 日志目录，桶级覆盖已验证。Rust recover_pending_uploads 提供有界显式清理；仅对日志中的 MPU 发 abort。Hadoop recoverPendingUploads(limit) 已通过 JNI 接入 Rust，返回不可变清理报告；Hadoop abortUpload(output) 也已接入 Rust 流级 abort，仅支持本实例的创建流，拒绝 PFS 追加流，见 UPLOAD_RECOVERY.md。
 
-- fs.obs.content.summary.enable 已生效：默认 false 走 Hadoop 默认目录遍历，true 走 Rust 平铺 LIST 统计。Java 只选择 Hadoop 默认兼容路径或委派 Rust；不重复实现汇总算法。配置在初始化时固定，支持桶级覆盖。
+- fs.obs.content.summary.enable 已生效：默认 false 走 Rust 逐目录遍历，true 走 Rust 平铺 LIST 统计。Java 选择 Rust 入口并校验 long 表示范围，不重复实现汇总算法。配置在初始化时固定，支持桶级覆盖。
 - 凭据路径已接通：参考源码标准键 fs.obs.security.credential.provider.path，兼容附录别名 fs.obs.credential.provider.path。桶级优先、同级标准键优先；所选 OBS 提供器在全局提供器前，Configuration 副本确保不污染其他文件系统。仍为初始化快照，没有 STS 自动刷新。
 - fs.obs.block.size 已映射到 Rust block_size，支持桶级覆盖和正整数/k/m/g；Java 默认块大小由 Rust 解析结果提供。根目录、HEAD/LIST、写后缓存均使用同一值。非法值回退 128 MiB；它是逻辑块大小，不改变上传分片。
 - Rust list_cache_ttl_ms 字段存在，但没有独立 LIST 缓存消费路径；不要将其列为有效调优项。
@@ -105,3 +105,12 @@ create 的上传 mode 再补 `S_IFREG`，写后缓存使用同一权限值，避
 元数据安全修复：Rust 数值权限/所有者更新先 HEAD 获取最新 x-obs-meta-*，保留无关字段后 REPLACE；修改权限保留类型位，不从状态缓存补写未修改字段。失败/取消时失效缓存。该路径新增一次 HEAD，尚无 HEAD/PUT 间并发更新的原子保证，也未承诺保留所有非用户系统头。
 
 本轮 permissions.mode 支持 none/disguise（默认 none、桶级覆盖，初始化拒绝其他值）。名称及展示权限在 HEAD、普通列表、分页列表和递归列表转换中使用；缺失显式目录对象时允许目录列表回退默认展示。列表额外 HEAD 的开销仅在 disguise 模式发生。原 AuthorizeProvider、委托令牌、完整安全模型和实际云服务行为仍未验收。
+
+
+## Hadoop 数值投影与汇总溢出（2026-10-18）
+
+Rust 文件长度和容量汇总采用 u64，Hadoop 使用有符号 long。状态查询、普通/分页列表的长度及汇总字段，现在在 Java 边界检查整数类型与 0..Long.MAX_VALUE，超界抛 IOException，不再由 JsonNode.asLong 静默变成负数。合法 Long.MAX_VALUE 仍接受，Rust 的表示范围不收窄。块大小已由 Rust 解析为正 i64，沿用原有非法值回退。
+
+Hadoop 3.3.6 默认 getContentSummary 的 long 累加没有溢出保护。关闭 content.summary.enable 时现委派 Rust summaryDirectory：以 get_file_status/list_status 逐目录遍历、显式工作栈和 checked_add 汇总；开启时仍使用现有平铺 LIST 汇总。两者都由 Rust 执行可见性与错误检查，Java 只检查最终数值能否表示。目录遍历与平铺的请求类型开关保留；不再逐目录往返 JNI，未据此宣称性能提升。新版 Java 适配层需配套新版原生库。
+
+仅汇总结果可表示为 long 时返回 Hadoop ContentSummary；负数回绕和正数回绕均报错。逐目录路径仍会聚合单个目录的列表并保留待访问目录，不能宣称常量内存或并发修改下的快照统计。

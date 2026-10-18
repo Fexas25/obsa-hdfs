@@ -466,3 +466,6 @@ release filesystem 默认 151、诊断 152 项通过，各 4 ignored。详见 [�
 ### 2026-10-12：分片上传响应 ETag 校验
 
 拒绝 UploadPart 成功响应中缺失或空白 ETag，避免空值进入合并段列表。新增三项 HTTP 回归，包含实际上传流 abort、不发送 complete、名额和共享预算复用；旧实现缺失 ETag 时返回空字符串的问题已复现。完整 Rust workspace 310 通过、0 失败、15 ignored，本地 HTTP 49 项通过。详见[修复及验证边界](PART_ETAG.md)。
+
+
+2026-10-18：默认 Hadoop 汇总的 long 加法溢出经本地复现。默认逐目录统计现由 Rust summaryDirectory 执行，继续调用核心状态/目录接口并检查 u64 累加；Java 只选择逐目录/平铺策略并检查 long 表示范围。此前“默认使用 Hadoop super”的条目是历史状态。两路径请求类型、可见性与异常行为通过本地回归，未宣称并发快照或生产性能验收。
