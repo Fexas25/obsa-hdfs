@@ -233,6 +233,10 @@ impl ObjectStore for ObsStore {
         let resp = self.signed_execute(builder, "", "").await?;
         let resp = self.map_response(resp)?;
 
+        if resp.status != http::StatusCode::OK {
+            return Err(ObsError::Io(format!(
+                "unexpected status {} for object HEAD (expected 200)", resp.status.as_u16())));
+        }
         // A successful HEAD has no body from which to infer the object length.
         // Missing metadata must not turn a nonempty object into an empty stream.
         if resp.content_length().is_none() {

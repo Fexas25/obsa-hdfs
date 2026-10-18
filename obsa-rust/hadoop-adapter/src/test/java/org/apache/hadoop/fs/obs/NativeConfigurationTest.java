@@ -11,10 +11,23 @@ public class NativeConfigurationTest {
   private static final ObjectMapper JSON = new ObjectMapper();
   @Test
   public void missingHeadLengthFailsWithoutCachingEmptyFile() throws Exception {
+    assertInvalidHeadRecovers(200, true, "Content-Length");
+  }
+
+  @Test
+  public void unexpectedHeadStatusFailsWithoutCachingMetadata() throws Exception {
+    for (int status : new int[] {201, 202, 206}) {
+      assertInvalidHeadRecovers(status, false, "object HEAD (expected 200)");
+    }
+  }
+
+  private void assertInvalidHeadRecovers(int headStatus, boolean omitLength, String expectedMessage)
+      throws Exception {
     for (boolean pfs : new boolean[] {false, true}) {
       try (LocalObsServer server = new LocalObsServer(pfs)) {
         server.data.put("file", new byte[] {7, 8});
-        server.omitHeadLength = true;
+        server.omitHeadLength = omitLength;
+        server.headStatus = headStatus;
         org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration(false);
         config.set("fs.obs.endpoint", server.endpoint());
         config.setBoolean("fs.obs.connection.ssl.enabled", false);
@@ -27,11 +40,12 @@ public class NativeConfigurationTest {
           org.apache.hadoop.fs.Path path = new org.apache.hadoop.fs.Path("/file");
           java.io.IOException status = assertThrows(java.io.IOException.class,
               () -> fs.getFileStatus(path));
-          assertTrue(status.getMessage(), status.getMessage().contains("Content-Length"));
+          assertTrue(status.getMessage(), status.getMessage().contains(expectedMessage));
           assertFalse(status instanceof java.io.FileNotFoundException);
           assertThrows(java.io.IOException.class, () -> fs.open(path));
           assertEquals(0, server.gets.get());
           server.omitHeadLength = false;
+          server.headStatus = 200;
           assertEquals(2, fs.getFileStatus(path).getLen());
           try (org.apache.hadoop.fs.FSDataInputStream stream = fs.open(path)) {
             assertEquals(7, stream.read());

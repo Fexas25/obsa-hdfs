@@ -877,6 +877,26 @@ async fn head_requires_known_length_without_confusing_zero_or_missing_objects() 
 }
 
 #[tokio::test]
+async fn head_rejects_non_object_success_status() {
+    for raw in [
+        "HTTP/1.1 201 Created\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 202 Accepted\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 203 Non-Authoritative Information\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 205 Reset Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 206 Partial Content\r\nContent-Length: 2\r\nContent-Range: bytes 0-1/10\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 207 Multi-Status\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 226 IM Used\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+    ] {
+        let (store, task) = raw_head_endpoint(raw).await;
+        let result = store.head("file").await;
+        assert!(task.await.unwrap().starts_with("HEAD /bucket/file HTTP/1.1\r\n"));
+        assert!(result.is_err(), "HEAD must not invent metadata from {raw:?}");
+        assert!(!result.unwrap_err().is_path_not_found());
+    }
+}
+
+#[tokio::test]
 async fn open_rejects_unknown_head_length_instead_of_returning_empty_stream() {
     let (store, task) = raw_head_endpoint("HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n").await;
     let fs = obs_rust_core::ObsFileSystem::with_store(ObsConfig::default(), std::sync::Arc::new(store));

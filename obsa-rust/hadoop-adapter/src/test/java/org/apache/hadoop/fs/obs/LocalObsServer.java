@@ -24,6 +24,7 @@ final class LocalObsServer implements AutoCloseable {
   volatile boolean malformedContinuation;
   volatile String listErrorCode;
   volatile boolean omitHeadLength;
+  volatile int headStatus = 200;
   final Queue<String> listResponses = new java.util.concurrent.ConcurrentLinkedQueue<>();
   boolean pfs;
   volatile boolean failCopy;
@@ -98,7 +99,7 @@ final class LocalObsServer implements AutoCloseable {
         metadata
             .getOrDefault(key, Collections.emptyMap())
             .forEach((name, value) -> e.getResponseHeaders().set("x-obs-meta-" + name, value));
-        e.sendResponseHeaders(200, -1);
+        e.sendResponseHeaders(headStatus, -1);
       } else if (method.equals("GET") && key.isEmpty()) {
         lists.incrementAndGet();
         if (listErrorCode != null) {
