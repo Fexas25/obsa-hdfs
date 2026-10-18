@@ -1716,3 +1716,11 @@ Java 只做 long 表示检查；默认目录汇总转到 Rust summaryDirectory�
 新增一项 JVM 测试在普通桶/PFS 下分别覆盖 Long.MAX_VALUE、其加一和 u64 最大值：合法最大值可跳到 EOF，继续 skip 为零、读取为 EOF、位置不回绕；超界值必须在 open 阶段报错。各场景均断言恰好一次 HEAD、零 GET，不申请超大数据。
 
 完整 Rust workspace debug/release 各 **400/0/16**，显式构建的两种 JNI 库通过基础/异常 JVM 冒烟；Hadoop debug/release 各 **362 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的原生库目录。Clippy 仍为原有 16 项告警。本批未修改追加诊断逻辑，该特性沿用上一批 400/0/16 结果，未重复运行。jni-length-* 复现、构建和通过日志、备份仅留本地；未进行云端、跨平台或真实超大对象验收。
+
+### 2026-10-18：JNI 整次写入的有符号位置预检
+
+实际 Hadoop/PFS 回归先复现从 Long.MAX_VALUE - 1 追加两个字节未报错。JNI 现在用 Rust 输出/追加流已接受的位置检查整次 Java 写入，超过 signed long 范围时，在复制缓冲、拆成 1 MiB 批次和提交请求之前拒绝。新增位置访问器不增加网络请求，也不把未完成写入解释为持久化成功。纯 Rust 的 u64 检查保持不变。
+
+最终回归扩展为在 Long.MAX_VALUE - 1 MiB 处写入 1 MiB + 1 字节，确认整次拒绝、hflush 后零 modify、Java 位置保持；随后合法写入 1 MiB 到上限，只有一次 modify，再写一个字节被拒绝，零长度写入与 flush 仍可完成。模拟器通过显式测试开关消费并确认 modify，不分配超大文件、不改动原始字节；默认模拟路径保持原行为。这是数值与提交边界验证，不是真实超大对象验收。
+
+完整 Rust workspace debug/release 各 **400/0/16**，实际 JNI 两种构建冒烟均通过，Hadoop debug/release 各 **363 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验原生库路径；Clippy 保持 16 项原有告警。append-diagnostics 未重跑，沿用此前 400/0/16 结果。jni-write-limit-* 日志、备份和构建产物仅留本地。
