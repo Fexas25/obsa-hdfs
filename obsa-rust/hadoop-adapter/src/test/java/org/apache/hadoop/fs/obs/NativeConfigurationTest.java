@@ -88,6 +88,37 @@ public class NativeConfigurationTest {
   }
 
   @Test
+  public void appendCannotCrossJavaPositionLimitOrSubmitAPartialWrite() throws Exception {
+    try (LocalObsServer server = new LocalObsServer(true)) {
+      server.data.put("file", new byte[] {7});
+      int batchSize = 1024 * 1024;
+      server.headLengthOverride = Long.toString(Long.MAX_VALUE - batchSize);
+      server.acknowledgeModifyWithoutAllocating = true;
+      org.apache.hadoop.conf.Configuration config = localConfiguration(server);
+      config.set("fs.obs.bucket.mode", "pfs");
+      try (OBSFileSystemRust fs = new OBSFileSystemRust()) {
+        fs.initialize(java.net.URI.create("obs://bucket"), config);
+        try (org.apache.hadoop.fs.FSDataOutputStream output = fs.append(new org.apache.hadoop.fs.Path("/file"))) {
+          java.io.IOException error = assertThrows(java.io.IOException.class, () -> output.write(new byte[batchSize + 1]));
+          assertTrue(error.getMessage(), error.getMessage().contains("Java long"));
+          output.hflush();
+          assertEquals(0, server.modifies.get());
+          assertEquals(Long.MAX_VALUE - batchSize, output.getPos());
+          output.write(new byte[batchSize]);
+          output.hflush();
+          assertEquals(Long.MAX_VALUE, output.getPos());
+          assertEquals(1, server.modifies.get());
+          assertThrows(java.io.IOException.class, () -> output.write(4));
+          output.write(new byte[0]);
+          output.hflush();
+          assertEquals(Long.MAX_VALUE, output.getPos());
+          assertEquals(1, server.modifies.get());
+        }
+      }
+    }
+  }
+
+  @Test
   public void summaryAdditionCannotWrapEvenToAPositiveValue() throws Exception {
     String max = Long.toString(Long.MAX_VALUE);
     String[][] sizes = {{Long.toString(Long.MAX_VALUE - 1), "1"}, {max, "1"}, {max, max, max}};

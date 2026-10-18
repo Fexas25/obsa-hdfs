@@ -35,6 +35,10 @@ pub struct ObsOutputStream {
     on_commit: Option<Box<dyn FnOnce(&ObjectMeta) + Send>>,
 }
 impl ObsOutputStream {
+    /// Bytes accepted so far, including buffered and uncommitted data.
+    pub fn position(&self) -> u64 {
+        self.total_written
+    }
     pub fn new(
         store: Arc<dyn ObjectStore>,
         config: &ObsConfig,

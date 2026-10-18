@@ -16,6 +16,8 @@ final class LocalObsServer implements AutoCloseable {
   final NavigableMap<String, byte[]> data = new ConcurrentSkipListMap<>();
   final AtomicInteger heads = new AtomicInteger();
   final AtomicInteger gets = new AtomicInteger();
+  final AtomicInteger modifies = new AtomicInteger();
+  volatile boolean acknowledgeModifyWithoutAllocating;
   final AtomicInteger lists = new AtomicInteger();
   final Map<String, Map<String, String>> metadata = new java.util.concurrent.ConcurrentHashMap<>();
   final AtomicInteger metadataWrites = new AtomicInteger();
@@ -239,8 +241,16 @@ final class LocalObsServer implements AutoCloseable {
           }
           data.put(key, Arrays.copyOf(current, n));
         } else if (q.containsKey("modify")) {
+          modifies.incrementAndGet();
           if (current == null) {
             error(e, 404, "NoSuchKey");
+            return;
+          }
+          // Numeric boundary tests model an enormous existing file without
+          // allocating it. Consume the request, but do not modify fixture data.
+          if (acknowledgeModifyWithoutAllocating) {
+            body(e);
+            send(e, 200, "");
             return;
           }
           int offset = Integer.parseInt(q.get("position"));

@@ -391,8 +391,15 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeWrite(
         rt()?.block_on(async {
             let mut lock = shared.lock().await;
             let stream = lock.as_mut().ok_or_else(|| io("stream closed"))?;
-            if !matches!(stream, Stream::Output(_) | Stream::Append(_)) {
-                return Err(invalid("not an output stream"));
+            let position = match stream {
+                Stream::Output(s) => s.position(),
+                Stream::Append(s) => s.position(),
+                _ => return Err(invalid("not an output stream")),
+            };
+            // Check the entire Java call before splitting it into native batches:
+            // no prefix may be submitted if its final signed position cannot fit.
+            if position > jlong::MAX as u64 - length as u64 {
+                return Err(io("write position exceeds Java long"));
             }
             // Only copy the requested slice, in bounded batches, regardless of
             // the size of the caller's backing array. Never pin JVM memory

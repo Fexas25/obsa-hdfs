@@ -63,6 +63,10 @@ pub struct PfsAppendStream {
     on_invalidate: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 impl PfsAppendStream {
+    /// Next positioned write offset, including scheduled but uncommitted data.
+    pub fn position(&self) -> u64 {
+        self.position
+    }
     pub fn new(
         store: Arc<dyn ObjectStore>,
         config: &ObsConfig,
