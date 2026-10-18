@@ -24,6 +24,7 @@ final class LocalObsServer implements AutoCloseable {
   volatile boolean malformedContinuation;
   volatile String listErrorCode;
   volatile boolean omitHeadLength;
+  volatile String headLengthOverride;
   volatile int headStatus = 200;
   volatile String getEtagOverride;
   final Queue<String> listResponses = new java.util.concurrent.ConcurrentLinkedQueue<>();
@@ -94,7 +95,8 @@ final class LocalObsServer implements AutoCloseable {
           return;
         }
         if (!omitHeadLength)
-          e.getResponseHeaders().set("Content-Length", Integer.toString(current.length));
+          e.getResponseHeaders().set("Content-Length", headLengthOverride != null
+              ? headLengthOverride : Integer.toString(current.length));
         e.getResponseHeaders()
             .set("ETag", "\"" + Integer.toHexString(Arrays.hashCode(current)) + "\"");
         e.getResponseHeaders().set("x-obs-meta-mode", key.endsWith("/") ? "40755" : "100644");

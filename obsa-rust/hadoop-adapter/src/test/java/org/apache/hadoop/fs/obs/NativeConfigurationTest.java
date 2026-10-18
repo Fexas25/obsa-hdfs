@@ -9,6 +9,82 @@ import org.junit.Test;
 
 public class NativeConfigurationTest {
   private static final ObjectMapper JSON = new ObjectMapper();
+  private org.apache.hadoop.conf.Configuration localConfiguration(LocalObsServer server) {
+    org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration(false);
+    config.set("fs.obs.endpoint", server.endpoint());
+    config.setBoolean("fs.obs.connection.ssl.enabled", false);
+    config.set("fs.obs.bucket.mode", "object");
+    config.set("fs.obs.access.key", "test");
+    config.set("fs.obs.secret.key", "test");
+    return config;
+  }
+
+  @Test
+  public void unsignedStatusAndSummaryLengthsCannotWrapToNegativeJavaLong() throws Exception {
+    for (String value : new String[] {Long.toString(Long.MAX_VALUE), "9223372036854775808", "18446744073709551615"}) {
+      try (LocalObsServer server = new LocalObsServer(false)) {
+        server.data.put("file", new byte[] {7});
+        server.headLengthOverride = value;
+        org.apache.hadoop.conf.Configuration config = localConfiguration(server);
+        config.setBoolean("fs.obs.content.summary.enable", true);
+        String listing = "<ListBucketResult><IsTruncated>false</IsTruncated><Contents><Key>file</Key><Size>"
+            + value + "</Size></Contents></ListBucketResult>";
+        try (OBSFileSystemRust fs = new OBSFileSystemRust()) {
+          fs.initialize(java.net.URI.create("obs://bucket"), config);
+          org.apache.hadoop.fs.Path file = new org.apache.hadoop.fs.Path("/file");
+          org.apache.hadoop.fs.Path root = new org.apache.hadoop.fs.Path("/");
+          boolean fits = value.equals(Long.toString(Long.MAX_VALUE));
+          if (fits) assertEquals(Long.MAX_VALUE, fs.getFileStatus(file).getLen());
+          else assertThrows(java.io.IOException.class, () -> fs.getFileStatus(file));
+          server.listResponses.add(listing);
+          if (fits) assertEquals(Long.MAX_VALUE, fs.listStatus(root)[0].getLen());
+          else assertThrows(java.io.IOException.class, () -> fs.listStatus(root));
+          server.listResponses.add(listing);
+          if (fits) assertEquals(Long.MAX_VALUE, fs.listStatusIterator(root).next().getLen());
+          else assertThrows(java.io.IOException.class, () -> fs.listStatusIterator(root).next());
+          server.listResponses.add(listing);
+          if (fits) assertEquals(Long.MAX_VALUE, fs.getContentSummary(root).getLength());
+          else assertThrows(java.io.IOException.class, () -> fs.getContentSummary(root));
+          assertEquals(0, server.gets.get());
+        }
+      }
+    }
+  }
+
+  @Test
+  public void summaryAdditionCannotWrapEvenToAPositiveValue() throws Exception {
+    String max = Long.toString(Long.MAX_VALUE);
+    String[][] sizes = {{Long.toString(Long.MAX_VALUE - 1), "1"}, {max, "1"}, {max, max, max}};
+    for (boolean nativeSummary : new boolean[] {false, true}) {
+      for (int scenario = 0; scenario < sizes.length; scenario++) {
+        try (LocalObsServer server = new LocalObsServer(false)) {
+          org.apache.hadoop.conf.Configuration config = localConfiguration(server);
+          config.setBoolean("fs.obs.content.summary.enable", nativeSummary);
+          StringBuilder listing = new StringBuilder("<ListBucketResult><IsTruncated>false</IsTruncated>");
+          for (int i = 0; i < sizes[scenario].length; i++) {
+            listing.append("<Contents><Key>file").append(i).append("</Key><Size>")
+                .append(sizes[scenario][i]).append("</Size></Contents>");
+          }
+          server.listResponses.add(listing.append("</ListBucketResult>").toString());
+          try (OBSFileSystemRust fs = new OBSFileSystemRust()) {
+            fs.initialize(java.net.URI.create("obs://bucket"), config);
+            org.apache.hadoop.fs.Path root = new org.apache.hadoop.fs.Path("/");
+            if (scenario == 0) {
+              org.apache.hadoop.fs.ContentSummary summary = fs.getContentSummary(root);
+              assertEquals(Long.MAX_VALUE, summary.getLength());
+              assertEquals(Long.MAX_VALUE, summary.getSpaceConsumed());
+              assertEquals(2, summary.getFileCount());
+              assertEquals(1, summary.getDirectoryCount());
+            } else {
+              assertThrows(java.io.IOException.class, () -> fs.getContentSummary(root));
+            }
+            assertEquals(0, server.gets.get());
+          }
+        }
+      }
+    }
+  }
+
   @Test
   public void malformedReadEtagNeverDeliversBytesOrAdvancesPosition() throws Exception {
     try (LocalObsServer server = new LocalObsServer(false)) {

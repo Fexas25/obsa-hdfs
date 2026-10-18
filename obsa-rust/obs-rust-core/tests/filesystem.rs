@@ -4000,6 +4000,42 @@ async fn cancelled_page_fetch_does_not_advance_cursor() {
 }
 
 #[tokio::test]
+async fn directory_summary_matches_flat_summary_and_file_visibility() {
+    for pfs in [false, true] {
+        let store = Arc::new(MemoryStore { pfs, ..Default::default() });
+        {
+            let mut objects = store.objects.lock().unwrap();
+            objects.insert("root/a".into(), Bytes::from_static(b"abc"));
+            objects.insert("root/sub/b".into(), Bytes::from_static(b"data"));
+            objects.insert("root/empty/".into(), Bytes::new());
+            if !pfs { objects.insert("root/a/hidden".into(), Bytes::from_static(b"hidden")); }
+        }
+        let fs = ObsFileSystem::with_store(ObsConfig::default(), store);
+        let summary = fs.get_content_summary_by_directory("/root").await.unwrap();
+        assert_eq!((summary.length, summary.space_consumed, summary.file_count, summary.directory_count), (7, 7, 2, 3));
+        let file = fs.get_content_summary_by_directory("/root/a").await.unwrap();
+        assert_eq!((file.length, file.file_count, file.directory_count), (3, 1, 0));
+        let flat = fs.get_content_summary("/root").await.unwrap();
+        assert_eq!((summary.length, summary.file_count, summary.directory_count), (flat.length, flat.file_count, flat.directory_count));
+    }
+}
+
+#[tokio::test]
+async fn directory_summary_rejects_unsigned_length_overflow() {
+    let store = Arc::new(MemoryStore::default());
+    store.list_pages.lock().unwrap().push_back(ListPage {
+        contents: vec![
+            ListEntry { key: "a".into(), size: u64::MAX, ..Default::default() },
+            ListEntry { key: "b".into(), size: 1, ..Default::default() },
+        ],
+        ..Default::default()
+    });
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store);
+    assert!(matches!(fs.get_content_summary_by_directory("/").await,
+        Err(ObsError::Io(message)) if message.contains("overflow")));
+}
+
+#[tokio::test]
 async fn content_summary_consumes_many_pages_and_counts_implicit_directories() {
     let store = Arc::new(MemoryStore::default());
     for i in 0..100 {

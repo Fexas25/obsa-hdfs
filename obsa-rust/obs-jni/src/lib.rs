@@ -232,6 +232,7 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeCall(
             "rename"=>Ok(json!(fs.rename(path,arguments::text(&args,"destination",false)?.ok_or_else(||invalid("destination required"))?,arguments::boolean(&args,"overwrite",false)?).await?)),
             "truncate"=>{fs.truncate(path,args["length"].as_u64().ok_or_else(||invalid("nonnegative length required"))?).await?;Ok(json!(true))},
             "summary"=>{let s=fs.get_content_summary(path).await?;Ok(json!({"length":s.length,"file_count":s.file_count,"directory_count":s.directory_count,"space_consumed":s.space_consumed}))},
+            "summaryDirectory"=>{let s=fs.get_content_summary_by_directory(path).await?;Ok(json!({"length":s.length,"file_count":s.file_count,"directory_count":s.directory_count,"space_consumed":s.space_consumed}))},
             "open"=>Ok(json!(add_stream(id,Stream::Input(fs.open(path,OpenOptions::default()).await?))?)),
             "create"=>Ok(json!(add_stream(id,Stream::Output(fs.create(path,CreateOptions{overwrite:arguments::boolean(&args,"overwrite",false)?,create_parent:arguments::boolean(&args,"create_parent",true)?,permission:arguments::permission(&args,Some(0o644))?,..Default::default()}).await?))?)),
             "append"=>{let s=fs.get_file_status(path).await?;if s.is_dir{return Err(invalid("cannot append to directory"));}Ok(json!(add_stream(id,Stream::Append(fs.append_stream(path,s.length).await?))?))},

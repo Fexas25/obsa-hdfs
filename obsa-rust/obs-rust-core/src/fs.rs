@@ -906,6 +906,38 @@ impl ObsFileSystem {
         }
         Ok(true)
     }
+    /// Hadoop-compatible per-directory traversal with checked native totals.
+    /// Status and listing retain the same visibility and error checks.
+    pub async fn get_content_summary_by_directory(&self, path: &str) -> ObsResult<ContentSummary> {
+        fn add_file(summary: &mut ContentSummary, length: u64) -> ObsResult<()> {
+            summary.file_count = summary.file_count.checked_add(1)
+                .ok_or_else(|| ObsError::Io("content summary file count overflow".into()))?;
+            summary.length = summary.length.checked_add(length)
+                .ok_or_else(|| ObsError::Io("content summary length overflow".into()))?;
+            Ok(())
+        }
+        let mut summary = ContentSummary::default();
+        let mut pending = vec![path.to_owned()];
+        while let Some(path) = pending.pop() {
+            let status = self.get_file_status(&path).await?;
+            if !status.is_dir {
+                add_file(&mut summary, status.length)?;
+                continue;
+            }
+            summary.directory_count = summary.directory_count.checked_add(1)
+                .ok_or_else(|| ObsError::Io("content summary directory count overflow".into()))?;
+            for child in self.list_status(&path).await? {
+                if child.is_dir {
+                    pending.push(child.path);
+                } else {
+                    add_file(&mut summary, child.length)?;
+                }
+            }
+        }
+        summary.space_consumed = summary.length;
+        Ok(summary)
+    }
+
     pub async fn get_content_summary(&self, path: &str) -> ObsResult<ContentSummary> {
         let key = self.key(path)?;
         if let Some(status) = self.listed_file_status(&key).await? {

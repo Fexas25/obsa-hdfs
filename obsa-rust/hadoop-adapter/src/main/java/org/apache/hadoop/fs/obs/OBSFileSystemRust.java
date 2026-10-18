@@ -197,9 +197,15 @@ public final class OBSFileSystemRust extends FileSystem {
         call("recoverPendingUploads", JSON.createObjectNode().put("limit", limit)));
   }
 
-  private FileStatus status(JsonNode value) {
+  private static long nonnegativeLong(JsonNode value, String field) throws IOException {
+    if (!value.isIntegralNumber() || !value.canConvertToLong() || value.longValue() < 0)
+      throw new IOException("Native " + field + " cannot be represented as a nonnegative Hadoop long");
+    return value.longValue();
+  }
+
+  private FileStatus status(JsonNode value) throws IOException {
     return new FileStatus(
-        value.path("length").asLong(),
+        nonnegativeLong(value.path("length"), "length"),
         value.path("is_dir").asBoolean(),
         value.path("replication").asInt(1),
         value.path("block_size").asLong(128L * 1024 * 1024),
@@ -606,13 +612,12 @@ public final class OBSFileSystemRust extends FileSystem {
 
   @Override
   public ContentSummary getContentSummary(Path path) throws IOException {
-    if (!contentSummaryEnabled) return super.getContentSummary(path);
-    JsonNode s = call("summary", args(path));
+    JsonNode s = call(contentSummaryEnabled ? "summary" : "summaryDirectory", args(path));
     return new ContentSummary.Builder()
-        .length(s.path("length").asLong())
-        .fileCount(s.path("file_count").asLong())
-        .directoryCount(s.path("directory_count").asLong())
-        .spaceConsumed(s.path("space_consumed").asLong())
+        .length(nonnegativeLong(s.path("length"), "length"))
+        .fileCount(nonnegativeLong(s.path("file_count"), "file_count"))
+        .directoryCount(nonnegativeLong(s.path("directory_count"), "directory_count"))
+        .spaceConsumed(nonnegativeLong(s.path("space_consumed"), "space_consumed"))
         .build();
   }
 
