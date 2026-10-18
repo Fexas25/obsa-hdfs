@@ -52,6 +52,42 @@ public class NativeConfigurationTest {
   }
 
   @Test
+  public void openedLengthMustFitJavaPositionWithoutExtraHeadOrGet() throws Exception {
+    for (boolean pfs : new boolean[] {false, true}) {
+      for (String value : new String[] {Long.toString(Long.MAX_VALUE), "9223372036854775808", "18446744073709551615"}) {
+        try (LocalObsServer server = new LocalObsServer(pfs)) {
+          server.data.put("file", new byte[] {7});
+          server.headLengthOverride = value;
+          org.apache.hadoop.conf.Configuration config = localConfiguration(server);
+          config.set("fs.obs.bucket.mode", pfs ? "pfs" : "object");
+          try (OBSFileSystemRust fs = new OBSFileSystemRust()) {
+            fs.initialize(java.net.URI.create("obs://bucket"), config);
+            org.apache.hadoop.fs.Path file = new org.apache.hadoop.fs.Path("/file");
+            if (value.equals(Long.toString(Long.MAX_VALUE))) {
+              try (org.apache.hadoop.fs.FSDataInputStream input = fs.open(file)) {
+                assertEquals(Long.MAX_VALUE, input.skip(Long.MAX_VALUE));
+                assertEquals(Long.MAX_VALUE, input.getPos());
+                assertEquals(0, input.skip(1));
+                assertEquals(-1, input.read());
+                assertEquals(Long.MAX_VALUE, input.getPos());
+              }
+            } else {
+              java.io.IOException error = assertThrows(java.io.IOException.class, () -> {
+                try (org.apache.hadoop.fs.FSDataInputStream input = fs.open(file)) {
+                  fail("oversized input must be rejected during open");
+                }
+              });
+              assertTrue(error.getMessage(), error.getMessage().contains("Java long"));
+            }
+            assertEquals(0, server.gets.get());
+            assertEquals(1, server.heads.get());
+          }
+        }
+      }
+    }
+  }
+
+  @Test
   public void summaryAdditionCannotWrapEvenToAPositiveValue() throws Exception {
     String max = Long.toString(Long.MAX_VALUE);
     String[][] sizes = {{Long.toString(Long.MAX_VALUE - 1), "1"}, {max, "1"}, {max, max, max}};

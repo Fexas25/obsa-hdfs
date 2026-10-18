@@ -100,6 +100,10 @@ impl ObsInputStream {
         }
         self
     }
+    /// Length captured when this stream was opened; no metadata request is made.
+    pub fn content_length(&self) -> u64 {
+        self.length
+    }
     pub fn position(&self) -> u64 {
         self.read_start
             .map_or(self.position, |start| start.position)
