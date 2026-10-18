@@ -961,6 +961,10 @@ async fn copy_and_complete_reject_ambiguous_etags() {
             concat!("<", $root, "><ETag>a<Extra/>b</ETag></", $root, ">"),
             concat!("<", $root, "><Extra><ETag>a</ETag></Extra></", $root, ">"),
             concat!("<", $root, "><ETag>&quot; &quot;</ETag></", $root, ">"),
+            concat!("<", $root, "><ETag>&quot;&quot;part&quot;&quot;</ETag></", $root, ">"),
+            concat!("<", $root, "><ETag>&quot;part</ETag></", $root, ">"),
+            concat!("<", $root, "><ETag>part&quot;</ETag></", $root, ">"),
+            concat!("<", $root, "><ETag>part&quot;two</ETag></", $root, ">"),
         ] };
     }
     for copy in [false, true] {

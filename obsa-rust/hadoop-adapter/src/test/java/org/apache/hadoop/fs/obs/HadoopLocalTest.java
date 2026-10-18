@@ -1182,6 +1182,20 @@ public class HadoopLocalTest {
   }
 
   @Test
+  public void malformedCopyAcknowledgementPreservesSourceAfterRemoteCopy() throws Exception {
+    write("/source", "keep this data");
+    server.malformedCopyEtag = true;
+    IOException failure = assertThrows(IOException.class,
+        () -> fs.rename(new Path("/source"), new Path("/target")));
+    assertTrue(failure.getMessage(), failure.getMessage().contains("result ETag"));
+    // The remote copy committed before sending a bad acknowledgement. Do not
+    // delete the source or pretend that the destination was rolled back.
+    assertArrayEquals(data.get("source"), data.get("target"));
+    assertEquals("keep this data", read("/source"));
+    assertEquals("keep this data", read("/target"));
+  }
+
+  @Test
   public void failedMultiChunkReadKeepsJavaAndNativePositionsAligned() throws Exception {
     write("/read-failure", "abcdefghijklmnop");
     server.failedRangeStart = 4;

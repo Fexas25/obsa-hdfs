@@ -29,6 +29,7 @@ final class LocalObsServer implements AutoCloseable {
   final Queue<String> listResponses = new java.util.concurrent.ConcurrentLinkedQueue<>();
   boolean pfs;
   volatile boolean failCopy;
+  volatile boolean malformedCopyEtag;
   volatile String failPutKey;
   volatile boolean failPutAfterCommit;
   final AtomicInteger putFailures = new AtomicInteger();
@@ -259,6 +260,10 @@ final class LocalObsServer implements AutoCloseable {
             return;
           }
           data.put(key, bytes.clone());
+          if (malformedCopyEtag) {
+            send(e, 200, "<CopyObjectResult><ETag>&quot;&quot;copied&quot;&quot;</ETag></CopyObjectResult>");
+            return;
+          }
           send(
               e,
               200,

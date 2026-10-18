@@ -445,11 +445,8 @@ pub(crate) fn parse_result_etag(body: &str, root: &str) -> ObsResult<String> {
             _ => {}
         }
     }
-    let value = etag.trim();
-    let value = if value.starts_with('"') || value.ends_with('"') {
-        value.strip_prefix('"').and_then(|value| value.strip_suffix('"'))
-            .ok_or_else(|| ObsError::Io("unbalanced quotes in result ETag".into()))?
-    } else { value };
+    let value = crate::types::unquote_etag(etag.trim())
+        .ok_or_else(|| ObsError::Io("malformed quotes in result ETag".into()))?;
     if value.trim().is_empty() {
         return Err(ObsError::Io("missing or empty result ETag".into()));
     }
