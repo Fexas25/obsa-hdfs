@@ -69,6 +69,11 @@ recursive/files_only/overwrite/create_parent 必须是布尔值，permission 必
 非 null 时必须是字符串。检查发生在对应文件系统操作之前，错误映射为 IllegalArgumentException。
 这是传输类型校验，不替代 Rust 的路径可见性、权限模式或操作语义校验。
 
+JNI `open` 在登记句柄前检查 Rust 输入流打开时取得的长度，超过 Java `long` 最大值
+即抛 IOException，防止后续 read/skip 让 Hadoop 的位置回绕成负数。检查复用该流的
+长度快照，不额外 HEAD；纯 Rust 输入流仍保留 u64 长度范围。元数据查询的 Java 数值
+投影检查继续独立生效，低层 JSON 状态值本身并不缩窄成 long。
+
 省略字段保留已有默认值，包括省略 path 时的根目录；setPermission 仍必须显式传 permission。
 未知字段不作为新的功能声明，未被操作消费的字段不进行全面 schema 校验。
 Hadoop 包装层仍显式传入路径；低层 JNI 调用方应同样显式指定目标。

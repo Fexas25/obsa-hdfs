@@ -1708,3 +1708,11 @@ Java 只做 long 表示检查；默认目录汇总转到 Rust summaryDirectory�
 初次块大小测试是假设不成立：Rust 已限制为正 i64 并对非法配置回退，相关新增测试与改动已撤掉，失败日志保留，不作为块大小缺陷证据。中间版本只改 Java 数值投影曾完成 360 项回归，随后实现扩大到 Rust/JNI，重新执行完整验证，不能复用中间结果证明最终版本。
 
 最终完整 Rust workspace debug/release 各 **400/0/16**，append-diagnostics 核心 **400/0/16**；两种 JNI 库显式重建，实际 JVM 冒烟通过；Hadoop debug/release 各 **361 项、0 失败、0 错误、12 跳过**，16 份 XML 分别核验原生库路径。Clippy 仍为原有 16 项告警。hadoop-long-* 与 hadoop-summary-overflow-repro.log、核验和备份仅留本地；未进行真实超大数据集、云端、跨平台或吞吐验收。
+
+### 2026-10-18：JNI 打开长度与 Java 位置范围一致
+
+实际 Hadoop/JNI 回归复现状态查询已经拒绝的超界长度仍能 open，连续 skip 后 getPos 回绕为负数。JNI 现在检查 Rust 输入流打开时取得的长度，超过 Long.MAX_VALUE 即在句柄登记前抛 IOException；纯 Rust 保持 u64 长度能力。新 content_length 访问器只返回快照，不产生额外 HEAD。
+
+新增一项 JVM 测试在普通桶/PFS 下分别覆盖 Long.MAX_VALUE、其加一和 u64 最大值：合法最大值可跳到 EOF，继续 skip 为零、读取为 EOF、位置不回绕；超界值必须在 open 阶段报错。各场景均断言恰好一次 HEAD、零 GET，不申请超大数据。
+
+完整 Rust workspace debug/release 各 **400/0/16**，显式构建的两种 JNI 库通过基础/异常 JVM 冒烟；Hadoop debug/release 各 **362 项、0 失败、0 错误、12 跳过**，分别核验 16 份 XML 的原生库目录。Clippy 仍为原有 16 项告警。本批未修改追加诊断逻辑，该特性沿用上一批 400/0/16 结果，未重复运行。jni-length-* 复现、构建和通过日志、备份仅留本地；未进行云端、跨平台或真实超大对象验收。
