@@ -37,6 +37,38 @@ impl std::fmt::Debug for SignedRequest {
     }
 }
 
+/// Header-signature dialect: OBS native (`OBS ak:sig`, `x-obs-` headers) or
+/// the S3-compatible V2 form OBS also accepts (`AWS ak:sig`, `x-amz-`), as
+/// the OBS SDK's `AuthTypeEnum.OBS` / `V2`. The string-to-sign is identical.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SignatureType {
+    Obs,
+    AwsV2,
+}
+
+impl SignatureType {
+    /// `fs.obs.signature.type`: "obs" (default) or "v2".
+    pub fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "" | "obs" => Some(Self::Obs),
+            "v2" | "aws-v2" | "s3" => Some(Self::AwsV2),
+            _ => None,
+        }
+    }
+    pub fn header_prefix(self) -> &'static str {
+        match self {
+            Self::Obs => "x-obs-",
+            Self::AwsV2 => "x-amz-",
+        }
+    }
+    fn auth_prefix(self) -> &'static str {
+        match self {
+            Self::Obs => "OBS",
+            Self::AwsV2 => "AWS",
+        }
+    }
+}
+
 impl ObsSigner {
     pub fn sign(
         method: &str,
@@ -47,11 +79,28 @@ impl ObsSigner {
         canonical_resource: &str,
         creds: &Credentials,
     ) -> SignedRequest {
+        Self::sign_with(SignatureType::Obs, method, content_md5, content_type, date,
+            obs_headers, canonical_resource, creds)
+    }
+
+    /// Sign with the given dialect; `headers` must already use its prefix.
+    #[allow(clippy::too_many_arguments)]
+    pub fn sign_with(
+        signature_type: SignatureType,
+        method: &str,
+        content_md5: &str,
+        content_type: &str,
+        date: &str,
+        obs_headers: &BTreeMap<String, String>,
+        canonical_resource: &str,
+        creds: &Credentials,
+    ) -> SignedRequest {
+        let prefix = signature_type.header_prefix();
         let mut headers = obs_headers.clone();
         if let Some(token) = &creds.session_token {
-            headers.insert("x-obs-security-token".into(), token.clone());
+            headers.insert(format!("{prefix}security-token"), token.clone());
         }
-        let canonical_amz = Self::canonicalize_obs_headers(&headers);
+        let canonical_amz = Self::canonicalize_headers(&headers, prefix);
         let string_to_sign = format!(
             "{method}\n{content_md5}\n{content_type}\n{date}\n{canonical_amz}{canonical_resource}"
         );
@@ -61,7 +110,8 @@ impl ObsSigner {
         mac.update(string_to_sign.as_bytes());
         let signature = BASE64.encode(mac.finalize().into_bytes());
 
-        let authorization = format!("OBS {}:{}", creds.access_key, signature);
+        let authorization =
+            format!("{} {}:{}", signature_type.auth_prefix(), creds.access_key, signature);
 
         headers.insert("Date".into(), date.into());
         headers.insert("Authorization".into(), authorization.clone());
@@ -78,10 +128,16 @@ impl ObsSigner {
     }
 
     /// Build canonicalized x-obs-* headers (sorted lowercase).
+    #[cfg(test)]
     fn canonicalize_obs_headers(headers: &BTreeMap<String, String>) -> String {
+        Self::canonicalize_headers(headers, "x-obs-")
+    }
+
+    /// Canonicalized headers with the dialect prefix (sorted lowercase).
+    fn canonicalize_headers(headers: &BTreeMap<String, String>, prefix: &str) -> String {
         let mut pairs: Vec<_> = headers
             .iter()
-            .filter(|(k, _)| k.to_ascii_lowercase().starts_with("x-obs-"))
+            .filter(|(k, _)| k.to_ascii_lowercase().starts_with(prefix))
             .map(|(k, v)| (k.to_ascii_lowercase(), v.trim().to_string()))
             .collect();
         pairs.sort_by(|a, b| a.0.cmp(&b.0));

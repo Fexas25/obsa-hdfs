@@ -42,8 +42,27 @@ impl UploadJournal {
         fs::create_dir_all(&directory).map_err(error)?;
         let lock = OpenOptions::new().create(true).truncate(false).read(true).write(true)
             .open(directory.join("owner.lock")).map_err(error)?;
-        lock.try_lock().map_err(error)?;
+        Self::acquire(&lock)?;
         Ok(Arc::new(Self { directory, scope, active: Mutex::new(HashSet::new()), scan: Mutex::new(None), _lock: lock }))
+    }
+    /// Exclusive, non-blocking namespace lock. On Unix a concurrently forked
+    /// child (any thread spawning a process, as JVMs routinely do) briefly
+    /// shares the flock until it execs and its close-on-exec descriptors go,
+    /// so a just-released lock can look held for an instant. Retry a contended
+    /// lock for up to ~200 ms; a live owner still reports the conflict.
+    /// Runs on a blocking worker, so sleeping here does not stall the runtime.
+    fn acquire(lock: &File) -> ObsResult<()> {
+        const ATTEMPTS: u32 = 20;
+        for attempt in 1..=ATTEMPTS {
+            match lock.try_lock() {
+                Ok(()) => return Ok(()),
+                Err(std::fs::TryLockError::WouldBlock) if attempt < ATTEMPTS => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(e) => return Err(error(e)),
+            }
+        }
+        unreachable!("the final attempt always returns")
     }
     pub(crate) fn record(self: &Arc<Self>, key: &str, id: &str) -> ObsResult<JournalEntry> {
         let name = record_name(key, id);

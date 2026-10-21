@@ -238,8 +238,7 @@ public final class OBSFileSystemRust extends FileSystem {
     // never treats two unrelated files as equal. OBS ETags are not interchangeable checksums.
     JsonNode crc = call("crc32c", args(path).put("length", length));
     if (crc.isNull()) return null;
-    return new CompositeCrcFileChecksum(
-        (int) crc.asLong(), org.apache.hadoop.util.DataChecksum.Type.CRC32C, -1);
+    return NativeChecksums.compositeCrc32c((int) crc.asLong());
   }
 
   @Override

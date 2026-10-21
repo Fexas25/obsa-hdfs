@@ -70,6 +70,9 @@ pub struct ObsConfig {
     pub server_side_encryption_type: String,
     /// KMS key id for sse-kms (optional), base64 AES-256 key for sse-c. Secret.
     pub server_side_encryption_key: Option<String>,
+    /// `fs.obs.signature.type`: "obs" (default) or "v2" (S3-compatible `AWS`
+    /// signatures and `x-amz-` headers, accepted by OBS and S3 servers).
+    pub signature_type: String,
     pub pfs_inode_hints: bool,
 
     pub trash_enabled: bool,
@@ -198,6 +201,7 @@ impl Default for ObsConfig {
             ancestor_directory_hints: false,
             server_side_encryption_type: String::new(),
             server_side_encryption_key: None,
+            signature_type: String::new(),
             trash_enabled: false,
             trash_dir: crate::types::DEFAULT_TRASH_DIR.into(),
             content_summary_enable: false,
@@ -321,6 +325,9 @@ pub fn config_from_hadoop(props: &HashMap<String, String>, bucket: &str) -> ObsC
         .get("fs.obs.server-side-encryption-key")
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    if let Some(value) = props.get("fs.obs.signature.type") {
+        cfg.signature_type = value.trim().to_string();
+    }
     set_bool!(trash_enabled, "fs.obs.trash.enabled");
     set_str!(trash_dir, "fs.obs.trash.dir");
     set_bool!(content_summary_enable, "fs.obs.content.summary.enable");

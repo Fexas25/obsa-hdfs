@@ -9,7 +9,7 @@ use futures::stream;
 use http::Method;
 use md5::{Digest, Md5};
 
-use crate::auth::{CredentialChain, ObsSigner};
+use crate::auth::{CredentialChain, ObsSigner, SignatureType};
 use crate::config::ObsConfig;
 use crate::error::{conflict_codes, ObsError, ObsResult};
 use crate::pfs::inode::InodeState;
@@ -29,6 +29,9 @@ pub struct ObsStore {
     /// Invalid SSE configuration fails every request that needs it (and
     /// init_bucket_mode) rather than silently writing unencrypted data.
     sse: Result<SseHeaders, ObsError>,
+    /// Request code builds OBS-dialect (`x-obs-`) headers; in AWS V2 mode they
+    /// are renamed on the way out and response headers back on the way in.
+    signature: Result<SignatureType, ObsError>,
 }
 
 #[derive(Clone, Copy)]
@@ -43,6 +46,9 @@ impl ObsStore {
         let pool = Arc::new(HttpPool::new(config.clone()));
         Self {
             sse: SseHeaders::from_config(&config),
+            signature: SignatureType::parse(&config.signature_type).ok_or_else(|| {
+                ObsError::InvalidArgument("fs.obs.signature.type must be obs or v2".into())
+            }),
             config,
             pool,
             creds,
@@ -68,6 +74,7 @@ impl ObsStore {
 
     pub async fn init_bucket_mode(&mut self) -> ObsResult<()> {
         self.sse.as_ref().map_err(Clone::clone)?;
+        self.signature.clone()?;
         match self.config.bucket_mode {
             BucketMode::Pfs => self.is_pfs = true,
             BucketMode::Object => self.is_pfs = false,
@@ -100,8 +107,12 @@ impl ObsStore {
         let uri = builder
             .build_uri()
             .map_err(|e| ObsError::InvalidArgument(e.to_string()))?;
+        let signature = self.signature.clone()?;
         let (_, method, bucket, key, sub_resources, mut obs_headers, hws_headers, body, idempotent) =
             builder.into_parts();
+        if signature == SignatureType::AwsV2 {
+            obs_headers = Self::to_aws_headers(obs_headers);
+        }
         if !content_type.is_empty() {
             obs_headers.insert("Content-Type".into(), content_type.into());
         }
@@ -122,7 +133,8 @@ impl ObsStore {
         let policy = crate::transport::RetryPolicy::new(&self.config, idempotent);
         for attempt in 0..=policy.max_retries {
             // Each attempt obtains credentials and signs a fresh Date.
-            let signed = ObsSigner::sign(
+            let signed = ObsSigner::sign_with(
+                signature,
                 method.as_str(),
                 content_md5,
                 content_type,
@@ -138,13 +150,55 @@ impl ObsStore {
                 .execute_once(&method, uri.clone(), &headers, body.clone())
                 .await;
             if !policy.should_retry(attempt, &result) {
-                return result;
+                return match (signature, result) {
+                    (SignatureType::AwsV2, Ok(response)) => Ok(Self::from_aws_response(response)),
+                    (_, result) => result,
+                };
             }
             let server_delay = crate::transport::response_retry_after(&result);
             drop(result); // Do not retain response buffers during backoff.
             policy.wait(attempt + 1, server_delay).await?;
         }
         unreachable!("retry loop always returns on final attempt")
+    }
+
+    /// OBS-dialect request headers → S3 V2 names, as the OBS SDK's V2Headers
+    /// (`x-amz-` prefix, `aws:kms`, `...-aws-kms-key-id`).
+    fn to_aws_headers(headers: BTreeMap<String, String>) -> BTreeMap<String, String> {
+        headers
+            .into_iter()
+            .map(|(name, value)| {
+                let lower = name.to_ascii_lowercase();
+                let Some(rest) = lower.strip_prefix("x-obs-") else { return (name, value) };
+                match rest {
+                    "server-side-encryption" if value == "kms" => (format!("x-amz-{rest}"), "aws:kms".into()),
+                    "server-side-encryption-kms-key-id" => {
+                        ("x-amz-server-side-encryption-aws-kms-key-id".into(), value)
+                    }
+                    // Keep the original case after the prefix (e.g. "...-key-MD5").
+                    _ => (format!("x-amz-{}", &name["x-obs-".len()..]), value),
+                }
+            })
+            .collect()
+    }
+
+    /// S3 V2 response headers → OBS-dialect names consumed by the request code.
+    fn from_aws_response(
+        mut response: crate::transport::pool::HttpResponse,
+    ) -> crate::transport::pool::HttpResponse {
+        if response.request_id.is_empty() {
+            if let Some(id) = response.header("x-amz-request-id") {
+                response.request_id = id.to_string();
+            }
+        }
+        response.headers = std::mem::take(&mut response.headers)
+            .into_iter()
+            .map(|(name, value)| match name.to_ascii_lowercase().strip_prefix("x-amz-") {
+                Some(rest) => (format!("x-obs-{rest}"), value),
+                None => (name, value),
+            })
+            .collect();
+        response
     }
 
     fn map_response(

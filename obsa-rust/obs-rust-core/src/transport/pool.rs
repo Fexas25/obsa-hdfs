@@ -118,6 +118,12 @@ impl HttpPool {
                         .map_err(|e| ObsError::InvalidArgument(e.to_string()))?,
                 );
             }
+            // hyper omits Content-Length for an empty body; S3-compatible
+            // servers reject such PUT/POST requests (folder markers, empty
+            // files, metadata updates) with 411 MissingContentLength.
+            if matches!(*method, Method::PUT | Method::POST) {
+                headers_map.insert(http::header::CONTENT_LENGTH, http::HeaderValue::from(out_bytes));
+            }
         }
 
         let req = builder

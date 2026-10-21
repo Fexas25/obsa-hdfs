@@ -18,6 +18,11 @@ final class ObsLocalContract extends AbstractFSContract {
     this.pfs = pfs;
     // Safe only because every test owns a fresh loopback namespace.
     conf.setBoolean("fs.contract.test.root-tests-enabled", true);
+    declareCapabilities(conf, pfs);
+  }
+
+  /** Contract capability flags shared by the loopback and live contracts. */
+  static void declareCapabilities(Configuration conf, boolean pfs) {
     String[] supported = {
       "is-case-sensitive",
       "supports-getfilestatus",

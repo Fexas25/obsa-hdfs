@@ -104,6 +104,7 @@ create 的上传 mode 再补 `S_IFREG`，写后缓存使用同一权限值，避
 - Rust list_cache_ttl_ms 字段存在，但没有独立 LIST 缓存消费路径；不要将其列为有效调优项。
 - 附录 G.2 的 fast.upload、multiobjectdelete、readahead.policy/range、attempts.maximum、token、authorize、metrics、buffer.dir、旧 trash/list/permissions 配置没有完成逐键兼容；不能仅因 fs.obs.* 被传入 JSON 就视为支持。
 - 服务端加密：fs.obs.server-side-encryption-type（sse-kms / sse-c / none）与 fs.obs.server-side-encryption-key（KMS 密钥 ID 可选；SSE-C 为 base64 的 256 位 AES 密钥）已接通，请求头对照 OBS Java SDK 的 x-obs- 头，携带范围对照参考实现：SSE-KMS 用于 PUT、初始化分片上传、复制目标；SSE-C 用于 PUT、初始化分片、上传分片、GET、普通桶 HEAD、复制（目标与源）以及 PFS modify 追加。与参考实现不同，未知类型或缺少/非法 SSE-C 密钥在初始化时报错（参考实现会静默不加密），错误信息不含密钥。本地验证请求头与签名，未在真实加密桶上验证；PFS 状态 HEAD 不带 SSE-C（参考实现用 getAttribute）。
+- 签名方式：fs.obs.signature.type=obs（默认）| v2。v2 为 S3 兼容格式（`AWS ak:sig`、`x-amz-` 头，同 OBS SDK AuthTypeEnum.V2），OBS 与 S3 兼容服务端均接受；本实现参数，参考实现只有 SDK 协商开关 fs.obs.authtype.negotiation.enable（未实现）。已用独立服务端 S3Proxy 验证，见 LIVE_S3_TESTING.md。
 - 新增的 retry.max.attempts、retry.backoff.ms、request.timeout.ms、HTTP 响应上限、PFS append 字节额度属于本实现参数，不能与旧 SDK 同名/近义配置混淆。
 - 桶级覆盖在 Rust 配置解析前合并，凭据提供器也处理桶级键；未知配置当前没有全面拒绝或告警机制。
 

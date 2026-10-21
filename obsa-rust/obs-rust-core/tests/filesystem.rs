@@ -353,15 +353,37 @@ async fn journal_invalid_limit_does_not_create_namespace_or_take_lock() {
     drop(other); drop(fs);
 }
 
-// Windows share modes provide a real deletion failure without modifying ACLs
-// or replacing the journal contents. Reads remain allowed for recovery.
+// A real local deletion failure that leaves the journal contents readable for
+// recovery. Windows: a handle without delete sharing (no ACL changes). Unix:
+// an open file can still be unlinked, so the record's directory is made
+// read-only instead; dropping the guard restores its permissions.
 #[cfg(windows)]
 fn hold_journal_against_deletion(path: &std::path::Path) -> std::fs::File {
     use std::os::windows::fs::OpenOptionsExt;
     std::fs::OpenOptions::new().read(true).share_mode(1 | 2).open(path).unwrap()
 }
 
-#[cfg(windows)]
+#[cfg(unix)]
+struct ReadOnlyDirectory(std::path::PathBuf, std::fs::Permissions);
+#[cfg(unix)]
+impl Drop for ReadOnlyDirectory {
+    fn drop(&mut self) {
+        std::fs::set_permissions(&self.0, self.1.clone()).unwrap();
+    }
+}
+#[cfg(unix)]
+fn hold_journal_against_deletion(path: &std::path::Path) -> ReadOnlyDirectory {
+    use std::os::unix::fs::PermissionsExt;
+    let directory = path.parent().unwrap().to_path_buf();
+    let original = std::fs::metadata(&directory).unwrap().permissions();
+    std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o555)).unwrap();
+    // Privileged users (root) ignore directory permissions; the test would
+    // then not exercise a failure at all, so refuse to run silently.
+    let probe = directory.join(".deletion-probe");
+    assert!(std::fs::write(&probe, b"").is_err(), "run these tests as a non-root user");
+    ReadOnlyDirectory(directory, original)
+}
+
 #[tokio::test]
 async fn journal_delete_failure_does_not_turn_committed_upload_into_failure() {
     let directory = JournalTestDir::new();
@@ -391,7 +413,6 @@ async fn journal_delete_failure_does_not_turn_committed_upload_into_failure() {
     drop(fs);
 }
 
-#[cfg(windows)]
 #[tokio::test]
 async fn journal_failed_local_delete_is_reported_and_retry_releases_claim() {
     let directory = JournalTestDir::new();
@@ -417,7 +438,6 @@ async fn journal_failed_local_delete_is_reported_and_retry_releases_claim() {
     drop(fs);
 }
 
-#[cfg(windows)]
 #[tokio::test]
 async fn journal_explicit_abort_retains_undeletable_record_for_later_cleanup() {
     let directory = JournalTestDir::new();

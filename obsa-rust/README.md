@@ -32,7 +32,7 @@ Windows 完整本地验证需要 Rust stable、Visual Studio C++ 工具、Window
 mvn -f hadoop-adapter/pom.xml test
 ```
 
-其他平台可使用 `cargo build --locked --workspace` 和 `cargo test --locked --workspace`；本文的最新运行证据来自 Windows，不代表其他平台已验收。优化构建用 `cargo build --locked --release --workspace`。`cargo test` 不代替实际 JNI 动态库的构建。
+Linux 用 `scripts/build-linux.sh`（生产部署加 `--release --glibc 2.17`，经 cargo-zigbuild 构建兼容 CentOS 7 / EulerOS 的 `libobs_jni.so`）和 `scripts/test-jni.sh`；2026-10-21 已在 WSL2 Ubuntu 22.04 上完成与 Windows 相同的完整回归，详见 [LINUX_BUILD.md](docs/LINUX_BUILD.md)。macOS 及 aarch64 未验证。优化构建用 `cargo build --locked --release --workspace`。`cargo test` 不代替实际 JNI 动态库的构建。
 
 优化构建及其 JVM/Hadoop 验证可直接选择 release：
 
@@ -86,7 +86,7 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 2026-10-20 的改动、依据和待真实环境确认事项见 [HANDOFF_20261020.md](docs/HANDOFF_20261020.md)：
 原生定位读取与 Hadoop 3.3.5+ 向量化读取（[POSITIONED_VECTORED_READ.md](docs/POSITIONED_VECTORED_READ.md)）、
 对照官方 OBS Java SDK 修正的 V2 签名（编码路径、子资源白名单）与 PFS 自动识别、
-普通桶祖先探测减负（[ANCESTOR_PROBES.md](docs/ANCESTOR_PROBES.md)）、目录 AccessLabel xattr；随后补充了基于服务端 CRC32C 的 getFileChecksum（API_COVERAGE 第 27 项）。
+普通桶祖先探测减负（[ANCESTOR_PROBES.md](docs/ANCESTOR_PROBES.md)）、目录 AccessLabel xattr、S3 兼容签名模式与独立 S3 服务端验证（[LIVE_S3_TESTING.md](docs/LIVE_S3_TESTING.md)）；随后补充了基于服务端 CRC32C 的 getFileChecksum（API_COVERAGE 第 27 项）。
 
 Rust ignored 项是手动基准，未混入上述通过数。全部使用内存或本机 HTTP 模拟；没有真实云桶、生产作业或跨平台验收结论。详细运行证据见 [LOCAL_VALIDATION.md](docs/LOCAL_VALIDATION.md)。
 

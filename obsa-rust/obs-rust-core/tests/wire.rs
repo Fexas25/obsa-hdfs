@@ -2162,3 +2162,61 @@ async fn sse_kms_headers_only_on_object_creation_and_bad_config_fails_closed() {
             Err(ObsError::InvalidArgument(_))), "{kind}");
     }
 }
+
+#[tokio::test]
+async fn aws_v2_signature_mode_renames_headers_both_ways() {
+    let tuning = ObsConfig {
+        retry_backoff_ms: 1,
+        signature_type: "v2".into(),
+        server_side_encryption_type: "sse-kms".into(),
+        server_side_encryption_key: Some("key-id".into()),
+        ..Default::default()
+    };
+    let (config, task) = mock_endpoint(vec![
+        ("200 OK", "ETag: \"e\"\r\n", ""),
+        ("200 OK", "Content-Length: 3\r\nETag: \"e\"\r\nx-amz-meta-mode: 100644\r\nx-amz-meta-custom: v\r\nx-amz-request-id: amz-req\r\n", ""),
+    ], tuning).await;
+    let mut store = ObsStore::new(ObsConfig { bucket_mode: BucketMode::Object, ..config },
+        CredentialChain::new(Credentials::new("AK", "SK").with_session_token("tok")));
+    store.init_bucket_mode().await.unwrap();
+    let headers = PutHeaders { user_meta: vec![("custom".into(), "v".into())], ..Default::default() };
+    store.put("dir/文件", bytes::Bytes::from_static(b"abc"), headers).await.unwrap();
+    let meta = store.head("dir/文件").await.unwrap();
+    // Response x-amz- headers are read as their OBS-dialect equivalents.
+    assert_eq!(meta.mode, Some(0o100644));
+    assert_eq!(meta.user_meta.get("custom").map(String::as_str), Some("v"));
+    let requests = task.await.unwrap();
+    let put = &requests[0];
+    assert!(header_of(put, "x-obs-meta-custom").is_none() && header_of(put, "x-obs-security-token").is_none());
+    assert_eq!(header_of(put, "x-amz-meta-custom").as_deref(), Some("v"));
+    assert_eq!(header_of(put, "x-amz-security-token").as_deref(), Some("tok"));
+    assert_eq!(header_of(put, "x-amz-server-side-encryption").as_deref(), Some("aws:kms"));
+    assert_eq!(header_of(put, "x-amz-server-side-encryption-aws-kms-key-id").as_deref(), Some("key-id"));
+    // Same V2 string-to-sign over the x-amz- headers, with the AWS prefix.
+    let signed: BTreeMap<String, String> = put.split("\r\n\r\n").next().unwrap().lines().skip(1)
+        .filter_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            let name = name.to_ascii_lowercase();
+            name.starts_with("x-amz-").then(|| (name, value.trim().to_string()))
+        }).collect();
+    let expected = obs_rust_core::auth::ObsSigner::sign_with(
+        obs_rust_core::auth::SignatureType::AwsV2, "PUT",
+        &header_of(put, "content-md5").unwrap(), "", &header_of(put, "date").unwrap(), &signed,
+        "/bucket/dir/%E6%96%87%E4%BB%B6", &Credentials::new("AK", "SK").with_session_token("tok"));
+    assert!(expected.authorization.starts_with("AWS AK:"));
+    assert_eq!(header_of(put, "authorization").unwrap(), expected.authorization);
+    // Content-Length is explicit even though hyper would also send it here.
+    assert_eq!(header_of(put, "content-length").as_deref(), Some("3"));
+
+    let mut bad = ObsStore::new(ObsConfig { signature_type: "v4".into(), ..Default::default() },
+        CredentialChain::new(Credentials::new("AK", "SK")));
+    assert!(matches!(bad.init_bucket_mode().await, Err(ObsError::InvalidArgument(_))));
+}
+
+#[tokio::test]
+async fn empty_put_sends_explicit_zero_content_length() {
+    let (store, task) = server(vec![("200 OK", "", "")]).await;
+    store.put_empty("folder/").await.unwrap();
+    let requests = task.await.unwrap();
+    assert_eq!(header_of(&requests[0], "content-length").as_deref(), Some("0"));
+}
