@@ -78,10 +78,10 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 
 ## 当前本地验证（2026-10-21）
 
-- 最新默认 Rust workspace debug / release 各 **422 通过、0 失败、16 ignored**。
+- 最新默认 Rust workspace debug / release 各 **427 通过、0 失败、16 ignored**。
 - 真实 JVM：显式构建 debug / release 动态库后，基础 JNI 冒烟和异常分类测试均通过。
-- Hadoop 3.3.6：debug / release 各 **407 项、0 失败、0 错误、12 跳过**（含官方 seek/定位读与向量化读契约）。跳过对应普通桶不支持 append 和新建文件 close 才可见的能力边界。
-- `append-diagnostics`（debug）**422 通过、0 失败、16 ignored**。
+- Hadoop 3.3.6：debug / release 各 **410 项、0 失败、0 错误、12 跳过**（含官方 seek/定位读与向量化读契约）。跳过对应普通桶不支持 append 和新建文件 close 才可见的能力边界。
+- `append-diagnostics`（debug）**427 通过、0 失败、16 ignored**。
 
 2026-10-20 的改动、依据和待真实环境确认事项见 [HANDOFF_20261020.md](docs/HANDOFF_20261020.md)：
 原生定位读取与 Hadoop 3.3.5+ 向量化读取（[POSITIONED_VECTORED_READ.md](docs/POSITIONED_VECTORED_READ.md)）、
@@ -98,6 +98,6 @@ Rust ignored 项是手动基准，未混入上述通过数。全部使用内存�
 
 ## 尚未完成
 
-真实 OBS/PFS 与原厂 Hadoop 版本互通，Spark/Hive/Flink 作业，普通桶 copy/delete 并发修改保护，委托令牌、SSE、完整能力声明及 ByteBuffer 定位读取，以及百万目录规模和真实网络下的性能验收仍需推进。
+真实 OBS/PFS 与原厂 Hadoop 版本互通，Spark/Hive/Flink 作业，普通桶 copy/delete 并发修改保护，委托令牌、完整能力声明及 ByteBuffer 定位读取，以及百万目录规模和真实网络下的性能验收仍需推进。
 
 [ADAPTER_PLAN.md](docs/ADAPTER_PLAN.md) 定义后续验收要求；[历史实现说明](docs/README_HISTORY.md) 保留各阶段配置细节、设计决定和历史基准。旧 `PROMPT_NEXT_AI*.md` 是目标规格，不是完成声明。历史微基准不代表当前生产吞吐。

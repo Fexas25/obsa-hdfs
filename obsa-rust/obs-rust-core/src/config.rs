@@ -66,6 +66,10 @@ pub struct ObsConfig {
     /// sibling lookups skip file-precedence probes. Off by default: an
     /// out-of-band file ancestor then hides children only after the TTL.
     pub ancestor_directory_hints: bool,
+    /// `fs.obs.server-side-encryption-type`: "" or "none" (off), "sse-kms" or "sse-c".
+    pub server_side_encryption_type: String,
+    /// KMS key id for sse-kms (optional), base64 AES-256 key for sse-c. Secret.
+    pub server_side_encryption_key: Option<String>,
     pub pfs_inode_hints: bool,
 
     pub trash_enabled: bool,
@@ -192,6 +196,8 @@ impl Default for ObsConfig {
             pfs_append_concurrency: 4,
             pfs_inode_hints: true,
             ancestor_directory_hints: false,
+            server_side_encryption_type: String::new(),
+            server_side_encryption_key: None,
             trash_enabled: false,
             trash_dir: crate::types::DEFAULT_TRASH_DIR.into(),
             content_summary_enable: false,
@@ -308,6 +314,13 @@ pub fn config_from_hadoop(props: &HashMap<String, String>, bucket: &str) -> ObsC
     set_u64!(pfs_append_total_bytes, "fs.obs.pfs.append.total.bytes");
     set_bool!(pfs_inode_hints, "fs.obs.pfs.inode.hints");
     set_bool!(ancestor_directory_hints, "fs.obs.ancestor.directory.hints");
+    if let Some(value) = props.get("fs.obs.server-side-encryption-type") {
+        cfg.server_side_encryption_type = value.trim().to_string();
+    }
+    cfg.server_side_encryption_key = props
+        .get("fs.obs.server-side-encryption-key")
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
     set_bool!(trash_enabled, "fs.obs.trash.enabled");
     set_str!(trash_dir, "fs.obs.trash.dir");
     set_bool!(content_summary_enable, "fs.obs.content.summary.enable");

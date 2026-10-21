@@ -1,4 +1,5 @@
 pub mod obs;
+pub(crate) mod sse;
 pub mod traits;
 
 pub use obs::ObsStore;

@@ -40,6 +40,8 @@ final class LocalObsServer implements AutoCloseable {
   final AtomicInteger deleteMisses = new AtomicInteger();
   volatile int failedRangeStart = -1;
   final AtomicInteger rangeFailures = new AtomicInteger();
+  /** Latest "sse-c algorithm|sse type" header pair seen per HTTP method. */
+  final Map<String, String> sseHeadersByMethod = new java.util.concurrent.ConcurrentHashMap<>();
   /** Access key and security token of the latest signed request (signatures are not checked). */
   volatile String lastAccessKey;
   volatile String lastSecurityToken;
@@ -97,6 +99,9 @@ final class LocalObsServer implements AutoCloseable {
       if (authorization != null && authorization.startsWith("OBS ") && authorization.contains(":"))
         lastAccessKey = authorization.substring(4, authorization.lastIndexOf(':'));
       lastSecurityToken = e.getRequestHeaders().getFirst("x-obs-security-token");
+      sseHeadersByMethod.put(e.getRequestMethod(), String.valueOf(
+          e.getRequestHeaders().getFirst("x-obs-server-side-encryption-customer-algorithm")) + "|"
+          + e.getRequestHeaders().getFirst("x-obs-server-side-encryption"));
       String key = e.getRequestURI().getPath().substring("/bucket/".length());
       String method = e.getRequestMethod();
       Map<String, String> q = query(e.getRequestURI());

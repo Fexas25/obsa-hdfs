@@ -1,8 +1,8 @@
 use obs_rust_core::{
     auth::{CredentialChain, Credentials, ObsSigner},
-    store::{ObjectStore, ObsStore},
+    store::{ObjectStore, ObsStore, PutHeaders},
     types::*,
-    ObsConfig,
+    ObsConfig, ObsError,
 };
 use std::collections::BTreeMap;
 
@@ -2051,5 +2051,114 @@ async fn updated_credentials_sign_subsequent_requests() {
         let expected = ObsSigner::sign("HEAD", "", "", &header(request, "date").unwrap(),
             &signed_headers, "/bucket/k", &creds);
         assert_eq!(header(request, "authorization").unwrap(), expected.authorization);
+    }
+}
+
+fn header_of(request: &str, name: &str) -> Option<String> {
+    request.split("\r\n\r\n").next().unwrap().lines().skip(1).find_map(|line| {
+        let (key, value) = line.split_once(':')?;
+        key.eq_ignore_ascii_case(name).then(|| value.trim().to_string())
+    })
+}
+
+#[tokio::test]
+async fn sse_c_headers_follow_the_reference_per_operation_and_are_signed() {
+    use base64::Engine;
+    let key = base64::engine::general_purpose::STANDARD.encode([3u8; 32]);
+    use md5::Digest;
+    let md5 = base64::engine::general_purpose::STANDARD.encode(md5::Md5::digest([3u8; 32]));
+    let tuning = ObsConfig {
+        retry_backoff_ms: 1,
+        server_side_encryption_type: "sse-c".into(),
+        server_side_encryption_key: Some(key.clone()),
+        ..Default::default()
+    };
+    let (config, task) = mock_endpoint(vec![
+        ("200 OK", "ETag: \"e\"\r\n", ""),
+        ("200 OK", "ETag: \"e\"\r\n", "data"),
+        ("200 OK", "ETag: \"e\"\r\n", ""),
+        ("200 OK", "", "<InitiateMultipartUploadResult><UploadId>u</UploadId></InitiateMultipartUploadResult>"),
+        ("200 OK", "ETag: \"p\"\r\n", ""),
+        ("200 OK", "", "<CopyObjectResult><ETag>\"c\"</ETag></CopyObjectResult>"),
+        ("200 OK", "", ""),
+    ], tuning).await;
+    let mut store = ObsStore::new(ObsConfig { bucket_mode: BucketMode::Object, ..config },
+        CredentialChain::new(Credentials::new("AK", "SK")));
+    store.init_bucket_mode().await.unwrap();
+    store.put("k", bytes::Bytes::from_static(b"x"), PutHeaders::default()).await.unwrap();
+    store.get("k", None, None).await.unwrap();
+    store.head("k").await.unwrap();
+    store.initiate_multipart_upload("k").await.unwrap();
+    store.upload_part("k", "u", 1, bytes::Bytes::from_static(b"p")).await.unwrap();
+    store.copy("k", "k2").await.unwrap();
+    store.abort_multipart_upload("k", "u").await.unwrap();
+    let requests = task.await.unwrap();
+    // put, get, head, initiate, upload part, copy: customer key; abort: none.
+    for (index, request) in requests.iter().enumerate() {
+        let expected = index < 6;
+        assert_eq!(header_of(request, "x-obs-server-side-encryption-customer-algorithm").as_deref(),
+            expected.then_some("AES256"), "request {index}");
+        assert_eq!(header_of(request, "x-obs-server-side-encryption-customer-key"),
+            expected.then(|| key.clone()), "request {index}");
+        assert_eq!(header_of(request, "x-obs-server-side-encryption-customer-key-MD5"),
+            expected.then(|| md5.clone()), "request {index}");
+        assert_eq!(header_of(request, "x-obs-copy-source-server-side-encryption-customer-key").is_some(),
+            index == 5, "copy source key only on copy (request {index})");
+        assert!(header_of(request, "x-obs-server-side-encryption").is_none());
+    }
+    // The SSE-C headers are part of the V2 signature.
+    let head = &requests[2];
+    let signed: BTreeMap<String, String> = head.lines().skip(1).filter_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        let name = name.to_ascii_lowercase();
+        name.starts_with("x-obs-").then(|| (name, value.trim().to_string()))
+    }).collect();
+    assert_eq!(signed.len(), 3);
+    let expected = ObsSigner::sign("HEAD", "", "", &header_of(head, "date").unwrap(), &signed,
+        "/bucket/k", &Credentials::new("AK", "SK"));
+    assert_eq!(header_of(head, "authorization").unwrap(), expected.authorization);
+}
+
+#[tokio::test]
+async fn sse_kms_headers_only_on_object_creation_and_bad_config_fails_closed() {
+    let tuning = ObsConfig {
+        retry_backoff_ms: 1,
+        server_side_encryption_type: "sse-kms".into(),
+        server_side_encryption_key: Some("kms-key-id".into()),
+        ..Default::default()
+    };
+    let (config, task) = mock_endpoint(vec![
+        ("200 OK", "ETag: \"e\"\r\n", ""),
+        ("200 OK", "ETag: \"e\"\r\n", "data"),
+        ("200 OK", "", "<InitiateMultipartUploadResult><UploadId>u</UploadId></InitiateMultipartUploadResult>"),
+    ], tuning).await;
+    let mut store = ObsStore::new(ObsConfig { bucket_mode: BucketMode::Object, ..config },
+        CredentialChain::new(Credentials::new("AK", "SK")));
+    store.init_bucket_mode().await.unwrap();
+    store.put("k", bytes::Bytes::from_static(b"x"), PutHeaders::default()).await.unwrap();
+    store.get("k", None, None).await.unwrap();
+    store.initiate_multipart_upload("k").await.unwrap();
+    let requests = task.await.unwrap();
+    for (index, request) in requests.iter().enumerate() {
+        let write = index != 1;
+        assert_eq!(header_of(request, "x-obs-server-side-encryption").as_deref(),
+            write.then_some("kms"), "request {index}");
+        assert_eq!(header_of(request, "x-obs-server-side-encryption-kms-key-id").as_deref(),
+            write.then_some("kms-key-id"), "request {index}");
+        assert!(header_of(request, "x-obs-server-side-encryption-customer-key").is_none());
+    }
+
+    // An sse-c type without a usable key never sends a request.
+    for (kind, key) in [("sse-c", None), ("sse-c", Some("c2hvcnQ=")), ("rot13", None)] {
+        let mut store = ObsStore::new(ObsConfig {
+            endpoint: "127.0.0.1:9".into(), bucket: "bucket".into(), secure: false,
+            bucket_mode: BucketMode::Object,
+            server_side_encryption_type: kind.into(),
+            server_side_encryption_key: key.map(str::to_owned),
+            ..Default::default()
+        }, CredentialChain::new(Credentials::new("AK", "SK")));
+        assert!(matches!(store.init_bucket_mode().await, Err(ObsError::InvalidArgument(_))), "{kind}");
+        assert!(matches!(store.put("k", bytes::Bytes::new(), PutHeaders::default()).await,
+            Err(ObsError::InvalidArgument(_))), "{kind}");
     }
 }

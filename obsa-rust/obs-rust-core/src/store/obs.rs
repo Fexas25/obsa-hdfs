@@ -13,6 +13,7 @@ use crate::auth::{CredentialChain, ObsSigner};
 use crate::config::ObsConfig;
 use crate::error::{conflict_codes, ObsError, ObsResult};
 use crate::pfs::inode::InodeState;
+use crate::store::sse::SseHeaders;
 use crate::store::traits::{GetResult, ObjectStore, PutHeaders};
 use crate::transport::{HttpPool, RequestBuilder};
 use crate::types::{BucketMode, CompletedPart, InodeHint, ListPage, ObjectMeta};
@@ -25,12 +26,23 @@ pub struct ObsStore {
     creds: CredentialChain,
     is_pfs: bool,
     inode_state: InodeState,
+    /// Invalid SSE configuration fails every request that needs it (and
+    /// init_bucket_mode) rather than silently writing unencrypted data.
+    sse: Result<SseHeaders, ObsError>,
+}
+
+#[derive(Clone, Copy)]
+enum SseUse {
+    Write,
+    Customer,
+    CopySource,
 }
 
 impl ObsStore {
     pub fn new(config: ObsConfig, creds: CredentialChain) -> Self {
         let pool = Arc::new(HttpPool::new(config.clone()));
         Self {
+            sse: SseHeaders::from_config(&config),
             config,
             pool,
             creds,
@@ -39,7 +51,23 @@ impl ObsStore {
         }
     }
 
+    fn with_sse(&self, mut builder: RequestBuilder, uses: &[SseUse]) -> ObsResult<RequestBuilder> {
+        let sse = self.sse.as_ref().map_err(Clone::clone)?;
+        for usage in uses {
+            let headers = match usage {
+                SseUse::Write => &sse.write,
+                SseUse::Customer => &sse.customer,
+                SseUse::CopySource => &sse.copy_source,
+            };
+            for (name, value) in headers {
+                builder = builder.obs_header(*name, value.clone());
+            }
+        }
+        Ok(builder)
+    }
+
     pub async fn init_bucket_mode(&mut self) -> ObsResult<()> {
+        self.sse.as_ref().map_err(Clone::clone)?;
         match self.config.bucket_mode {
             BucketMode::Pfs => self.is_pfs = true,
             BucketMode::Object => self.is_pfs = false,
@@ -245,7 +273,12 @@ impl ObjectStore for ObsStore {
     }
     async fn head(&self, key: &str) -> ObsResult<ObjectMeta> {
         let builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::HEAD).key(key);
-        let builder = Self::apply_head_put_inode_headers(builder);
+        let mut builder = Self::apply_head_put_inode_headers(builder);
+        // The reference sends SSE-C on object-bucket metadata queries; PFS
+        // status uses getAttribute without it.
+        if !self.is_pfs {
+            builder = self.with_sse(builder, &[SseUse::Customer])?;
+        }
 
         let resp = self.signed_execute(builder, "", "").await?;
         let resp = self.map_response(resp)?;
@@ -307,6 +340,7 @@ impl ObjectStore for ObsStore {
         }
 
         builder = Self::apply_inode_hint(builder, inode_hint, &self.inode_state);
+        builder = self.with_sse(builder, &[SseUse::Customer])?;
 
         let resp = self.signed_execute(builder, "", "").await?;
         if expected_etag.is_some() && resp.status.as_u16() == 412 {
@@ -352,6 +386,7 @@ impl ObjectStore for ObsStore {
         }
 
         builder = Self::apply_head_put_inode_headers(builder);
+        builder = self.with_sse(builder, &[SseUse::Write])?;
         let md5_hash = Md5::digest(&body);
         let content_md5 = BASE64.encode(md5_hash);
         builder = builder.header("Content-MD5", content_md5.clone());
@@ -481,7 +516,8 @@ impl ObjectStore for ObsStore {
 
     async fn copy(&self, src_key: &str, dst_key: &str) -> ObsResult<ObjectMeta> {
         let builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::PUT)
-            .key(dst_key)
+            .key(dst_key);
+        let builder = self.with_sse(builder, &[SseUse::Write, SseUse::CopySource])?
             .obs_header(
                 "x-obs-copy-source",
                 format!(
@@ -530,6 +566,7 @@ impl ObjectStore for ObsStore {
             .key(key)
             .sub_resource("uploads", None)
             .idempotent(false);
+        builder = self.with_sse(builder, &[SseUse::Write])?;
         if headers.hdfs_client {
             builder = builder.obs_header("x-obs-hdfs", "true");
         }
@@ -562,6 +599,7 @@ impl ObjectStore for ObsStore {
             .sub_resource("uploadId", Some(upload_id.to_string()))
             .header("Content-MD5", content_md5.clone())
             .body(body);
+        let builder = self.with_sse(builder, &[SseUse::Customer])?;
 
         let resp = self
             .signed_execute(builder, &content_md5, "application/octet-stream")
@@ -670,6 +708,8 @@ impl ObjectStore for ObsStore {
             .sub_resource("position", Some(position.to_string()))
             .obs_header("x-obs-hdfs", "true")
             .body(body);
+        // Extending SSE-C data needs the customer key; KMS objects keep theirs.
+        let builder = self.with_sse(builder, &[SseUse::Customer])?;
 
         let resp = self
             .signed_execute(builder, "", "application/octet-stream")

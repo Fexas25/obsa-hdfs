@@ -102,7 +102,8 @@ create 的上传 mode 再补 `S_IFREG`，写后缓存使用同一权限值，避
 - 凭据路径已接通：参考源码标准键 fs.obs.security.credential.provider.path，兼容附录别名 fs.obs.credential.provider.path。桶级优先、同级标准键优先；所选 OBS 提供器在全局提供器前，Configuration 副本确保不污染其他文件系统。Hadoop 凭据提供器仍为初始化快照；另支持参考实现的 fs.obs.credentials.provider（BasicSessionCredential，覆盖配置密钥）与无密钥时的 fs.obs.security.provider（SDK IObsCredentialsProvider，反射调用），二者按 fs.obs.credentials.refresh.interval.ms（默认 60 s）后台刷新并经 updateCredentials 推送到 Rust；Rust 每次签名（含重试）读取最新凭据。刷新失败保留旧值且日志不含凭据。本地以模拟服务记录的 AK/令牌验证，未接真实 ECS 元数据服务。
 - fs.obs.block.size 已映射到 Rust block_size，支持桶级覆盖和正整数/k/m/g；Java 默认块大小由 Rust 解析结果提供。根目录、HEAD/LIST、写后缓存均使用同一值。非法值回退 128 MiB；它是逻辑块大小，不改变上传分片。
 - Rust list_cache_ttl_ms 字段存在，但没有独立 LIST 缓存消费路径；不要将其列为有效调优项。
-- 附录 G.2 的 fast.upload、multiobjectdelete、readahead.policy/range、attempts.maximum、SSE、token、authorize、metrics、buffer.dir、旧 trash/list/permissions 配置没有完成逐键兼容；不能仅因 fs.obs.* 被传入 JSON 就视为支持。
+- 附录 G.2 的 fast.upload、multiobjectdelete、readahead.policy/range、attempts.maximum、token、authorize、metrics、buffer.dir、旧 trash/list/permissions 配置没有完成逐键兼容；不能仅因 fs.obs.* 被传入 JSON 就视为支持。
+- 服务端加密：fs.obs.server-side-encryption-type（sse-kms / sse-c / none）与 fs.obs.server-side-encryption-key（KMS 密钥 ID 可选；SSE-C 为 base64 的 256 位 AES 密钥）已接通，请求头对照 OBS Java SDK 的 x-obs- 头，携带范围对照参考实现：SSE-KMS 用于 PUT、初始化分片上传、复制目标；SSE-C 用于 PUT、初始化分片、上传分片、GET、普通桶 HEAD、复制（目标与源）以及 PFS modify 追加。与参考实现不同，未知类型或缺少/非法 SSE-C 密钥在初始化时报错（参考实现会静默不加密），错误信息不含密钥。本地验证请求头与签名，未在真实加密桶上验证；PFS 状态 HEAD 不带 SSE-C（参考实现用 getAttribute）。
 - 新增的 retry.max.attempts、retry.backoff.ms、request.timeout.ms、HTTP 响应上限、PFS append 字节额度属于本实现参数，不能与旧 SDK 同名/近义配置混淆。
 - 桶级覆盖在 Rust 配置解析前合并，凭据提供器也处理桶级键；未知配置当前没有全面拒绝或告警机制。
 
