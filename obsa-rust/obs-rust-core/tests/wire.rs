@@ -1610,7 +1610,7 @@ async fn object_key_leading_slash_matches_signed_wire_path() {
     let signed_headers = headers.iter().filter(|(name, _)| name.starts_with("x-obs-"))
         .map(|(name, value)| (name.clone(), value.clone())).collect();
     let expected = ObsSigner::sign("HEAD", "", "", &headers["date"], &signed_headers,
-        &urlencoding::decode(path).unwrap(), &Credentials::new("AK", "SK"));
+        path, &Credentials::new("AK", "SK"));
     assert_eq!(headers["authorization"], expected.authorization);
 }
 
@@ -1902,5 +1902,110 @@ async fn upload_part_etag_rejects_malformed_quotes_without_rewriting_identity() 
         assert!(matches!(store.upload_part("file", "upload", 1, bytes::Bytes::new()).await,
             Err(obs_rust_core::ObsError::Io(_))), "malformed ETag accepted: {header}");
         assert_eq!(task.await.unwrap().len(), 1);
+    }
+}
+
+#[test]
+fn canonical_resource_signs_encoded_key_and_only_signable_sub_resources() {
+    // The OBS Java SDK signs uri.getRawPath(): the encoded key as sent.
+    assert_eq!(
+        ObsSigner::canonical_resource("bucket", "dir/a b+c%/文件*~", &[]),
+        "/bucket/dir/a%20b%2Bc%25/%E6%96%87%E4%BB%B6%2A~"
+    );
+    // `folder` and LIST parameters are not signable; matching is case-insensitive
+    // while the original spelling and decoded values are preserved.
+    assert_eq!(
+        ObsSigner::canonical_resource("bucket", "dir/", &[("folder", None)]),
+        "/bucket/dir/"
+    );
+    assert_eq!(
+        ObsSigner::canonical_resource(
+            "bucket",
+            "src",
+            &[("name", Some("dst/a b")), ("rename", None), ("prefix", Some("p")), ("x-obs-custom", Some("1"))]
+        ),
+        "/bucket/src?name=dst/a b&rename&x-obs-custom=1"
+    );
+    assert_eq!(
+        ObsSigner::canonical_resource("bucket", "k", &[("UploadId", Some("u")), ("PartNumber", Some("1"))]),
+        "/bucket/k?PartNumber=1&UploadId=u"
+    );
+}
+
+#[tokio::test]
+async fn special_key_signature_matches_encoded_wire_path_for_query_requests() {
+    let (store, task) = server(vec![("200 OK", "", "")]).await;
+    store.posix_truncate("dir/a b/文件", 3).await.unwrap();
+    let requests = task.await.unwrap();
+    let request = &requests[0];
+    let target = request.lines().next().unwrap().split_whitespace().nth(1).unwrap();
+    let (path, query) = target.split_once('?').unwrap();
+    assert_eq!(path, "/bucket/dir/a%20b/%E6%96%87%E4%BB%B6");
+    assert!(query.contains("truncate") && query.contains("length=3"), "{query}");
+    let headers: BTreeMap<String, String> = request.lines().skip(1).filter_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        Some((name.to_ascii_lowercase(), value.trim().to_string()))
+    }).collect();
+    let signed_headers = headers.iter().filter(|(name, _)| name.starts_with("x-obs-"))
+        .map(|(name, value)| (name.clone(), value.clone())).collect();
+    let expected = ObsSigner::sign("PUT", "", "", &headers["date"], &signed_headers,
+        &format!("{path}?length=3&truncate"), &Credentials::new("AK", "SK"));
+    assert_eq!(headers["authorization"], expected.authorization);
+}
+
+#[tokio::test]
+async fn auto_bucket_mode_detects_pfs_like_the_obs_sdk() {
+    for (headers, expected) in [
+        ("x-obs-fs-file-interface: Enabled\r\n", true),
+        ("x-obs-fs-file-interface: enabled\r\n", true),
+        ("x-obs-bucket-type: POSIX\r\n", true),
+        ("x-obs-fs-file-interface: Disabled\r\nx-obs-bucket-type: OBJECT\r\n", false),
+        ("", false),
+    ] {
+        let (config, task) = mock_endpoint(vec![("200 OK", headers, "")], ObsConfig::default()).await;
+        let mut store = ObsStore::new(
+            ObsConfig { bucket_mode: BucketMode::Auto, ..config },
+            CredentialChain::new(Credentials::new("AK", "SK")),
+        );
+        store.init_bucket_mode().await.unwrap();
+        assert_eq!(store.is_pfs(), expected, "{headers:?}");
+        let requests = task.await.unwrap();
+        assert!(requests[0].starts_with("HEAD /bucket/ "), "{}", requests[0]);
+    }
+}
+
+#[tokio::test]
+async fn access_label_requests_match_obs_sdk_wire_format() {
+    let (store, task) = server(vec![
+        ("200 OK", "", ""),
+        ("200 OK", "Content-Type: application/json\r\n", r#"{"accesslabel":["role-a","role b"]}"#),
+        ("204 No Content", "", ""),
+        ("200 OK", "", r#"{"other":[]}"#),
+    ]).await;
+    store.set_access_label("dir/子", &["role-a".into(), "role b".into()]).await.unwrap();
+    assert_eq!(store.get_access_label("dir/子").await.unwrap(), vec!["role-a", "role b"]);
+    store.delete_access_label("dir/子").await.unwrap();
+    assert!(store.get_access_label("dir/子").await.is_err(), "malformed response must fail");
+    let requests = task.await.unwrap();
+    let expect = [("PUT", true), ("GET", false), ("DELETE", false), ("GET", false)];
+    for (request, (method, has_body)) in requests.iter().zip(expect) {
+        let line = request.lines().next().unwrap();
+        assert_eq!(line, format!("{method} /bucket/dir/%E5%AD%90?x-obs-accesslabel HTTP/1.1"));
+        let (head, body) = request.split_once("\r\n\r\n").unwrap();
+        let headers: BTreeMap<String, String> = head.lines().skip(1).filter_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            Some((name.to_ascii_lowercase(), value.trim().to_string()))
+        }).collect();
+        let content_type = if has_body { "application/json" } else { "" };
+        if has_body {
+            assert_eq!(headers["content-type"], "application/json");
+            assert_eq!(body, r#"{"accesslabel":["role-a","role b"]}"#);
+        }
+        let signed_headers = headers.iter().filter(|(name, _)| name.starts_with("x-obs-"))
+            .map(|(name, value)| (name.clone(), value.clone())).collect();
+        let expected = ObsSigner::sign(method, "", content_type, &headers["date"], &signed_headers,
+            "/bucket/dir/%E5%AD%90?x-obs-accesslabel",
+            &Credentials::new("AK", "SK").with_session_token("token"));
+        assert_eq!(headers["authorization"], expected.authorization, "{method}");
     }
 }

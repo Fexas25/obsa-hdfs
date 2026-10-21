@@ -760,15 +760,64 @@ impl ObjectStore for ObsStore {
         self.map_response(response).map(|_| ())
     }
 
+    // Wire format follows the OBS Java SDK (ObsFileService.*AccessLabelFsImpl):
+    // the directory key without trailing slash, the `x-obs-accesslabel`
+    // sub-resource (signed: x-obs- prefix) and a {"accesslabel":[...]} body.
+    async fn set_access_label(&self, dir_key: &str, labels: &[String]) -> ObsResult<()> {
+        let body = Bytes::from(
+            serde_json::to_vec(&serde_json::json!({ "accesslabel": labels }))
+                .map_err(|e| ObsError::Io(e.to_string()))?,
+        );
+        let builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::PUT)
+            .key(dir_key)
+            .sub_resource("x-obs-accesslabel", None)
+            .body(body);
+        let resp = self.signed_execute(builder, "", "application/json").await?;
+        self.map_response(resp).map(|_| ())
+    }
+
+    async fn get_access_label(&self, dir_key: &str) -> ObsResult<Vec<String>> {
+        let builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::GET)
+            .key(dir_key)
+            .sub_resource("x-obs-accesslabel", None);
+        let resp = self.signed_execute(builder, "", "").await?;
+        let resp = self.map_response(resp)?;
+        let value: serde_json::Value = serde_json::from_slice(&resp.body)
+            .map_err(|_| ObsError::Io("invalid access label response".into()))?;
+        value
+            .get("accesslabel")
+            .and_then(serde_json::Value::as_array)
+            .ok_or_else(|| ObsError::Io("access label response lacks accesslabel".into()))?
+            .iter()
+            .map(|label| label.as_str().map(str::to_owned)
+                .ok_or_else(|| ObsError::Io("non-string access label".into())))
+            .collect()
+    }
+
+    async fn delete_access_label(&self, dir_key: &str) -> ObsResult<()> {
+        let builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::DELETE)
+            .key(dir_key)
+            .sub_resource("x-obs-accesslabel", None);
+        let resp = self.signed_execute(builder, "", "").await?;
+        self.map_response(resp).map(|_| ())
+    }
+
     async fn probe_posix_bucket(&self) -> ObsResult<bool> {
         let builder = Self::apply_head_put_inode_headers(
             RequestBuilder::new(&self.config, &self.config.bucket, Method::HEAD).key(""),
         );
         let resp = self.signed_execute(builder, "", "").await?;
         let resp = self.map_response(resp)?;
-        Ok(resp
+        // The OBS SDK's getBucketFSStatus (used by the Java OBSA reference)
+        // classifies PFS solely by `x-obs-fs-file-interface: Enabled` on HEAD
+        // bucket; accept the bucket-type header too where a service sends it.
+        let file_interface = resp
+            .header("x-obs-fs-file-interface")
+            .is_some_and(|v| v.trim().eq_ignore_ascii_case("Enabled"));
+        let posix_type = resp
             .header("x-obs-bucket-type")
-            .is_some_and(|t| t.eq_ignore_ascii_case("POSIX") || t.eq_ignore_ascii_case("PFS")))
+            .is_some_and(|t| t.eq_ignore_ascii_case("POSIX") || t.eq_ignore_ascii_case("PFS"));
+        Ok(file_interface || posix_type)
     }
 
     fn is_pfs(&self) -> bool {

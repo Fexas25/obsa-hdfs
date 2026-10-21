@@ -6,6 +6,17 @@ use http::{Method, Uri};
 use crate::config::ObsConfig;
 use crate::types::AddressingStyle;
 
+/// Percent-encode an object key for the request path, keeping `/` separators.
+/// Leaves exactly A-Z a-z 0-9 `-` `_` `.` `~` unescaped, matching the OBS Java
+/// SDK (URLEncoder plus its `%20`/`%2A`/`~` fixups). The V2 signature covers
+/// this encoded form, so the signer must use the same function.
+pub fn encode_object_key(key: &str) -> String {
+    key.split('/')
+        .map(|part| urlencoding::encode(part).into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 /// Low-level HTTP request descriptor.
 #[derive(Clone)]
 pub struct HttpRequest {
@@ -103,12 +114,7 @@ impl RequestBuilder {
             .trim_start_matches("http://");
         // Object keys are opaque. Filesystem paths are normalized by the FS
         // layer; stripping here would disagree with the signed resource.
-        let key = self
-            .key
-            .split('/')
-            .map(|part| urlencoding::encode(part).into_owned())
-            .collect::<Vec<_>>()
-            .join("/");
+        let key = encode_object_key(&self.key);
         let mut path = match self.config.addressing_style {
             AddressingStyle::Path => format!("/{}/{key}", self.bucket),
             _ => format!("/{key}"),

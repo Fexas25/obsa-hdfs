@@ -7,7 +7,7 @@
 Hadoop 输入流实现 `ByteBufferReadable`，仅声明 `in:readbytebuffer` 能力。
 可写 heap ByteBuffer 复用原 byte[] 读取路径，并正确处理 arrayOffset、position 和 limit；
 可写 direct ByteBuffer 委派 Rust `nativeReadDirect`。原 byte[] API 不切换实现。
-尚未实现 positioned ByteBuffer、vectored read 或 Hadoop 的增强零拷贝读取接口。
+byte[] 定位读取与 vectored read 已另行实现（见 POSITIONED_VECTORED_READ.md）；尚未实现 positioned ByteBuffer 或 Hadoop 的增强零拷贝读取接口。
 
 直接缓冲区路径省掉 JNI 临时 Vec 和最后一次 Java 数组复制，但 Rust 仍将缓存范围复制到
 调用方的缓冲区，因此不是端到端零拷贝。JNI 每次最多读取 16 MiB，允许正常短读。

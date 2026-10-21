@@ -62,6 +62,10 @@ pub struct ObsConfig {
     pub pfs_append_concurrency: usize,
     pub pfs_append_chunk_size: u64,
     pub pfs_append_total_bytes: u64,
+    /// Object buckets: cache ancestors proven to be implicit directories so
+    /// sibling lookups skip file-precedence probes. Off by default: an
+    /// out-of-band file ancestor then hides children only after the TTL.
+    pub ancestor_directory_hints: bool,
     pub pfs_inode_hints: bool,
 
     pub trash_enabled: bool,
@@ -187,6 +191,7 @@ impl Default for ObsConfig {
             pfs_append_total_bytes: 64 * 1024 * 1024,
             pfs_append_concurrency: 4,
             pfs_inode_hints: true,
+            ancestor_directory_hints: false,
             trash_enabled: false,
             trash_dir: crate::types::DEFAULT_TRASH_DIR.into(),
             content_summary_enable: false,
@@ -302,6 +307,7 @@ pub fn config_from_hadoop(props: &HashMap<String, String>, bucket: &str) -> ObsC
     set_u64!(pfs_append_chunk_size, "fs.obs.pfs.append.chunk.size");
     set_u64!(pfs_append_total_bytes, "fs.obs.pfs.append.total.bytes");
     set_bool!(pfs_inode_hints, "fs.obs.pfs.inode.hints");
+    set_bool!(ancestor_directory_hints, "fs.obs.ancestor.directory.hints");
     set_bool!(trash_enabled, "fs.obs.trash.enabled");
     set_str!(trash_dir, "fs.obs.trash.dir");
     set_bool!(content_summary_enable, "fs.obs.content.summary.enable");

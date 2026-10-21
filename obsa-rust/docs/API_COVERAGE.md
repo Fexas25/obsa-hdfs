@@ -11,7 +11,7 @@ HEAD 响应边界：无条件对象 HEAD 仅接受 200，缺少或无法解析 C
 3. getUri / getDefaultPort：URI 已实现；defaultPort 未单独覆盖，继承行为未专项验收。
 4. 工作目录：Java 解析相对路径，Rust 也有路径归一化；当前不是共享一份工作目录状态，需核对直接 Rust 调用与 JNI 一致性。
 5. getHomeDirectory：继承 Hadoop 3.3.6 当前 UGI 短用户名语义；初始工作目录已改为初始化时 UGI 的短用户名。普通桶/PFS 的 remote/proxy 用户 doAs、相对路径读写、工作目录切换已专项验证；切换调用用户不重置已有工作目录，home 随当前调用用户变化。此项不是服务端权限隔离或 Kerberos 认证验收。
-6. open(Path,int)：JNI → Rust 输入流接通；缓存、版本检测、预取已测。skip/skipBytes 委派 Rust 定位，按打开时长度截断且不读取被跳过区间；EOF、溢出和取消恢复已有本地回归。ByteBufferReadable 支持可写 heap/direct 缓冲，声明 in:readbytebuffer；尚未实现 positioned ByteBuffer、vectored 或增强零拷贝读取，见 JNI_READ_BUFFER.md。
+6. open(Path,int)：JNI → Rust 输入流接通；缓存、版本检测、预取已测。skip/skipBytes 委派 Rust 定位，按打开时长度截断且不读取被跳过区间；EOF、溢出和取消恢复已有本地回归。ByteBufferReadable 支持可写 heap/direct 缓冲，声明 in:readbytebuffer；原生定位读取 read(long,...)（不加锁、不移动游标）与 Hadoop 3.3.5+ readVectored（合并、并发，声明 in:readvectored）已接通，见 POSITIONED_VECTORED_READ.md；尚未实现 ByteBufferPositionedReadable（为兼容 Hadoop 3.3 之前版本）和增强零拷贝读取，见 JNI_READ_BUFFER.md。
 7. open(Path,jobConf)：原扩展重载未接通；openFile 的 status hints 尚未下传；已验证提示不会绕过 Rust 可见性检查或覆盖真实长度/内容。
 8. create 基础重载：已接通 Rust 输出流；权限/overwrite 已传入，bufferSize/replication/blockSize 参数并未全部下传。
 9. create flags：递归（含 ChecksumOpt 重载）、非递归及 primitiveCreate 统一校验 CREATE/OVERWRITE/APPEND 组合与存在性，追加走 Rust append；未实现的存储标志明确拒绝。ChecksumOpt 尚未下传，不代表实现自定义校验和。createFile/appendFile builder 已验证非法组合、被文件阻断的后代路径以及正常 PFS 创建追加。
@@ -33,7 +33,7 @@ HEAD 响应边界：无条件对象 HEAD 仅接受 200，缺少或无法解析 C
 25. setOwner：Java/JNI → Rust set_hadoop_owner 已接通名称元数据；PFS disguise 模式写 user/group，一个 null 保留对应字段，两个 null 拒绝；none/普通桶 no-op。当前仅非空可打印 ASCII，Unicode 编码和服务端 ACL 尚未实现。独立 Rust set_owner 保持数值 uid/gid 语义。
 26. getFileBlockLocations：未单独覆盖 Java；本轮已验证单文件继承块位置的 offset/length，以及 Rust 状态与默认逻辑块大小配置一致性；完整继承语义仍待核对。
 27. getFileChecksum：两种重载现在通过 Rust 校验路径，负长度拒绝；有效路径仍返回 null 表示没有 Hadoop 兼容校验和，不把 ETag 当 MD5。
-28. xattrs：未接通。
+28. xattrs：与参考实现一致，仅支持目录的 "AccessLabel"（值为以 ";" 分隔的标签，读取时每个标签后带 ";"）。setXAttr/getXAttr/getXAttrs 接通 Rust → PFS `?x-obs-accesslabel`（PUT JSON {"accesslabel":[...]} / GET / DELETE，线格式对照 OBS Java SDK ObsFileService）；另增 removeXAttr、getXAttrs(names)、listXAttrs（参考实现为 Unsupported）。文件拒绝，根目录无标签且不可设置，其他名称拒绝；XAttrSetFlag 与参考实现一样被忽略。本地线格式/签名与 Hadoop 往返已测，未在真实 PFS 验证。
 29. copyFromLocalFile：覆盖单源/多源重载并委派 Hadoop FileUtil，false 结果转为 IOException，避免本地源删除失败仍报告移动成功；本地已验证普通桶/PFS 单文件、嵌套目录复制和移动，以及目标隐藏/禁止覆盖时保留本地源与原对象。单 PUT 提交前/后 503 均验证保留本地源，恢复后可重新移动；三源中一个失败时整批报错，失败源保留，已成功项不回滚且其他项继续尝试。目录用例仅将本地目录枚举替换为测试专用 NIO，未验收 Windows NativeIO；MPU、网络中断及完整本地权限兼容仍待验证。
 30. close：Hadoop deleteOnExit 在释放原生句柄前处理，仍经过 Rust 冲突检查，注册/取消统一按调用时工作目录限定路径，并与 Rust 一致处理超过根目录的点段别名，工作目录切换不改变既有删除目标；取消注册与重复关闭已本地验证；JNI 文件系统/流清理已接通；列表游标新增 EOF/错误/显式释放/所属 FS 关闭清理。MPU 远端清理仍 best effort。
 31. delegation tokens：未接入原 Java token manager。

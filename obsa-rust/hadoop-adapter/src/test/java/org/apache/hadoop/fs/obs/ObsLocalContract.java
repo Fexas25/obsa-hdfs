@@ -65,7 +65,7 @@ final class ObsLocalContract extends AbstractFSContract {
     conf.set("fs.obs.secret.key", "test");
     conf.setBoolean("fs.obs.connection.ssl.enabled", false);
     conf.set("fs.obs.bucket.mode", pfs ? "pfs" : "object");
-    conf.set("fs.obs.readahead.chunk.size", "65536");
+    if (conf.get("fs.obs.readahead.chunk.size") == null) conf.set("fs.obs.readahead.chunk.size", "65536");
     // Exercise continuation markers in ordinary contract directory trees.
     conf.setInt("fs.obs.paging.maximum", 3);
     conf.set("fs.obs.metadata.cache.ttl", "60000");

@@ -610,6 +610,66 @@ public final class OBSFileSystemRust extends FileSystem {
     call("setOwner", args(path).put("owner", username).put("group", groupname));
   }
 
+  /**
+   * Directory access labels, exposed like the Java OBSA reference as the single xattr
+   * "AccessLabel" whose value is the labels each followed by ';' (UTF-8). Setting splits the
+   * value on ';' (empty entries ignored); XAttrSetFlag is ignored, as in the reference. Labels
+   * apply to directories only; the root has none.
+   */
+  private static final String ACCESS_LABEL = "AccessLabel";
+
+  @Override
+  public void setXAttr(Path path, String name, byte[] value, EnumSet<XAttrSetFlag> flag)
+      throws IOException {
+    if (!ACCESS_LABEL.equals(name))
+      throw new IOException("Unsupported xattr " + name + "; only " + ACCESS_LABEL);
+    Objects.requireNonNull(value, "value");
+    com.fasterxml.jackson.databind.node.ArrayNode labels = JSON.createArrayNode();
+    for (String label : new String(value, java.nio.charset.StandardCharsets.UTF_8).split(";"))
+      if (!label.isEmpty()) labels.add(label);
+    ObjectNode request = args(path);
+    request.set("labels", labels);
+    call("setAccessLabel", request);
+  }
+
+  @Override
+  public byte[] getXAttr(Path path, String name) throws IOException {
+    if (!ACCESS_LABEL.equals(name))
+      throw new UnsupportedOperationException("Unsupported xattr " + name + "; only " + ACCESS_LABEL);
+    return getXAttrs(path).get(ACCESS_LABEL);
+  }
+
+  @Override
+  public Map<String, byte[]> getXAttrs(Path path) throws IOException {
+    Map<String, byte[]> result = new HashMap<>();
+    JsonNode labels = call("getAccessLabel", args(path));
+    if (labels.isArray()) {
+      StringBuilder value = new StringBuilder();
+      for (JsonNode label : labels) value.append(label.asText()).append(';');
+      result.put(ACCESS_LABEL, value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+    return result;
+  }
+
+  @Override
+  public Map<String, byte[]> getXAttrs(Path path, List<String> names) throws IOException {
+    Map<String, byte[]> all = getXAttrs(path);
+    all.keySet().retainAll(names);
+    return all;
+  }
+
+  @Override
+  public List<String> listXAttrs(Path path) throws IOException {
+    return new ArrayList<>(getXAttrs(path).keySet());
+  }
+
+  @Override
+  public void removeXAttr(Path path, String name) throws IOException {
+    if (!ACCESS_LABEL.equals(name))
+      throw new IOException("Unsupported xattr " + name + "; only " + ACCESS_LABEL);
+    call("removeAccessLabel", args(path));
+  }
+
   @Override
   public ContentSummary getContentSummary(Path path) throws IOException {
     JsonNode s = call(contentSummaryEnabled ? "summary" : "summaryDirectory", args(path));
@@ -774,7 +834,9 @@ public final class OBSFileSystemRust extends FileSystem {
 
   private final class NativeInput extends FSInputStream implements ByteBufferReadable, StreamCapabilities {
     private final long filesystemHandle = nativeHandle;
-    private long handle, position;
+    // Volatile: positioned reads check it without the stream monitor.
+    private volatile long handle;
+    private long position;
     private final byte[] one = new byte[1];
 
     NativeInput(long handle) {
@@ -784,6 +846,23 @@ public final class OBSFileSystemRust extends FileSystem {
     private void checkOpen() throws IOException {
       if (handle == 0 || nativeHandle == 0 || nativeHandle != filesystemHandle)
         throw new IOException("Stream closed");
+    }
+
+    /**
+     * Native positioned read; the cursor, its readahead and getPos are unaffected. Deliberately
+     * not synchronized: unlike Hadoop's default seek/read/seek-back, concurrent callers (and a
+     * concurrent sequential read) proceed in parallel. readFully(long, ...) loops over this.
+     */
+    @Override
+    public int read(long position, byte[] buffer, int offset, int length) throws IOException {
+      validatePositionedReadArgs(position, buffer, offset, length);
+      long stream = handle;
+      if (stream == 0 || nativeHandle == 0 || nativeHandle != filesystemHandle)
+        throw new IOException("Stream closed");
+      if (length == 0) return 0;
+      int count = NativeObs.nativePreadInto(stream, position, buffer, offset, length);
+      if (count > 0) statistics.incrementBytesRead(count);
+      return count;
     }
 
     @Override
@@ -831,7 +910,26 @@ public final class OBSFileSystemRust extends FileSystem {
 
     @Override
     public boolean hasCapability(String capability) {
-      return StreamCapabilities.READBYTEBUFFER.equalsIgnoreCase(capability);
+      // "in:readvectored" (StreamCapabilities.VECTOREDIO, Hadoop 3.3.5+), spelled out so the
+      // constant does not tie compilation to that release.
+      return StreamCapabilities.READBYTEBUFFER.equalsIgnoreCase(capability)
+          || "in:readvectored".equalsIgnoreCase(capability);
+    }
+
+    /**
+     * Native vectored read (Hadoop 3.3.5+): nearby ranges are merged per minSeekForVectorReads /
+     * maxReadSizeForVectorReads and fetched concurrently; the cursor is unaffected. All FileRange
+     * handling lives in NativeVectoredRead so this class still loads on older Hadoop releases.
+     */
+    @Override
+    public void readVectored(
+        List<? extends FileRange> ranges, java.util.function.IntFunction<ByteBuffer> allocate)
+        throws IOException {
+      long stream = handle;
+      if (stream == 0 || nativeHandle == 0 || nativeHandle != filesystemHandle)
+        throw new IOException("Stream closed");
+      NativeVectoredRead.read(
+          stream, ranges, allocate, minSeekForVectorReads(), maxReadSizeForVectorReads(), statistics);
     }
 
     @Override

@@ -7,7 +7,7 @@ pub mod output;
 pub mod journal;
 pub mod pfs_append;
 
-pub use input::ObsInputStream;
+pub use input::{ObsInputStream, PositionedReader};
 pub use output::ObsOutputStream;
 pub use pfs_append::PfsAppendStream;
 

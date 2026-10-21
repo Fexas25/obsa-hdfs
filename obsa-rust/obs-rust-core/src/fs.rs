@@ -223,19 +223,30 @@ impl ObsFileSystem {
             status.block_size = self.default_block_size();
             return Ok(status);
         }
-        self.ensure_visible_path(&key).await?;
+        // A path hidden by a file ancestor and a missing path both report not
+        // found, so ancestors are only probed once the path itself exists.
         if let Some(cached) = self.cache.get(&key) {
-            return cached.ok_or_else(|| Self::not_found(&key));
+            let status = cached.ok_or_else(|| Self::not_found(&key))?;
+            self.ensure_visible_path(&key).await?;
+            return Ok(status);
         }
         let epoch = self.cache.snapshot_epoch();
-        match self.store.head(&key).await {
-            Ok(meta) => return Ok(self.remember_at(&key, self.meta_status(&key, meta), epoch)),
+        let Some(status) = self.query_status(&key).await? else {
+            self.cache.put_if_unchanged(&key, None, epoch);
+            return Err(Self::not_found(&key));
+        };
+        self.ensure_existing_path_visible(&key, epoch).await?;
+        Ok(self.remember_at(&key, status, epoch))
+    }
+    async fn query_status(&self, key: &str) -> ObsResult<Option<FileStatus>> {
+        match self.store.head(key).await {
+            Ok(meta) => return Ok(Some(self.meta_status(key, meta))),
             Err(e) if e.is_path_not_found() => {}
             Err(e) => return Err(e),
         }
         if !self.is_pfs() || self.disguise_permissions() {
             match self.store.head(&format!("{key}/")).await {
-                Ok(meta) => return Ok(self.remember_at(&key, self.meta_status(&key, meta), epoch)),
+                Ok(meta) => return Ok(Some(self.meta_status(key, meta))),
                 Err(e) if e.is_path_not_found() => {}
                 Err(e) => return Err(e),
             }
@@ -244,11 +255,10 @@ impl ObsFileSystem {
         let mut pager = ListPager::new(self.store.as_ref(), &prefix, "/", 1);
         while let Some(entries) = pager.next_page().await? {
             if !entries.is_empty() {
-                return Ok(self.remember_at(&key, FileStatus::dir(&key, 0o755), epoch));
+                return Ok(Some(FileStatus::dir(key, 0o755)));
             }
         }
-        self.cache.put_if_unchanged(&key, None, epoch);
-        Err(Self::not_found(&key))
+        Ok(None)
     }
     pub async fn exists(&self, path: &str) -> ObsResult<bool> {
         match self.get_file_status(path).await {
@@ -459,14 +469,56 @@ impl ObsFileSystem {
     // requested object before listing its prefix, matching get_file_status.
     // Cached status avoids another HEAD; PFS has no file/prefix ambiguity.
     async fn ensure_visible_path(&self, key: &str) -> ObsResult<()> {
-        if !self.is_pfs() {
-            for (end, _) in key.match_indices('/') {
-                if end > 0 && self.direct_file_status(&key[..end]).await?.is_some() {
-                    return Err(Self::not_found(key));
-                }
+        self.check_ancestors(key).await.map(|_| ())
+    }
+
+    /// Visibility check for a path just shown to exist: every ancestor without
+    /// a file object is then an implicit directory. Remember those as
+    /// directory hints so sibling lookups skip the same ancestor probes.
+    async fn ensure_existing_path_visible(&self, key: &str, epoch: u64) -> ObsResult<()> {
+        let probed = self.check_ancestors(key).await?;
+        if self.config.ancestor_directory_hints {
+            for ancestor in probed {
+                self.remember_directory_hint(ancestor, epoch);
             }
         }
         Ok(())
+    }
+
+    /// Object buckets: a file ancestor hides the path (file precedence).
+    /// Uncached ancestors are probed concurrently; returns those confirmed
+    /// not to be files by a remote probe.
+    async fn check_ancestors<'k>(&self, key: &'k str) -> ObsResult<Vec<&'k str>> {
+        if self.is_pfs() {
+            return Ok(Vec::new());
+        }
+        let ancestors = key
+            .match_indices('/')
+            .filter(|(end, _)| *end > 0)
+            .map(|(end, _)| &key[..end]);
+        let mut probed = Vec::new();
+        let mut pending = Vec::new();
+        for ancestor in ancestors {
+            match self.cache.get(ancestor) {
+                Some(Some(status)) if !status.is_dir => return Err(Self::not_found(key)),
+                Some(Some(_)) => {}
+                // Cached as absent is not a file either, but only trusted
+                // when the opt-in hint mode accepts TTL-bounded staleness.
+                Some(None) if self.config.ancestor_directory_hints => {}
+                _ => pending.push(ancestor),
+            }
+        }
+        let results = futures::future::try_join_all(
+            pending.iter().map(|ancestor| self.direct_file_status(ancestor)),
+        )
+        .await?;
+        for (ancestor, file) in pending.into_iter().zip(results) {
+            if file.is_some() {
+                return Err(Self::not_found(key));
+            }
+            probed.push(ancestor);
+        }
+        Ok(probed)
     }
 
     async fn listed_file_status(&self, key: &str) -> ObsResult<Option<FileStatus>> {
@@ -1043,6 +1095,39 @@ impl ObsFileSystem {
         if !self.disguise_permissions() { return Ok(()); }
         let _invalidation = MutationInvalidation { cache: self.cache.clone(), keys: vec![key.clone()] };
         self.store.patch_user_metadata(&key, std::collections::HashMap::from([("permission".into(), (mode & 0o7777).to_string())])).await
+    }
+    /// Directory access labels (Hadoop xattr "AccessLabel" in the Java OBSA
+    /// reference). Directories only; the root has none and cannot be labelled.
+    pub async fn get_access_label(&self, path: &str) -> ObsResult<Option<Vec<String>>> {
+        let key = self.access_label_directory(path).await?;
+        if key.is_empty() {
+            return Ok(None);
+        }
+        self.store.get_access_label(&key).await.map(Some)
+    }
+    pub async fn set_access_label(&self, path: &str, labels: &[String]) -> ObsResult<()> {
+        let key = self.access_label_directory(path).await?;
+        if key.is_empty() {
+            return Err(ObsError::InvalidArgument("cannot label the root directory".into()));
+        }
+        if labels.iter().any(|label| label.is_empty()) {
+            return Err(ObsError::InvalidArgument("access labels must be nonempty".into()));
+        }
+        self.store.set_access_label(&key, labels).await
+    }
+    pub async fn remove_access_label(&self, path: &str) -> ObsResult<()> {
+        let key = self.access_label_directory(path).await?;
+        if key.is_empty() {
+            return Err(ObsError::InvalidArgument("cannot label the root directory".into()));
+        }
+        self.store.delete_access_label(&key).await
+    }
+    async fn access_label_directory(&self, path: &str) -> ObsResult<String> {
+        let key = self.key(path)?;
+        if !self.get_file_status(path).await?.is_dir {
+            return Err(ObsError::Io(format!("access labels require a directory: {path}")));
+        }
+        Ok(key)
     }
     pub async fn set_owner(&self, path: &str, uid: u32, gid: u32) -> ObsResult<()> {
         let key = self.key(path)?;

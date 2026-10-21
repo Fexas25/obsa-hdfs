@@ -92,32 +92,24 @@ impl ObsSigner {
             .collect()
     }
 
-    /// Build canonical resource: /bucket/key?subresource1&subresource2
+    /// Build canonical resource: /bucket/encoded-key?subresource1&subresource2
+    ///
+    /// The key is percent-encoded exactly as on the wire: the OBS Java SDK signs
+    /// `uri.getRawPath()`, so raw non-ASCII or reserved characters would not
+    /// match the server's string-to-sign. Sub-resource values stay decoded.
     pub fn canonical_resource(
         bucket: &str,
         key: &str,
         sub_resources: &[(&str, Option<&str>)],
     ) -> String {
-        let mut resource = format!("/{bucket}/{key}");
-        // OBS V2 excludes ordinary LIST query parameters. See Huawei API
-        // obs_04_0010.html; PFS folder is an additional protocol subresource.
+        let mut resource = format!("/{bucket}/{}", crate::transport::request::encode_object_key(key));
+        // Only signable sub-resources take part (case-insensitive, as in the SDK);
+        // ordinary query parameters such as LIST prefix/marker and the PFS
+        // `folder` flag are excluded by the server, so signing them would fail.
         let mut sub_resources: Vec<_> = sub_resources
             .iter()
             .copied()
-            .filter(|(name, _)| {
-                !matches!(
-                    *name,
-                    "prefix"
-                        | "delimiter"
-                        | "marker"
-                        | "max-keys"
-                        | "encoding-type"
-                        | "list-type"
-                        | "continuation-token"
-                        | "start-after"
-                        | "fetch-owner"
-                )
-            })
+            .filter(|(name, _)| Self::is_signed_sub_resource(name))
             .collect();
         sub_resources.sort_by(|a, b| a.0.cmp(b.0));
         if !sub_resources.is_empty() {
@@ -132,6 +124,30 @@ impl ObsSigner {
             resource.push_str(&parts.join("&"));
         }
         resource
+    }
+
+    /// Union of Huawei API obs_04_0010 and the OBS Java SDK's
+    /// ALLOWED_RESOURCE_PARAMTER_NAMES (lowercase), plus any `x-obs-` name.
+    fn is_signed_sub_resource(name: &str) -> bool {
+        const SIGNED: &[&str] = &[
+            "cdnnotifyconfiguration", "acl", "append", "attname", "backtosource", "cors",
+            "customdomain", "delete", "deletebucket", "directcoldaccess", "encryption",
+            "inventory", "length", "lifecycle", "location", "logging", "metadata", "modify",
+            "name", "notification", "partnumber", "policy", "position", "quota", "rename",
+            "replication", "restore", "storageclass", "storagepolicy", "storageinfo", "tagging",
+            "torrent", "truncate", "uploadid", "uploads", "versionid", "versioning", "versions",
+            "website", "object-lock", "retention", "requestpayment", "mirrorrefresh",
+            "mirrorbacktosource", "obsbucketalias", "obsalias", "replication_progress",
+            "fileinterface", "readahead", "response-cache-control",
+            "response-content-disposition", "response-content-encoding",
+            "response-content-language", "response-content-type", "response-expires",
+            "x-image-process", "x-image-save-bucket", "x-image-save-object", "x-oss-process",
+            "ignore-sign-in-query", "listcontentsummary", "multilistcontentsummary",
+            "getcontentsummary", "select", "select-type", "symlink", "obscompresspolicy",
+            "dispolicy", "realtimelog",
+        ];
+        let lower = name.to_ascii_lowercase();
+        lower.starts_with("x-obs-") || SIGNED.contains(&lower.as_str())
     }
 }
 

@@ -40,6 +40,8 @@ final class LocalObsServer implements AutoCloseable {
   final AtomicInteger deleteMisses = new AtomicInteger();
   volatile int failedRangeStart = -1;
   final AtomicInteger rangeFailures = new AtomicInteger();
+  /** Directory key → raw JSON body last PUT with ?x-obs-accesslabel. */
+  final Map<String, String> accessLabels = new java.util.concurrent.ConcurrentHashMap<>();
 
   LocalObsServer(boolean pfs) throws IOException {
     this.pfs = pfs;
@@ -90,6 +92,20 @@ final class LocalObsServer implements AutoCloseable {
       String method = e.getRequestMethod();
       Map<String, String> q = query(e.getRequestURI());
       byte[] current = data.get(key);
+      if (q.containsKey("x-obs-accesslabel")) {
+        // PFS directory access labels; the key is the directory without trailing slash.
+        if (method.equals("PUT")) {
+          accessLabels.put(key, new String(body(e), StandardCharsets.UTF_8));
+          send(e, 200, "");
+        } else if (method.equals("GET")) {
+          e.getResponseHeaders().set("Content-Type", "application/json");
+          send(e, 200, accessLabels.getOrDefault(key, "{\"accesslabel\":[]}"));
+        } else {
+          accessLabels.remove(key);
+          send(e, 204, "");
+        }
+        return;
+      }
       if (method.equals("HEAD")) {
         heads.incrementAndGet();
         if (current == null) {

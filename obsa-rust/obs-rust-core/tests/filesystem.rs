@@ -5351,7 +5351,9 @@ async fn file_ancestor_blocks_explicit_hidden_path_operations() {
             }
         }
         assert_eq!(store.objects.lock().unwrap().get("a/b").unwrap().as_ref(), b"hidden");
-        assert_eq!(store.count("head:a/b"), 0);
+        // The hidden key may be probed once before its file ancestor is found,
+        // but is never read, listed, copied or deleted.
+        assert!(store.count("head:a/b") <= 1, "{:?}", store.calls.lock().unwrap());
         assert_eq!(store.count("get:"), 0);
         assert_eq!(store.count("delete:"), 0);
         assert_eq!(store.count("copy"), 0);
@@ -5371,6 +5373,36 @@ async fn cached_child_does_not_bypass_new_file_ancestor() {
     assert!(matches!(fs.open("/a/b", OpenOptions { status_hint: Some(hint), ..Default::default() }).await,
         Err(e) if e.is_path_not_found()));
     assert_eq!(store.count("get:"), 0);
+}
+
+#[tokio::test]
+async fn ancestor_hint_mode_sees_out_of_band_file_ancestor_after_ttl() {
+    // Opt-in mode: proven-directory ancestor hints expire like other statuses.
+    let store = Arc::new(MemoryStore::default());
+    store.objects.lock().unwrap().insert("a/b".into(), Bytes::from_static(b"hidden"));
+    let config = ObsConfig { metadata_cache_ttl_ms: 50, ancestor_directory_hints: true, ..Default::default() };
+    let fs = ObsFileSystem::with_store(config, store.clone());
+    fs.get_file_status("/a/b").await.unwrap();
+    store.objects.lock().unwrap().insert("a".into(), Bytes::from_static(b"parent"));
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    assert!(fs.get_file_status("/a/b").await.unwrap_err().is_path_not_found());
+}
+
+#[tokio::test]
+async fn default_mode_reprobes_ancestors_concurrently_without_hints() {
+    let store = Arc::new(MemoryStore::default());
+    for name in ["a/b/c/d/f1", "a/b/c/d/f2"] {
+        store.put(name, Bytes::from_static(b"x"), PutHeaders::default()).await.unwrap();
+    }
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    store.calls.lock().unwrap().clear();
+    fs.get_file_status("/a/b/c/d/f1").await.unwrap();
+    fs.get_file_status("/a/b/c/d/f2").await.unwrap();
+    assert_eq!(store.count("head:"), 10, "strict file precedence re-probes ancestors");
+    store.calls.lock().unwrap().clear();
+    assert!(fs.get_file_status("/x/y/z/missing").await.unwrap_err().is_path_not_found());
+    let calls = store.calls.lock().unwrap().clone();
+    assert!(!calls.iter().any(|c| c == "head:x" || c == "head:x/y" || c == "head:x/y/z"), "{calls:?}");
 }
 
 #[tokio::test]
@@ -5409,7 +5441,7 @@ async fn explicit_ancestor_service_errors_are_not_path_misses() {
     let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
     assert_eq!(fs.exists("/a/b").await.unwrap_err().code(), Some("NoSuchBucket"));
     assert_eq!(fs.delete("/a/b", true).await.unwrap_err().code(), Some("NoSuchBucket"));
-    assert_eq!(store.count("head:a/b"), 0);
+    assert!(store.count("head:a/b") <= 2, "one probe per operation at most");
     assert_eq!(store.count("delete:"), 0);
 }
 
@@ -5895,4 +5927,289 @@ async fn listing_parent_hint_preserves_known_directory_permissions() {
             assert_eq!(store.count("head:"), heads);
         }
     }
+}
+
+#[tokio::test]
+async fn positioned_read_is_independent_of_stream_cursor_and_clips_at_eof() {
+    let store = Arc::new(MemoryStore::default());
+    store.put("file", Bytes::from_static(b"abcdefghijklmnop"), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 4, readahead_max_chunks: 0, ..Default::default()
+    };
+    let mut stream = ObsInputStream::new(store.clone(), &config, "file".into(), 16, None);
+    let mut head = [0; 2];
+    assert_eq!(stream.read(&mut head).await.unwrap(), 2);
+    let reader = stream.positioned_reader();
+    assert_eq!(reader.content_length(), 16);
+    let mut bytes = [0; 5];
+    assert_eq!(reader.read_at(9, &mut bytes).await.unwrap(), 5);
+    assert_eq!(&bytes, b"jklmn");
+    // The stream cursor and its sequential state are untouched.
+    assert_eq!(stream.position(), 2);
+    let mut next = [0; 2];
+    assert_eq!(stream.read(&mut next).await.unwrap(), 2);
+    assert_eq!(&next, b"cd");
+    let mut tail = [0; 8];
+    assert_eq!(reader.read_at(13, &mut tail).await.unwrap(), 3);
+    assert_eq!(&tail[..3], b"nop");
+    let gets = store.count("get:");
+    assert_eq!(reader.read_at(16, &mut tail).await.unwrap(), 0);
+    assert_eq!(reader.read_at(u64::MAX, &mut tail).await.unwrap(), 0);
+    assert_eq!(reader.read_at(3, &mut []).await.unwrap(), 0);
+    assert_eq!(store.count("get:"), gets, "EOF and empty reads must not issue requests");
+}
+
+#[tokio::test]
+async fn positioned_read_splits_large_requests_into_concurrent_ordered_ranges() {
+    let data: Vec<u8> = (0..64u8).collect();
+    let store = Arc::new(MemoryStore { get_delay_ms: 20, ..Default::default() });
+    store.put("file", Bytes::from(data.clone()), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 8, readahead_max_chunks: 3, ..Default::default()
+    };
+    let stream = ObsInputStream::new(store.clone(), &config, "file".into(), 64, None);
+    let reader = stream.positioned_reader();
+    let mut bytes = vec![0; 40];
+    assert_eq!(reader.read_at(5, &mut bytes).await.unwrap(), 40);
+    assert_eq!(bytes, &data[5..45]);
+    assert_eq!(store.count("get:"), 5);
+    let peak = store.get_peak.load(Ordering::SeqCst);
+    assert!((2..=3).contains(&peak), "expected bounded concurrent ranges, peak={peak}");
+    // Ranges start at the requested position, not at the chunk grid.
+    let calls = store.calls.lock().unwrap().clone();
+    for start in [5, 13, 21, 29, 37] {
+        assert!(calls.contains(&format!("range:file:Some({start})")), "{calls:?}");
+    }
+}
+
+#[tokio::test]
+async fn positioned_read_shares_pinned_revision_with_stream() {
+    let store = Arc::new(MemoryStore::default());
+    store.put("file", Bytes::from_static(b"abcdefgh"), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 4, readahead_max_chunks: 0, ..Default::default()
+    };
+    let mut stream = ObsInputStream::new(store.clone(), &config, "file".into(), 8, None);
+    let mut first = [0; 1];
+    stream.read(&mut first).await.unwrap();
+    let reader = stream.positioned_reader();
+    store.put("file", Bytes::from_static(b"ABCDEFGH"), PutHeaders::default()).await.unwrap();
+    let error = reader.read_at(4, &mut [0; 4]).await.unwrap_err();
+    assert!(matches!(error, ObsError::RemoteFileChanged(_)), "{error}");
+    // A reader created before any stream read pins the revision for the stream too.
+    store.put("other", Bytes::from_static(b"12345678"), PutHeaders::default()).await.unwrap();
+    let mut fresh = ObsInputStream::new(store.clone(), &config, "other".into(), 8, None);
+    let early = fresh.positioned_reader();
+    let mut bytes = [0; 4];
+    early.read_at(4, &mut bytes).await.unwrap();
+    assert_eq!(&bytes, b"5678");
+    store.put("other", Bytes::from_static(b"abcdefgh"), PutHeaders::default()).await.unwrap();
+    assert!(matches!(fresh.read(&mut bytes).await, Err(ObsError::RemoteFileChanged(_))));
+}
+
+#[tokio::test]
+async fn resident_positioned_read_uses_current_range_only() {
+    let store = Arc::new(MemoryStore::default());
+    store.put("file", Bytes::from_static(b"abcdefghijkl"), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 4, readahead_max_chunks: 0, ..Default::default()
+    };
+    let mut stream = ObsInputStream::new(store.clone(), &config, "file".into(), 12, None);
+    let mut bytes = [0; 3];
+    assert_eq!(stream.read_resident_at(0, &mut bytes), None, "nothing resident yet");
+    stream.seek(5).unwrap();
+    stream.read(&mut [0; 1]).await.unwrap();
+    let gets = store.count("get:");
+    assert_eq!(stream.read_resident_at(4, &mut bytes), Some(3));
+    assert_eq!(&bytes, b"efg");
+    assert_eq!(stream.read_resident_at(6, &mut bytes), None, "spans past resident range");
+    assert_eq!(stream.read_resident_at(2, &mut bytes), None, "before resident range");
+    assert_eq!(stream.read_resident_at(12, &mut bytes), Some(0));
+    assert_eq!(stream.read_resident_at(5, &mut []), Some(0));
+    assert_eq!(store.count("get:"), gets);
+    assert_eq!(stream.position(), 6);
+}
+
+#[tokio::test]
+async fn positioned_read_failure_reports_no_partial_count() {
+    let store = Arc::new(MemoryStore {
+        fail_get_at: Some(8), get_failures: AtomicUsize::new(1), ..Default::default()
+    });
+    store.put("file", Bytes::from_static(b"abcdefghijklmnop"), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 4, readahead_max_chunks: 2, ..Default::default()
+    };
+    let stream = ObsInputStream::new(store.clone(), &config, "file".into(), 16, None);
+    let reader = stream.positioned_reader();
+    let mut bytes = [0; 12];
+    assert!(matches!(reader.read_at(0, &mut bytes).await, Err(ObsError::Transport(_))));
+    // The failure is not sticky: a retry reads the complete range.
+    assert_eq!(reader.read_at(0, &mut bytes).await.unwrap(), 12);
+    assert_eq!(&bytes, b"abcdefghijkl");
+}
+
+#[tokio::test]
+async fn vectored_read_merges_nearby_ranges_and_scatters_overlaps() {
+    let data: Vec<u8> = (0..200u8).collect();
+    let store = Arc::new(MemoryStore::default());
+    store.put("file", Bytes::from(data.clone()), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 64, readahead_max_chunks: 4, ..Default::default()
+    };
+    let stream = ObsInputStream::new(store.clone(), &config, "file".into(), 200, None);
+    let reader = stream.positioned_reader();
+    // Unsorted input; [10,20) [25,30) [28,40) merge (gap 5 <= 8, overlap);
+    // [100,110) is too far; [150,150) is empty; [190,200) ends exactly at EOF.
+    let (mut a, mut b, mut c, mut d, mut e, mut f) =
+        (vec![0; 10], vec![0; 5], vec![0; 12], vec![0; 10], vec![0; 0], vec![0; 10]);
+    let mut ranges: Vec<(u64, &mut [u8])> = vec![
+        (100, &mut d), (28, &mut c), (10, &mut a), (150, &mut e), (25, &mut b), (190, &mut f),
+    ];
+    reader.read_ranges(&mut ranges, 8, 1024).await.unwrap();
+    assert_eq!(a, &data[10..20]);
+    assert_eq!(b, &data[25..30]);
+    assert_eq!(c, &data[28..40]);
+    assert_eq!(d, &data[100..110]);
+    assert_eq!(f, &data[190..200]);
+    assert_eq!(store.count("get:"), 3, "one GET per merged span");
+    let calls = store.calls.lock().unwrap().clone();
+    for start in [10, 100, 190] {
+        assert!(calls.contains(&format!("range:file:Some({start})")), "{calls:?}");
+    }
+}
+
+#[tokio::test]
+async fn vectored_read_respects_max_merge_and_splits_large_spans_into_chunks() {
+    let data: Vec<u8> = (0..=255u8).collect();
+    let store = Arc::new(MemoryStore { get_delay_ms: 10, ..Default::default() });
+    store.put("file", Bytes::from(data.clone()), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 16, readahead_max_chunks: 3, ..Default::default()
+    };
+    let stream = ObsInputStream::new(store.clone(), &config, "file".into(), 256, None);
+    let reader = stream.positioned_reader();
+    // Adjacent ranges would merge, but max_merged=20 keeps them apart.
+    let (mut a, mut b, mut big) = (vec![0; 16], vec![0; 16], vec![0; 100]);
+    let mut ranges: Vec<(u64, &mut [u8])> = vec![(0, &mut a), (16, &mut b), (140, &mut big)];
+    reader.read_ranges(&mut ranges, 0, 20).await.unwrap();
+    assert_eq!(a, &data[0..16]);
+    assert_eq!(b, &data[16..32]);
+    assert_eq!(big, &data[140..240]);
+    // 1 + 1 + ceil(100/16)=7 chunk GETs, bounded concurrency.
+    assert_eq!(store.count("get:"), 9);
+    let peak = store.get_peak.load(Ordering::SeqCst);
+    assert!((2..=3).contains(&peak), "peak={peak}");
+}
+
+#[tokio::test]
+async fn vectored_read_rejects_eof_ranges_before_any_request() {
+    let store = Arc::new(MemoryStore::default());
+    store.put("file", Bytes::from_static(b"abcdefgh"), PutHeaders::default()).await.unwrap();
+    let stream = ObsInputStream::new(store.clone(), &ObsConfig::default(), "file".into(), 8, None);
+    let reader = stream.positioned_reader();
+    let (mut ok, mut past) = (vec![0; 2], vec![0; 4]);
+    let mut ranges: Vec<(u64, &mut [u8])> = vec![(0, &mut ok), (6, &mut past)];
+    assert!(reader.read_ranges(&mut ranges, 4096, 1 << 20).await.is_err());
+    let mut huge = vec![0; 1];
+    let mut overflow: Vec<(u64, &mut [u8])> = vec![(u64::MAX, &mut huge)];
+    assert!(reader.read_ranges(&mut overflow, 4096, 1 << 20).await.is_err());
+    assert_eq!(store.count("get:"), 0);
+    let mut empty: Vec<(u64, &mut [u8])> = Vec::new();
+    reader.read_ranges(&mut empty, 4096, 1 << 20).await.unwrap();
+}
+
+#[tokio::test]
+async fn vectored_read_detects_revision_change() {
+    let store = Arc::new(MemoryStore::default());
+    store.put("file", Bytes::from_static(b"abcdefgh"), PutHeaders::default()).await.unwrap();
+    let config = ObsConfig {
+        readahead_chunk_size: 4, readahead_max_chunks: 0, ..Default::default()
+    };
+    let mut stream = ObsInputStream::new(store.clone(), &config, "file".into(), 8, None);
+    stream.read(&mut [0; 1]).await.unwrap();
+    let reader = stream.positioned_reader();
+    store.put("file", Bytes::from_static(b"ABCDEFGH"), PutHeaders::default()).await.unwrap();
+    let mut tail = vec![0; 2];
+    let mut ranges: Vec<(u64, &mut [u8])> = vec![(5, &mut tail)];
+    assert!(matches!(
+        reader.read_ranges(&mut ranges, 0, 1 << 20).await,
+        Err(ObsError::RemoteFileChanged(_))
+    ));
+}
+
+fn object_fs(store: Arc<MemoryStore>) -> ObsFileSystem {
+    let config = ObsConfig {
+        metadata_cache_ttl_ms: 60_000, negative_cache_ttl_ms: 60_000, ancestor_directory_hints: true,
+        ..Default::default()
+    };
+    ObsFileSystem::with_store(config, store)
+}
+
+#[tokio::test]
+async fn object_status_probes_ancestors_once_and_skips_them_for_missing_paths() {
+    let store = Arc::new(MemoryStore::default());
+    for name in ["a/b/c/d/f1", "a/b/c/d/f2"] {
+        store.put(name, Bytes::from_static(b"x"), PutHeaders::default()).await.unwrap();
+    }
+    let fs = object_fs(store.clone());
+    store.calls.lock().unwrap().clear();
+    assert!(!fs.get_file_status("/a/b/c/d/f1").await.unwrap().is_dir);
+    // One HEAD for the file plus one per ancestor (a, a/b, a/b/c, a/b/c/d).
+    assert_eq!(store.count("head:"), 5, "{:?}", store.calls.lock().unwrap());
+    store.calls.lock().unwrap().clear();
+    // Siblings reuse the proven-directory ancestors; repeats hit the cache.
+    fs.get_file_status("/a/b/c/d/f2").await.unwrap();
+    fs.get_file_status("/a/b/c/d/f1").await.unwrap();
+    assert_eq!(store.count("head:"), 1, "{:?}", store.calls.lock().unwrap());
+    // Ancestors are directories, consistent with direct lookups.
+    assert!(fs.get_file_status("/a/b").await.unwrap().is_dir);
+    store.calls.lock().unwrap().clear();
+    // A missing path needs no ancestor probes: it is absent either way.
+    assert!(fs.get_file_status("/x/y/z/missing").await.unwrap_err().is_path_not_found());
+    let calls = store.calls.lock().unwrap().clone();
+    assert!(!calls.iter().any(|c| c == "head:x" || c == "head:x/y" || c == "head:x/y/z"), "{calls:?}");
+}
+
+#[tokio::test]
+async fn object_status_still_hides_descendants_of_files_after_ancestor_caching() {
+    let store = Arc::new(MemoryStore::default());
+    for name in ["p/file", "p/file/hidden", "p/dir/visible"] {
+        store.put(name, Bytes::from_static(b"x"), PutHeaders::default()).await.unwrap();
+    }
+    let fs = object_fs(store.clone());
+    assert!(fs.get_file_status("/p/dir/visible").await.is_ok());
+    assert!(fs.get_file_status("/p/file/hidden").await.unwrap_err().is_path_not_found());
+    // Repeated lookups stay hidden, including after the file is cached.
+    assert!(!fs.get_file_status("/p/file").await.unwrap().is_dir);
+    assert!(fs.get_file_status("/p/file/hidden").await.unwrap_err().is_path_not_found());
+    assert!(!fs.exists("/p/file/hidden").await.unwrap());
+}
+
+#[tokio::test]
+async fn object_ancestor_probes_run_concurrently() {
+    let store = Arc::new(MemoryStore { head_delay_ms: 40, ..Default::default() });
+    store.put("a/b/c/d/e/f/file", Bytes::from_static(b"x"), PutHeaders::default()).await.unwrap();
+    let fs = object_fs(store.clone());
+    let started = std::time::Instant::now();
+    fs.get_file_status("/a/b/c/d/e/f/file").await.unwrap();
+    // Target HEAD, then six ancestor HEADs in parallel: ~2 round trips, not 7.
+    assert!(started.elapsed() < Duration::from_millis(200), "{:?}", started.elapsed());
+}
+
+#[tokio::test]
+async fn file_ancestor_created_through_filesystem_hides_cached_child_immediately() {
+    let store = Arc::new(MemoryStore::default());
+    store.objects.lock().unwrap().insert("a/b".into(), Bytes::from_static(b"child"));
+    let fs = object_fs(store.clone());
+    fs.get_file_status("/a/b").await.unwrap();
+    // Replacing the implicit directory "a" by a file via this instance must
+    // invalidate the ancestor hint and the cached child.
+    fs.delete("/a/b", false).await.unwrap();
+    fs.delete("/a", true).await.unwrap();
+    let mut out = fs.create("/a", CreateOptions { overwrite: true, ..Default::default() }).await.unwrap();
+    out.write(b"file").await.unwrap();
+    out.close().await.unwrap();
+    assert!(!fs.get_file_status("/a").await.unwrap().is_dir);
+    store.objects.lock().unwrap().insert("a/b".into(), Bytes::from_static(b"child"));
+    assert!(fs.get_file_status("/a/b").await.unwrap_err().is_path_not_found());
 }

@@ -302,6 +302,179 @@ fn bounded_read_count(available: usize, requested: usize, remaining: u64) -> usi
     (available.min(requested) as u64).min(remaining) as usize
 }
 
+/// Stateless positioned reads over the same object snapshot as its stream.
+///
+/// Reads never move the stream cursor or disturb its prefetch state, so
+/// concurrent callers (Hadoop `PositionedReadable`) need no stream lock. The
+/// opened length bounds every read, and object buckets share the stream's
+/// pinned ETag: a revision change fails the read instead of mixing versions.
+#[derive(Clone)]
+pub struct PositionedReader {
+    store: Arc<dyn ObjectStore>,
+    key: String,
+    length: u64,
+    chunk_size: u64,
+    parallelism: usize,
+    hint: Option<InodeHint>,
+    revision: Option<Arc<OnceLock<String>>>,
+    buffer_budget: Arc<BufferBudget>,
+}
+impl ObsInputStream {
+    pub fn positioned_reader(&self) -> PositionedReader {
+        PositionedReader {
+            store: self.store.clone(),
+            key: self.key.clone(),
+            length: self.length,
+            chunk_size: self.chunk_size,
+            parallelism: self.max_window.max(1),
+            hint: self.hint.clone(),
+            revision: self.revision.clone(),
+            buffer_budget: self.buffer_budget.clone(),
+        }
+    }
+    /// Serve a positioned read from the resident range without any request.
+    /// Returns None unless the whole (EOF-clipped) request is resident; the
+    /// cursor and prefetch state are left untouched either way.
+    pub fn read_resident_at(&self, position: u64, buf: &mut [u8]) -> Option<usize> {
+        if self.failure.is_some() {
+            return None;
+        }
+        if buf.is_empty() || position >= self.length {
+            return Some(0);
+        }
+        let (index, bytes) = self.current.as_ref()?;
+        let start = index.checked_mul(self.chunk_size)?;
+        let offset = usize::try_from(position.checked_sub(start)?).ok()?;
+        let count = bounded_read_count(usize::MAX, buf.len(), self.length - position);
+        let resident = bytes.get(offset..offset.checked_add(count)?)?;
+        buf[..count].copy_from_slice(resident);
+        Some(count)
+    }
+}
+impl PositionedReader {
+    pub fn content_length(&self) -> u64 {
+        self.length
+    }
+    /// Read up to `buf.len()` bytes at `position`; 0 means EOF (or empty buf).
+    /// Large requests are split into chunk-sized ranges fetched concurrently,
+    /// at most `readahead_max_chunks` in flight, and copied in order. On error
+    /// the buffer may be partially overwritten and no byte count is reported.
+    pub async fn read_at(&self, position: u64, buf: &mut [u8]) -> ObsResult<usize> {
+        if buf.is_empty() || position >= self.length {
+            return Ok(0);
+        }
+        let total = (buf.len() as u64).min(self.length - position);
+        let ranges = (0..total.div_ceil(self.chunk_size)).map(|n| {
+            let start = position + n * self.chunk_size;
+            (start, start.saturating_add(self.chunk_size).min(position + total) - 1)
+        });
+        let mut fetched = futures::stream::iter(ranges)
+            .map(|(start, end)| async move {
+                drop(self.buffer_budget.reserve(end - start + 1)?);
+                fetch_range(
+                    self.store.as_ref(),
+                    &self.key,
+                    start,
+                    end,
+                    self.hint.as_ref(),
+                    self.revision.as_deref(),
+                    self.buffer_budget.clone(),
+                )
+                .await
+            })
+            .buffered(self.parallelism);
+        let mut copied = 0;
+        while let Some(bytes) = fetched.next().await {
+            let bytes = bytes?;
+            buf[copied..copied + bytes.len()].copy_from_slice(&bytes);
+            copied += bytes.len();
+        }
+        Ok(copied)
+    }
+    /// Vectored read: fill every `(position, buffer)` completely.
+    ///
+    /// Ranges are sorted and coalesced when the gap to the previous span is at
+    /// most `merge_gap` and the merged span stays within `max_merged` bytes
+    /// (Hadoop's minSeekForVectorReads / maxReadSizeForVectorReads). Overlapping
+    /// and duplicate ranges are allowed. Merged spans are fetched as chunk-sized
+    /// ranged GETs, at most `readahead_max_chunks` in flight across all spans,
+    /// and scattered into the buffers as they complete. Any range extending
+    /// past the opened length fails the whole call before any request is sent;
+    /// on error, buffers may be partially written.
+    pub async fn read_ranges(
+        &self,
+        ranges: &mut [(u64, &mut [u8])],
+        merge_gap: u64,
+        max_merged: u64,
+    ) -> ObsResult<()> {
+        let mut order: Vec<usize> = Vec::with_capacity(ranges.len());
+        for (index, (position, buf)) in ranges.iter().enumerate() {
+            let end = position.checked_add(buf.len() as u64);
+            if end.map_or(true, |end| end > self.length) {
+                return Err(ObsError::Io(format!(
+                    "vectored range {position}+{} exceeds length {}", buf.len(), self.length)));
+            }
+            if !buf.is_empty() {
+                order.push(index);
+            }
+        }
+        order.sort_by_key(|&index| ranges[index].0);
+        // Spans as (start, end exclusive, member range indices).
+        let mut spans: Vec<(u64, u64, Vec<usize>)> = Vec::new();
+        for index in order {
+            let start = ranges[index].0;
+            let end = start + ranges[index].1.len() as u64;
+            match spans.last_mut() {
+                Some(span) if start <= span.1.saturating_add(merge_gap)
+                    && end.max(span.1) - span.0 <= max_merged => {
+                    span.1 = span.1.max(end);
+                    span.2.push(index);
+                }
+                _ => spans.push((start, end, vec![index])),
+            }
+        }
+        let pieces = spans.iter().enumerate().flat_map(|(span, (start, end, _))| {
+            let (start, end) = (*start, *end);
+            (0..(end - start).div_ceil(self.chunk_size)).map(move |n| {
+                let piece = start + n * self.chunk_size;
+                (span, piece, piece.saturating_add(self.chunk_size).min(end) - 1)
+            })
+        });
+        let mut fetched = futures::stream::iter(pieces)
+            .map(|(span, start, end)| async move {
+                drop(self.buffer_budget.reserve(end - start + 1)?);
+                let bytes = fetch_range(
+                    self.store.as_ref(),
+                    &self.key,
+                    start,
+                    end,
+                    self.hint.as_ref(),
+                    self.revision.as_deref(),
+                    self.buffer_budget.clone(),
+                )
+                .await?;
+                Ok::<_, ObsError>((span, start, bytes))
+            })
+            .buffer_unordered(self.parallelism);
+        while let Some(result) = fetched.next().await {
+            let (span, piece_start, bytes) = result?;
+            let piece_end = piece_start + bytes.len() as u64;
+            for &index in &spans[span].2 {
+                let (position, buf) = &mut ranges[index];
+                let start = piece_start.max(*position);
+                let end = piece_end.min(*position + buf.len() as u64);
+                if start < end {
+                    let target = (start - *position) as usize;
+                    let source = (start - piece_start) as usize;
+                    let count = (end - start) as usize;
+                    buf[target..target + count].copy_from_slice(&bytes[source..source + count]);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 async fn fetch(
     store: &dyn ObjectStore,
     key: &str,
@@ -314,6 +487,18 @@ async fn fetch(
 ) -> ObsResult<Bytes> {
     let start = index * size;
     let end = start.saturating_add(size - 1).min(length - 1);
+    fetch_range(store, key, start, end, hint, revision, budget).await
+}
+
+async fn fetch_range(
+    store: &dyn ObjectStore,
+    key: &str,
+    start: u64,
+    end: u64,
+    hint: Option<&InodeHint>,
+    revision: Option<&OnceLock<String>>,
+    budget: Arc<BufferBudget>,
+) -> ObsResult<Bytes> {
     let expected = end - start + 1;
     // Reject impossible buffers before issuing a request. Validate the clipped
     // range, not the configured chunk size, so short tail reads remain valid.

@@ -98,6 +98,17 @@ pub trait ObjectStore: Send + Sync {
         Err(crate::error::ObsError::Unsupported("user metadata updates".into()))
     }
 
+    // ── PFS directory access labels (`?x-obs-accesslabel`) ──
+    async fn set_access_label(&self, _dir_key: &str, _labels: &[String]) -> ObsResult<()> {
+        Err(crate::error::ObsError::Unsupported("access labels".into()))
+    }
+    async fn get_access_label(&self, _dir_key: &str) -> ObsResult<Vec<String>> {
+        Err(crate::error::ObsError::Unsupported("access labels".into()))
+    }
+    async fn delete_access_label(&self, _dir_key: &str) -> ObsResult<()> {
+        Err(crate::error::ObsError::Unsupported("access labels".into()))
+    }
+
     async fn probe_posix_bucket(&self) -> ObsResult<bool>;
     fn is_pfs(&self) -> bool;
 }

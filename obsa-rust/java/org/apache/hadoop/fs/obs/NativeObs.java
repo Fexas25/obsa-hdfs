@@ -35,6 +35,28 @@ public final class NativeObs {
   public static native int nativeReadDirect(long stream, java.nio.ByteBuffer data, int offset, int length)
       throws IOException;
 
+  /**
+   * Positioned read of up to 16 MiB at a nonnegative position; the stream cursor is unchanged.
+   * Thread-safe: concurrent calls on one stream do not wait for each other or for sequential
+   * reads. Returns -1 at EOF for a nonempty request. On failure the array region may be
+   * partially overwritten.
+   */
+  public static native int nativePreadInto(
+      long stream, long position, byte[] data, int offset, int length) throws IOException;
+
+  /** Length captured when the input stream was opened; makes no request. */
+  public static native long nativeStreamLength(long stream) throws IOException;
+
+  /**
+   * Vectored positioned read: fills each targets[i] completely from positions[i]. Ranges whose
+   * gap is at most mergeGap are fetched together while the merged span stays within maxMerged
+   * bytes; spans are fetched concurrently. Any range past EOF fails the whole call before I/O. On
+   * failure the target arrays may be partially written.
+   */
+  public static native void nativePreadVectored(
+      long stream, long[] positions, byte[][] targets, int mergeGap, int maxMerged)
+      throws IOException;
+
   public static native int nativeWrite(long stream, byte[] data, int offset, int length)
       throws IOException;
 

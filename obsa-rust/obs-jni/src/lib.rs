@@ -2,13 +2,13 @@
 //! panics and Rust errors never unwind across the JVM boundary.
 mod arguments;
 use jni::{
-    objects::{JByteArray, JByteBuffer, JClass, JString},
+    objects::{JByteArray, JByteBuffer, JClass, JLongArray, JObjectArray, JString},
     sys::{jbyteArray, jint, jlong, jstring, JavaVM, JNI_VERSION_1_8},
     JNIEnv,
 };
 use obs_rust_core::{
     error::ObsResult,
-    io::{ObsInputStream, ObsOutputStream, PfsAppendStream},
+    io::{ObsInputStream, ObsOutputStream, PfsAppendStream, PositionedReader},
     types::{CreateOptions, OpenOptions},
     ObsConfig, ObsError, ObsFileSystem,
 };
@@ -38,6 +38,10 @@ enum Stream {
 }
 type SharedStream = Arc<AsyncMutex<Option<Stream>>>;
 static STREAMS: Lazy<Mutex<HashMap<i64, (i64, SharedStream)>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+/// Positioned readers by input stream id. Kept apart from the stream mutex so
+/// concurrent preads never queue behind a sequential read's network I/O.
+static READERS: Lazy<Mutex<HashMap<i64, (i64, PositionedReader)>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 type SharedListing = Arc<AsyncMutex<Option<obs_rust_core::listing::StatusCursor>>>;
 static LISTINGS: Lazy<Mutex<HashMap<i64, (i64, SharedListing)>>> =
@@ -119,6 +123,11 @@ fn add_stream(owner: i64, value: Stream) -> ObsResult<i64> {
         return Err(io("filesystem closed while opening stream"));
     }
     let id = NEXT.fetch_add(1, Ordering::Relaxed);
+    // Registered under the filesystem lock like the stream, so a concurrent
+    // filesystem close removes both or neither.
+    if let Stream::Input(input) = &value {
+        READERS.lock().map_err(io)?.insert(id, (owner, input.positioned_reader()));
+    }
     STREAMS
         .lock()
         .map_err(io)?
@@ -246,6 +255,15 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeCall(
             "append"=>{let s=fs.get_file_status(path).await?;if s.is_dir{return Err(invalid("cannot append to directory"));}Ok(json!(add_stream(id,Stream::Append(fs.append_stream(path,s.length).await?))?))},
             "setPermission"=>{fs.set_hadoop_permission(path,arguments::permission(&args,None)?).await?;Ok(Value::Null)},
             "setOwner"=>{fs.set_hadoop_owner(path,arguments::text(&args,"owner",true)?,arguments::text(&args,"group",true)?).await?;Ok(Value::Null)},
+            "getAccessLabel"=>Ok(json!(fs.get_access_label(path).await?)),
+            "setAccessLabel"=>{
+                let labels:Vec<String>=args.get("labels").and_then(Value::as_array)
+                    .ok_or_else(||invalid("labels must be an array of strings"))?
+                    .iter().map(|v|v.as_str().map(str::to_owned).ok_or_else(||invalid("labels must be an array of strings")))
+                    .collect::<ObsResult<_>>()?;
+                fs.set_access_label(path,&labels).await?;Ok(Value::Null)
+            },
+            "removeAccessLabel"=>{fs.remove_access_label(path).await?;Ok(Value::Null)},
             _=>Err(ObsError::Unsupported(format!("native operation: {op}"))),
         }})?;
         Ok(env.new_string(value.to_string()).map_err(io)?.into_raw())
@@ -371,6 +389,135 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeReadDirect(
             }
         })?;
         Ok(if n == 0 && requested != 0 { -1 } else { n as jint })
+    })
+}
+fn positioned_reader(id: i64) -> ObsResult<PositionedReader> {
+    READERS
+        .lock()
+        .map_err(io)?
+        .get(&id)
+        .map(|(_, reader)| reader.clone())
+        .ok_or_else(|| io("input stream closed"))
+}
+/// Positioned read without moving the stream cursor. A request fully inside
+/// the stream's resident range is copied without I/O when the stream is idle;
+/// otherwise ranged GETs run outside the stream lock, so concurrent preads and
+/// sequential reads proceed independently. Short reads are allowed.
+fn pread(id: i64, position: jlong, buf: &mut [u8]) -> ObsResult<usize> {
+    if position < 0 {
+        return Err(invalid("negative positioned read"));
+    }
+    let reader = positioned_reader(id)?;
+    if let Ok(shared) = stream(id) {
+        if let Ok(lock) = shared.try_lock() {
+            if let Some(Stream::Input(s)) = lock.as_ref() {
+                if let Some(n) = s.read_resident_at(position as u64, buf) {
+                    return Ok(n);
+                }
+            }
+        }
+    }
+    rt()?.block_on(reader.read_at(position as u64, buf))
+}
+#[no_mangle]
+pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativePreadInto(
+    mut env: JNIEnv,
+    _: JClass,
+    id: jlong,
+    position: jlong,
+    data: JByteArray,
+    offset: jint,
+    length: jint,
+) -> jint {
+    guard(&mut env, |env| {
+        let size = env.get_array_length(&data).map_err(io)?;
+        if offset < 0 || length < 0 || offset > size - length {
+            return Err(invalid("positioned read bounds"));
+        }
+        let mut bytes = vec![0; (length as usize).min(16 * 1024 * 1024)];
+        let n = pread(id, position, &mut bytes)?;
+        if length == 0 {
+            return Ok(0);
+        }
+        if n == 0 {
+            return Ok(-1);
+        }
+        // SAFETY: i8/u8 share layout and all bit patterns; region setter copies
+        // synchronously and does not retain the borrowed native buffer.
+        let signed = unsafe { std::slice::from_raw_parts(bytes.as_ptr().cast::<i8>(), n) };
+        env.set_byte_array_region(&data, offset, signed).map_err(io)?;
+        Ok(n as jint)
+    })
+}
+/// Length snapshot taken when the input stream was opened; no request is made.
+#[no_mangle]
+pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeStreamLength(
+    mut env: JNIEnv,
+    _: JClass,
+    id: jlong,
+) -> jlong {
+    // open already rejects lengths above jlong::MAX.
+    guard(&mut env, |_| Ok(positioned_reader(id)?.content_length() as jlong))
+}
+/// Vectored read: fill each `targets[i]` completely from `positions[i]`.
+/// Nearby ranges are merged (gap <= mergeGap, span <= maxMerged) and fetched
+/// concurrently outside the stream lock. Any range past EOF fails the call
+/// before I/O; on failure target arrays may be partially written.
+#[no_mangle]
+pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativePreadVectored(
+    mut env: JNIEnv,
+    _: JClass,
+    id: jlong,
+    positions: JLongArray,
+    targets: JObjectArray,
+    merge_gap: jint,
+    max_merged: jint,
+) {
+    guard(&mut env, |env| {
+        let count = env.get_array_length(&positions).map_err(io)?;
+        if count != env.get_array_length(&targets).map_err(io)? {
+            return Err(invalid("vectored positions and targets differ in length"));
+        }
+        if merge_gap < 0 || max_merged < 0 {
+            return Err(invalid("negative vectored merge parameter"));
+        }
+        let mut starts = vec![0; count as usize];
+        env.get_long_array_region(&positions, 0, &mut starts).map_err(io)?;
+        let mut buffers = Vec::with_capacity(count as usize);
+        // Local references are released per element so large range lists do
+        // not exhaust the JNI local frame.
+        for (index, start) in starts.iter().enumerate() {
+            if *start < 0 {
+                return Err(invalid("negative vectored position"));
+            }
+            let array = JByteArray::from(
+                env.get_object_array_element(&targets, index as jint).map_err(io)?,
+            );
+            if array.is_null() {
+                return Err(invalid("null vectored target"));
+            }
+            let length = env.get_array_length(&array).map_err(io)?;
+            env.delete_local_ref(array).map_err(io)?;
+            buffers.push(vec![0u8; length as usize]);
+        }
+        let reader = positioned_reader(id)?;
+        let mut ranges: Vec<(u64, &mut [u8])> = starts
+            .iter()
+            .zip(buffers.iter_mut())
+            .map(|(start, buf)| (*start as u64, buf.as_mut_slice()))
+            .collect();
+        rt()?.block_on(reader.read_ranges(&mut ranges, merge_gap as u64, max_merged as u64))?;
+        for (index, bytes) in buffers.iter().enumerate() {
+            let array = JByteArray::from(
+                env.get_object_array_element(&targets, index as jint).map_err(io)?,
+            );
+            // SAFETY: i8/u8 share layout and all bit patterns; the region setter
+            // copies synchronously and does not retain the native buffer.
+            let signed = unsafe { std::slice::from_raw_parts(bytes.as_ptr().cast::<i8>(), bytes.len()) };
+            env.set_byte_array_region(&array, 0, signed).map_err(io)?;
+            env.delete_local_ref(array).map_err(io)?;
+        }
+        Ok(())
     })
 }
 #[no_mangle]
@@ -515,6 +662,7 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeCloseStream
     id: jlong,
 ) {
     guard(&mut env, |_| {
+        READERS.lock().map_err(io)?.remove(&id);
         let entry = STREAMS.lock().map_err(io)?.remove(&id);
         if let Some((_, shared)) = entry {
             rt()?.block_on(async {
@@ -537,6 +685,10 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeClose(
     guard(&mut env, |_| {
         FILESYSTEMS.lock().map_err(io)?.remove(&id);
         LISTINGS
+            .lock()
+            .map_err(io)?
+            .retain(|_, (owner, _)| *owner != id);
+        READERS
             .lock()
             .map_err(io)?
             .retain(|_, (owner, _)| *owner != id);
