@@ -199,8 +199,21 @@ impl ObsStore {
             inode_no: get("x-hws-fs-inode-no").and_then(|s| s.parse().ok()),
             dentry_name: get("x-hws-fs-inode-dentryname"),
             dht_id: get("x-hws-fs-dht-id").and_then(|s| s.parse().ok()),
+            crc32c: get("x-obs-checksum-crc32c").and_then(|value| Self::parse_crc32c(&value)),
             user_meta,
         })
+    }
+
+    /// The Java OBSA reference parses an unsigned decimal value; S3-style
+    /// services send base64 of the 4 big-endian bytes. Anything else is
+    /// treated as absent rather than guessed.
+    fn parse_crc32c(value: &str) -> Option<u32> {
+        let value = value.trim();
+        if !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()) {
+            return value.parse::<u64>().ok().and_then(|n| u32::try_from(n).ok());
+        }
+        let bytes = BASE64.decode(value).ok()?;
+        Some(u32::from_be_bytes(bytes.try_into().ok()?))
     }
 
     fn apply_inode_hint(
@@ -758,6 +771,11 @@ impl ObjectStore for ObsStore {
         }
         let response = self.signed_execute(builder, "", "").await?;
         self.map_response(response).map(|_| ())
+    }
+
+    fn update_credentials(&self, creds: crate::auth::Credentials) -> ObsResult<()> {
+        self.creds.update(creds);
+        Ok(())
     }
 
     // Wire format follows the OBS Java SDK (ObsFileService.*AccessLabelFsImpl):

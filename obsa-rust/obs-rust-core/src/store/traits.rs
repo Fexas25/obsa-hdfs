@@ -98,6 +98,11 @@ pub trait ObjectStore: Send + Sync {
         Err(crate::error::ObsError::Unsupported("user metadata updates".into()))
     }
 
+    /// Replace the credentials used to sign subsequent requests.
+    fn update_credentials(&self, _creds: crate::auth::Credentials) -> ObsResult<()> {
+        Err(crate::error::ObsError::Unsupported("credential updates".into()))
+    }
+
     // ── PFS directory access labels (`?x-obs-accesslabel`) ──
     async fn set_access_label(&self, _dir_key: &str, _labels: &[String]) -> ObsResult<()> {
         Err(crate::error::ObsError::Unsupported("access labels".into()))

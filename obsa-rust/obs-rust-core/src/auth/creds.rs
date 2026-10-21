@@ -36,20 +36,42 @@ impl Credentials {
     }
 }
 
-/// Credential provider chain (static AK/SK for now; extensible to IAM/STS).
+/// Shared, replaceable credentials. Clones observe later `update` calls, so a
+/// refreshed STS token applies to the next signature, including retries of a
+/// request already in flight (each attempt signs afresh).
 #[derive(Clone)]
 pub struct CredentialChain {
-    creds: Arc<Credentials>,
+    creds: Arc<parking_lot::RwLock<Arc<Credentials>>>,
 }
 
 impl CredentialChain {
     pub fn new(creds: Credentials) -> Self {
         Self {
-            creds: Arc::new(creds),
+            creds: Arc::new(parking_lot::RwLock::new(Arc::new(creds))),
         }
     }
 
     pub fn get(&self) -> Credentials {
-        (*self.creds).clone()
+        (**self.creds.read()).clone()
+    }
+
+    pub fn update(&self, creds: Credentials) {
+        *self.creds.write() = Arc::new(creds);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clones_observe_updates() {
+        let chain = CredentialChain::new(Credentials::new("AK1", "SK1"));
+        let shared = chain.clone();
+        chain.update(Credentials::new("AK2", "SK2").with_session_token("T2"));
+        let current = shared.get();
+        assert_eq!(current.access_key, "AK2");
+        assert_eq!(current.secret_key, "SK2");
+        assert_eq!(current.session_token.as_deref(), Some("T2"));
     }
 }

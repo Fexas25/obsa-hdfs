@@ -32,7 +32,7 @@ HEAD 响应边界：无条件对象 HEAD 仅接受 200，缺少或无法解析 C
 24. setPermission：Hadoop 入口现在仅 PFS + permissions.mode=disguise 写 permission 十进制字符串元数据；none/普通桶 no-op。独立 Rust set_permission 仍更新数值 mode，不能混为一谈。
 25. setOwner：Java/JNI → Rust set_hadoop_owner 已接通名称元数据；PFS disguise 模式写 user/group，一个 null 保留对应字段，两个 null 拒绝；none/普通桶 no-op。当前仅非空可打印 ASCII，Unicode 编码和服务端 ACL 尚未实现。独立 Rust set_owner 保持数值 uid/gid 语义。
 26. getFileBlockLocations：未单独覆盖 Java；本轮已验证单文件继承块位置的 offset/length，以及 Rust 状态与默认逻辑块大小配置一致性；完整继承语义仍待核对。
-27. getFileChecksum：两种重载现在通过 Rust 校验路径，负长度拒绝；有效路径仍返回 null 表示没有 Hadoop 兼容校验和，不把 ETag 当 MD5。
+27. getFileChecksum：两种重载经 Rust 新鲜 HEAD 读取服务端整文件 CRC32C（响应头 `x-obs-checksum-crc32c`，接受参考实现解析的无符号十进制，也接受 4 字节 base64），返回 `CompositeCrcFileChecksum(crc, CRC32C)`，算法名 COMPOSITE-CRC32C，相等性只比较算法与 CRC 字节，可与 HDFS `dfs.checksum.combine.mode=COMPOSITE_CRC` 比较。与参考实现不同：服务端未返回 CRC、目录、或 length 小于文件长度（无法得到前缀校验和）时返回 null，而不是固定的 -1 占位值，避免 distcp 把两个无关文件判为相同。负长度拒绝，隐藏/缺失路径报不存在；不把 ETag 当 MD5。本地线格式与 Hadoop 往返已测，真实 OBS 是否、何时返回该响应头未验证。
 28. xattrs：与参考实现一致，仅支持目录的 "AccessLabel"（值为以 ";" 分隔的标签，读取时每个标签后带 ";"）。setXAttr/getXAttr/getXAttrs 接通 Rust → PFS `?x-obs-accesslabel`（PUT JSON {"accesslabel":[...]} / GET / DELETE，线格式对照 OBS Java SDK ObsFileService）；另增 removeXAttr、getXAttrs(names)、listXAttrs（参考实现为 Unsupported）。文件拒绝，根目录无标签且不可设置，其他名称拒绝；XAttrSetFlag 与参考实现一样被忽略。本地线格式/签名与 Hadoop 往返已测，未在真实 PFS 验证。
 29. copyFromLocalFile：覆盖单源/多源重载并委派 Hadoop FileUtil，false 结果转为 IOException，避免本地源删除失败仍报告移动成功；本地已验证普通桶/PFS 单文件、嵌套目录复制和移动，以及目标隐藏/禁止覆盖时保留本地源与原对象。单 PUT 提交前/后 503 均验证保留本地源，恢复后可重新移动；三源中一个失败时整批报错，失败源保留，已成功项不回滚且其他项继续尝试。目录用例仅将本地目录枚举替换为测试专用 NIO，未验收 Windows NativeIO；MPU、网络中断及完整本地权限兼容仍待验证。
 30. close：Hadoop deleteOnExit 在释放原生句柄前处理，仍经过 Rust 冲突检查，注册/取消统一按调用时工作目录限定路径，并与 Rust 一致处理超过根目录的点段别名，工作目录切换不改变既有删除目标；取消注册与重复关闭已本地验证；JNI 文件系统/流清理已接通；列表游标新增 EOF/错误/显式释放/所属 FS 关闭清理。MPU 远端清理仍 best effort。
@@ -99,7 +99,7 @@ create 的上传 mode 再补 `S_IFREG`，写后缓存使用同一权限值，避
 - fs.obs.upload.journal.dir 是可选本地已知 MPU 日志目录，桶级覆盖已验证。Rust recover_pending_uploads 提供有界显式清理；仅对日志中的 MPU 发 abort。Hadoop recoverPendingUploads(limit) 已通过 JNI 接入 Rust，返回不可变清理报告；Hadoop abortUpload(output) 也已接入 Rust 流级 abort，仅支持本实例的创建流，拒绝 PFS 追加流，见 UPLOAD_RECOVERY.md。
 
 - fs.obs.content.summary.enable 已生效：默认 false 走 Rust 逐目录遍历，true 走 Rust 平铺 LIST 统计。Java 选择 Rust 入口并校验 long 表示范围，不重复实现汇总算法。配置在初始化时固定，支持桶级覆盖。
-- 凭据路径已接通：参考源码标准键 fs.obs.security.credential.provider.path，兼容附录别名 fs.obs.credential.provider.path。桶级优先、同级标准键优先；所选 OBS 提供器在全局提供器前，Configuration 副本确保不污染其他文件系统。仍为初始化快照，没有 STS 自动刷新。
+- 凭据路径已接通：参考源码标准键 fs.obs.security.credential.provider.path，兼容附录别名 fs.obs.credential.provider.path。桶级优先、同级标准键优先；所选 OBS 提供器在全局提供器前，Configuration 副本确保不污染其他文件系统。Hadoop 凭据提供器仍为初始化快照；另支持参考实现的 fs.obs.credentials.provider（BasicSessionCredential，覆盖配置密钥）与无密钥时的 fs.obs.security.provider（SDK IObsCredentialsProvider，反射调用），二者按 fs.obs.credentials.refresh.interval.ms（默认 60 s）后台刷新并经 updateCredentials 推送到 Rust；Rust 每次签名（含重试）读取最新凭据。刷新失败保留旧值且日志不含凭据。本地以模拟服务记录的 AK/令牌验证，未接真实 ECS 元数据服务。
 - fs.obs.block.size 已映射到 Rust block_size，支持桶级覆盖和正整数/k/m/g；Java 默认块大小由 Rust 解析结果提供。根目录、HEAD/LIST、写后缓存均使用同一值。非法值回退 128 MiB；它是逻辑块大小，不改变上传分片。
 - Rust list_cache_ttl_ms 字段存在，但没有独立 LIST 缓存消费路径；不要将其列为有效调优项。
 - 附录 G.2 的 fast.upload、multiobjectdelete、readahead.policy/range、attempts.maximum、SSE、token、authorize、metrics、buffer.dir、旧 trash/list/permissions 配置没有完成逐键兼容；不能仅因 fs.obs.* 被传入 JSON 就视为支持。

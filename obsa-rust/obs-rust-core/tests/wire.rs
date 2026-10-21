@@ -2009,3 +2009,47 @@ async fn access_label_requests_match_obs_sdk_wire_format() {
         assert_eq!(headers["authorization"], expected.authorization, "{method}");
     }
 }
+
+#[tokio::test]
+async fn head_reports_service_crc32c_in_decimal_or_base64_only() {
+    // 0xE3069283 = 3808858755, base64 of its big-endian bytes is "4waSgw==".
+    let (store, task) = server(vec![
+        ("200 OK", "x-obs-checksum-crc32c: 3808858755\r\n", ""),
+        ("200 OK", "x-obs-checksum-crc32c: 4waSgw==\r\n", ""),
+        ("200 OK", "x-obs-checksum-crc32c: 4294967296\r\n", ""),
+        ("200 OK", "x-obs-checksum-crc32c: not-a-crc\r\n", ""),
+        ("200 OK", "", ""),
+    ]).await;
+    let mut seen = Vec::new();
+    for _ in 0..5 {
+        seen.push(store.head("file").await.unwrap().crc32c);
+    }
+    assert_eq!(seen, vec![Some(0xE306_9283), Some(0xE306_9283), None, None, None]);
+    task.await.unwrap();
+}
+
+#[tokio::test]
+async fn updated_credentials_sign_subsequent_requests() {
+    let (store, task) = server(vec![("200 OK", "", ""), ("200 OK", "", ""), ("200 OK", "", "")]).await;
+    store.head("k").await.unwrap();
+    store.update_credentials(Credentials::new("AK2", "SK2").with_session_token("token2")).unwrap();
+    store.head("k").await.unwrap();
+    store.update_credentials(Credentials::new("AK3", "SK3")).unwrap();
+    store.head("k").await.unwrap();
+    let requests = task.await.unwrap();
+    let header = |request: &str, name: &str| request.lines().skip(1).find_map(|line| {
+        let (key, value) = line.split_once(':')?;
+        key.eq_ignore_ascii_case(name).then(|| value.trim().to_string())
+    });
+    let expectations = [("AK", "SK", Some("token")), ("AK2", "SK2", Some("token2")), ("AK3", "SK3", None)];
+    for (request, (ak, sk, token)) in requests.iter().zip(expectations) {
+        assert_eq!(header(request, "x-obs-security-token").as_deref(), token);
+        let mut creds = Credentials::new(ak, sk);
+        if let Some(token) = token { creds = creds.with_session_token(token); }
+        let signed_headers = token.map(|t| BTreeMap::from([("x-obs-security-token".to_string(), t.to_string())]))
+            .unwrap_or_default();
+        let expected = ObsSigner::sign("HEAD", "", "", &header(request, "date").unwrap(),
+            &signed_headers, "/bucket/k", &creds);
+        assert_eq!(header(request, "authorization").unwrap(), expected.authorization);
+    }
+}

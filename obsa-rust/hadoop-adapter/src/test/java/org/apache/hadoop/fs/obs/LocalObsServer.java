@@ -40,6 +40,11 @@ final class LocalObsServer implements AutoCloseable {
   final AtomicInteger deleteMisses = new AtomicInteger();
   volatile int failedRangeStart = -1;
   final AtomicInteger rangeFailures = new AtomicInteger();
+  /** Access key and security token of the latest signed request (signatures are not checked). */
+  volatile String lastAccessKey;
+  volatile String lastSecurityToken;
+  /** Report the whole-object CRC32C (unsigned decimal) on HEAD, as OBS may. */
+  volatile boolean sendCrc32c;
   /** Directory key → raw JSON body last PUT with ?x-obs-accesslabel. */
   final Map<String, String> accessLabels = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -88,6 +93,10 @@ final class LocalObsServer implements AutoCloseable {
   private void request(HttpExchange e) throws IOException {
     try {
       e.getResponseHeaders().set("Connection", "close");
+      String authorization = e.getRequestHeaders().getFirst("Authorization");
+      if (authorization != null && authorization.startsWith("OBS ") && authorization.contains(":"))
+        lastAccessKey = authorization.substring(4, authorization.lastIndexOf(':'));
+      lastSecurityToken = e.getRequestHeaders().getFirst("x-obs-security-token");
       String key = e.getRequestURI().getPath().substring("/bucket/".length());
       String method = e.getRequestMethod();
       Map<String, String> q = query(e.getRequestURI());
@@ -117,6 +126,11 @@ final class LocalObsServer implements AutoCloseable {
               ? headLengthOverride : Integer.toString(current.length));
         e.getResponseHeaders()
             .set("ETag", "\"" + Integer.toHexString(Arrays.hashCode(current)) + "\"");
+        if (sendCrc32c) {
+          org.apache.hadoop.util.PureJavaCrc32C crc = new org.apache.hadoop.util.PureJavaCrc32C();
+          crc.update(current, 0, current.length);
+          e.getResponseHeaders().set("x-obs-checksum-crc32c", Long.toString(crc.getValue()));
+        }
         e.getResponseHeaders().set("x-obs-meta-mode", key.endsWith("/") ? "40755" : "100644");
         metadata
             .getOrDefault(key, Collections.emptyMap())

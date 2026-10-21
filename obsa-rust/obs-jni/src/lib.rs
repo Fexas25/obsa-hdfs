@@ -256,6 +256,19 @@ pub extern "system" fn Java_org_apache_hadoop_fs_obs_NativeObs_nativeCall(
             "setPermission"=>{fs.set_hadoop_permission(path,arguments::permission(&args,None)?).await?;Ok(Value::Null)},
             "setOwner"=>{fs.set_hadoop_owner(path,arguments::text(&args,"owner",true)?,arguments::text(&args,"group",true)?).await?;Ok(Value::Null)},
             "getAccessLabel"=>Ok(json!(fs.get_access_label(path).await?)),
+            "updateCredentials"=>{
+                fs.update_credentials(
+                    arguments::text(&args,"access_key",false)?.ok_or_else(||invalid("access_key required"))?,
+                    arguments::text(&args,"secret_key",false)?.ok_or_else(||invalid("secret_key required"))?,
+                    arguments::text(&args,"session_token",true)?,
+                )?;
+                Ok(Value::Null)
+            },
+            "crc32c"=>{
+                let length=args.get("length").and_then(Value::as_u64)
+                    .ok_or_else(||invalid("nonnegative length required"))?;
+                Ok(json!(fs.get_file_crc32c(path,length).await?))
+            },
             "setAccessLabel"=>{
                 let labels:Vec<String>=args.get("labels").and_then(Value::as_array)
                     .ok_or_else(||invalid("labels must be an array of strings"))?

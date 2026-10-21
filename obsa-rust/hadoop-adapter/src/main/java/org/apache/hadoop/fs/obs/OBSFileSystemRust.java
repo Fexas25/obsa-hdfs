@@ -20,6 +20,7 @@ public final class OBSFileSystemRust extends FileSystem {
   private URI uri;
   private Path workingDirectory;
   private volatile long nativeHandle;
+  private volatile NativeCredentials credentials;
   private long defaultBlockSize = 128L * 1024 * 1024;
   private boolean contentSummaryEnabled;
 
@@ -38,6 +39,7 @@ public final class OBSFileSystemRust extends FileSystem {
     for (Map.Entry<String, String> entry : conf)
       if (entry.getKey().startsWith("fs.obs.")) properties.put(entry.getKey(), entry.getValue());
     resolveCredentials(conf, name.getHost(), properties);
+    NativeCredentials provider = NativeCredentials.resolve(name, conf, name.getHost(), properties);
     ObjectNode config = JSON.createObjectNode();
     config.put("bucket", name.getHost());
     config.set("hadoop", JSON.valueToTree(properties));
@@ -45,6 +47,10 @@ public final class OBSFileSystemRust extends FileSystem {
     try {
       defaultBlockSize = call("blockSize", JSON.createObjectNode()).asLong();
       contentSummaryEnabled = call("contentSummaryEnabled", JSON.createObjectNode()).asBoolean();
+      if (provider != null) {
+        credentials = provider;
+        provider.start(conf, this::pushCredentials);
+      }
     } catch (IOException error) {
       try {
         close();
@@ -225,9 +231,15 @@ public final class OBSFileSystemRust extends FileSystem {
   @Override
   public FileChecksum getFileChecksum(Path path, long length) throws IOException {
     if (length < 0) throw new IllegalArgumentException("Checksum length must be non-negative");
-    getFileStatus(path);
-    // No Hadoop-compatible checksum is available; OBS ETags are not interchangeable.
-    return null;
+    // As in the Java OBSA reference: the service's whole-file CRC32C (x-obs-checksum-crc32c) as a
+    // COMPOSITE-CRC32C checksum, comparable with HDFS dfs.checksum.combine.mode=COMPOSITE_CRC
+    // (equality covers algorithm and CRC bytes only). Unlike the reference, a missing CRC,
+    // a directory or a prefix length yields null instead of a constant placeholder, so distcp
+    // never treats two unrelated files as equal. OBS ETags are not interchangeable checksums.
+    JsonNode crc = call("crc32c", args(path).put("length", length));
+    if (crc.isNull()) return null;
+    return new CompositeCrcFileChecksum(
+        (int) crc.asLong(), org.apache.hadoop.util.DataChecksum.Type.CRC32C, -1);
   }
 
   @Override
@@ -827,9 +839,29 @@ public final class OBSFileSystemRust extends FileSystem {
       // Hadoop deleteOnExit must still reach Rust's namespace checks.
       super.close();
     } finally {
+      // Stop refreshing before the native handle disappears.
+      NativeCredentials refresher = credentials;
+      credentials = null;
+      if (refresher != null) refresher.close();
       nativeHandle = 0;
       if (handle != 0) NativeObs.nativeClose(handle);
     }
+  }
+
+  /** Re-read the credential provider now; true when changed values were pushed. */
+  boolean refreshCredentials() {
+    NativeCredentials current = credentials;
+    return current != null && current.refresh(this::pushCredentials);
+  }
+
+  private void pushCredentials(String accessKey, String secretKey, String sessionToken)
+      throws IOException {
+    call(
+        "updateCredentials",
+        JSON.createObjectNode()
+            .put("access_key", accessKey)
+            .put("secret_key", secretKey)
+            .put("session_token", sessionToken));
   }
 
   private final class NativeInput extends FSInputStream implements ByteBufferReadable, StreamCapabilities {

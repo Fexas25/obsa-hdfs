@@ -61,8 +61,11 @@ final class ObsLocalContract extends AbstractFSContract {
     server = new LocalObsServer(pfs);
     Configuration conf = getConf();
     conf.set("fs.obs.endpoint", server.endpoint());
-    conf.set("fs.obs.access.key", "test");
-    conf.set("fs.obs.secret.key", "test");
+    // Tests of the keyless security-provider path supply credentials themselves.
+    if (conf.get(NativeCredentials.SECURITY_PROVIDER) == null) {
+      conf.set("fs.obs.access.key", "test");
+      conf.set("fs.obs.secret.key", "test");
+    }
     conf.setBoolean("fs.obs.connection.ssl.enabled", false);
     conf.set("fs.obs.bucket.mode", pfs ? "pfs" : "object");
     if (conf.get("fs.obs.readahead.chunk.size") == null) conf.set("fs.obs.readahead.chunk.size", "65536");
@@ -76,6 +79,10 @@ final class ObsLocalContract extends AbstractFSContract {
       server.close();
       throw e;
     }
+  }
+
+  LocalObsServer server() {
+    return server;
   }
 
   @Override

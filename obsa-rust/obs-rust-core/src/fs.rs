@@ -1096,6 +1096,37 @@ impl ObsFileSystem {
         let _invalidation = MutationInvalidation { cache: self.cache.clone(), keys: vec![key.clone()] };
         self.store.patch_user_metadata(&key, std::collections::HashMap::from([("permission".into(), (mode & 0o7777).to_string())])).await
     }
+    /// Whole-file CRC32C reported by the service (`x-obs-checksum-crc32c`),
+    /// read by a fresh HEAD as in the Java OBSA reference. None for
+    /// directories, when the service reports no CRC, or when `length` covers
+    /// less than the whole file: a prefix checksum cannot be derived, and a
+    /// placeholder value would make different files compare equal.
+    /// Replace credentials (e.g. a refreshed STS token) for subsequent requests.
+    /// Errors never echo the supplied values.
+    pub fn update_credentials(
+        &self,
+        access_key: &str,
+        secret_key: &str,
+        session_token: Option<&str>,
+    ) -> ObsResult<()> {
+        if access_key.is_empty() || secret_key.is_empty() {
+            return Err(ObsError::InvalidArgument("access and secret keys must be nonempty".into()));
+        }
+        let mut creds = Credentials::new(access_key, secret_key);
+        if let Some(token) = session_token.filter(|token| !token.is_empty()) {
+            creds = creds.with_session_token(token);
+        }
+        self.store.update_credentials(creds)
+    }
+    pub async fn get_file_crc32c(&self, path: &str, length: u64) -> ObsResult<Option<u32>> {
+        let key = self.key(path)?;
+        let status = self.get_file_status(path).await?;
+        if status.is_dir {
+            return Ok(None);
+        }
+        let meta = self.store.head(&key).await?;
+        Ok(meta.crc32c.filter(|_| length >= meta.content_length))
+    }
     /// Directory access labels (Hadoop xattr "AccessLabel" in the Java OBSA
     /// reference). Directories only; the root has none and cannot be labelled.
     pub async fn get_access_label(&self, path: &str) -> ObsResult<Option<Vec<String>>> {

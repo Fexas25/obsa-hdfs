@@ -188,6 +188,8 @@ pub struct ObjectMeta {
     pub inode_no: Option<u64>,
     pub dentry_name: Option<String>,
     pub dht_id: Option<u64>,
+    /// Whole-object CRC32C from `x-obs-checksum-crc32c`, when the service reports one.
+    pub crc32c: Option<u32>,
     pub user_meta: HashMap<String, String>,
 }
 
