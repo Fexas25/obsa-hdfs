@@ -693,15 +693,23 @@ impl ObjectStore for ObsStore {
             .collect();
         let xml = build_complete_mpu_xml(&part_tuples);
         let body = Bytes::from(xml);
+        // Content-MD5 over the manifest, as the OBS SDK sends.
+        let content_md5 = BASE64.encode(Md5::digest(&body));
 
-        let builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::POST)
+        let mut builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::POST)
             .key(key)
             .sub_resource("uploadId", Some(upload_id.to_string()))
             .header("Content-Type", "application/xml")
+            .header("Content-MD5", content_md5.clone())
             .body(body)
             .idempotent(false);
+        // S3 servers require the SSE-C key again to complete an SSE-C upload;
+        // the OBS SDK omits it, so OBS-native mode keeps the SDK's request.
+        if matches!(self.signature, Ok(SignatureType::AwsV2)) {
+            builder = self.with_sse(builder, &[SseUse::Customer])?;
+        }
 
-        let resp = self.signed_execute(builder, "", "application/xml").await?;
+        let resp = self.signed_execute(builder, &content_md5, "application/xml").await?;
         let resp = self.map_response(resp)?;
         let text = std::str::from_utf8(&resp.body).unwrap_or("");
         let (code, message) = xml::parse_error_xml(text);

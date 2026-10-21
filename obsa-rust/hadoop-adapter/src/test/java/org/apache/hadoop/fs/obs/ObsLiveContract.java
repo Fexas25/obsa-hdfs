@@ -47,6 +47,46 @@ final class ObsLiveContract extends AbstractFSContract {
     fs.initialize(URI.create("obs://" + bucket), conf);
   }
 
+  /**
+   * Runs after Hadoop's teardown, which deletes the test path but only logs failures. Report any
+   * residue (which would leak into later test classes sharing the bucket), then close the
+   * filesystem: each test creates one.
+   */
+  @Override
+  public void teardown() throws IOException {
+    if (fs == null) return;
+    try {
+      Path dir = getTestPath();
+      if (fs.exists(dir)) {
+        String before = tree(dir);
+        String retry;
+        try {
+          retry = "retry delete=" + fs.delete(dir, true);
+        } catch (IOException | RuntimeException e) {
+          retry = "retry delete failed: " + e;
+        }
+        System.err.println("LIVE-RESIDUE after teardown: tree=[" + before + " ] " + retry
+            + " exists-after-retry=" + fs.exists(dir) + " tree-after=[" + tree(dir) + " ]");
+      }
+    } finally {
+      fs.close();
+      fs = null;
+    }
+  }
+
+  private String tree(Path dir) {
+    StringBuilder out = new StringBuilder();
+    try {
+      for (org.apache.hadoop.fs.FileStatus status : fs.listStatus(dir)) {
+        out.append(' ').append(status.getPath().getName()).append(status.isDirectory() ? "/" : "");
+        if (status.isDirectory()) out.append('{').append(tree(status.getPath())).append(" }");
+      }
+    } catch (IOException | RuntimeException e) {
+      out.append(" <").append(e.getClass().getSimpleName()).append('>');
+    }
+    return out.toString();
+  }
+
   @Override
   public FileSystem getTestFileSystem() {
     return fs;
@@ -57,8 +97,16 @@ final class ObsLiveContract extends AbstractFSContract {
     return "obs";
   }
 
+  /**
+   * A fresh directory per test. Besides isolating tests on a shared bucket, this keeps them
+   * independent of S3Proxy's jclouds directory model: under concurrent requests it can keep
+   * reporting a common prefix after every key beneath it was deleted (a flat LIST shows no keys,
+   * a delimited LIST still shows the prefix), which no real S3/OBS service does.
+   */
+  private final Path testPath = new Path("/obsa-live-contract-" + java.util.UUID.randomUUID());
+
   @Override
   public Path getTestPath() {
-    return new Path("/obsa-live-contract");
+    return testPath;
   }
 }

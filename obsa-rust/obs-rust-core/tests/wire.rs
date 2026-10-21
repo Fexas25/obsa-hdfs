@@ -2220,3 +2220,34 @@ async fn empty_put_sends_explicit_zero_content_length() {
     let requests = task.await.unwrap();
     assert_eq!(header_of(&requests[0], "content-length").as_deref(), Some("0"));
 }
+
+#[tokio::test]
+async fn complete_upload_sends_md5_and_sse_c_only_in_s3_mode() {
+    use md5::Digest;
+    use base64::Engine;
+    let key = base64::engine::general_purpose::STANDARD.encode([5u8; 32]);
+    for (signature, expect_sse) in [("obs", false), ("v2", true)] {
+        let tuning = ObsConfig {
+            retry_backoff_ms: 1,
+            signature_type: signature.into(),
+            server_side_encryption_type: "sse-c".into(),
+            server_side_encryption_key: Some(key.clone()),
+            ..Default::default()
+        };
+        let (config, task) = mock_endpoint(vec![(
+            "200 OK", "", "<CompleteMultipartUploadResult><ETag>\"m\"</ETag></CompleteMultipartUploadResult>",
+        )], tuning).await;
+        let mut store = ObsStore::new(ObsConfig { bucket_mode: BucketMode::Object, ..config },
+            CredentialChain::new(Credentials::new("AK", "SK")));
+        store.init_bucket_mode().await.unwrap();
+        store.complete_multipart_upload("k", "u", &[CompletedPart { part_number: 1, etag: "\"p\"".into() }])
+            .await.unwrap();
+        let request = &task.await.unwrap()[0];
+        let body = request.split_once("\r\n\r\n").unwrap().1;
+        let md5 = base64::engine::general_purpose::STANDARD.encode(md5::Md5::digest(body.as_bytes()));
+        assert_eq!(header_of(request, "content-md5"), Some(md5), "{signature}");
+        let prefix = if signature == "v2" { "x-amz-" } else { "x-obs-" };
+        assert_eq!(header_of(request, &format!("{prefix}server-side-encryption-customer-key")).is_some(),
+            expect_sse, "{signature}");
+    }
+}
