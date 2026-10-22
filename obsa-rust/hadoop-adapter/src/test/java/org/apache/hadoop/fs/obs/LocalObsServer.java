@@ -123,6 +123,14 @@ final class LocalObsServer implements AutoCloseable {
       if (method.equals("HEAD")) {
         heads.incrementAndGet();
         if (current == null) {
+          // Real PFS: a path below a file is a conflict, reported in headers.
+          for (int slash = key.indexOf('/'); pfs && slash > 0; slash = key.indexOf('/', slash + 1)) {
+            if (data.containsKey(key.substring(0, slash))) {
+              e.getResponseHeaders().set("x-obs-error-code", "FsObjectConflict");
+              e.sendResponseHeaders(409, -1);
+              return;
+            }
+          }
           e.sendResponseHeaders(404, -1);
           return;
         }
@@ -355,8 +363,11 @@ final class LocalObsServer implements AutoCloseable {
           error(e, 409, "DirectoryNotEmpty");
           return;
         }
+        // Real PFS ignores a trailing slash and answers a missing key with 204.
         if (data.remove(key) == null && pfs) {
-          error(e, 404, "NoSuchKey");
+          String other = key.endsWith("/") ? key.substring(0, key.length() - 1) : key + "/";
+          data.remove(other);
+          send(e, 204, "");
           return;
         }
         send(e, 204, "");

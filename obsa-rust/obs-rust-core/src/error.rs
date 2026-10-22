@@ -103,7 +103,9 @@ impl ObsError {
     /// Path lookup compatibility: HEAD may report 404 without an XML body.
     /// Explicit bucket/upload/routing failures must never imply a missing path.
     pub fn is_path_not_found(&self) -> bool {
-        matches!(self, Self::NotFound { code, .. } if code.is_empty() || code == "NoSuchKey")
+        // FsObjectConflict: ObsStore::head reports a PFS path below a file.
+        matches!(self, Self::NotFound { code, .. }
+            if code.is_empty() || code == "NoSuchKey" || code == conflict_codes::FS_OBJECT_CONFLICT)
     }
 
     pub fn is_conflict_with_code(&self, expected: &str) -> bool {

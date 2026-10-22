@@ -91,6 +91,21 @@ AccessLabel、根目录契约。脚本拒绝读取仓库内的配置文件，不
    文件 33152 = 0o100600），与 SDK 的 `Integer.parseInt` 一致；原实现按八进制解析，目录被识别为文件，
    导致 PFS 目录 rename 返回 false。`-1`（从对象桶迁移的对象）视为无 mode。客户端写入的 mode 元数据也改为十进制。
 
+第二轮（同日，Hadoop 契约改对 PFS 桶运行，`OBS_LIVE_CONTRACT_PFS=true`）又发现：
+
+4. **`x-hws-fs-client: true` 导致覆盖写静默丢失**：原规格要求 HEAD/PUT 带这个头（SDK 中没有）。真实 PFS 上
+   带它的 PUT 遇到已存在的文件时**保留旧内容并返回 200**，覆盖写被静默丢弃（`testOverwriteExistingFile`
+   读回不完整）。已从所有请求中去掉。
+5. **文件下面的路径**：HEAD 返回 `409 FsObjectConflict`，错误码只在 `x-obs-error-code` 响应头（HEAD 无响应体）；
+   该前缀的 LIST 返回 `400 InvalidArgument`。现在无响应体的错误从 `x-obs-error-code` / `x-obs-error-message`
+   读取（与 SDK 一致，也使 HEAD 的 `NoSuchBucket` 等不再被当作路径不存在）；HEAD 的 FsObjectConflict 视为
+   路径不存在且不再 LIST，`rename` 到文件下面返回 false（`testRenameFileUnderFile*`）。
+6. **DELETE 不存在的键返回 204**（也不区分末尾 `/`）：PFS 删除前先查状态，不存在时返回 false
+   （`testDeleteNonexistentPath*`）。
+7. AccessLabel：标签不允许 `-`（`400 BadAccessLabel`），字母、数字、`_` 可用；客户端请求格式无误。
+
+模拟服务端按以上实测行为更新。
+
 另外记录：真实 PFS 的 HEAD/PUT 响应带 `x-obs-inode-no`，不返回规格里的 `x-hws-fs-inode-no` /
 `x-hws-fs-inode-dentryname`（SDK 中也没有这些头）。inode 读取提示需要两者同时存在，因此在真实环境不会生效，
 无副作用；是否删除留待后续。
@@ -102,5 +117,11 @@ AccessLabel、根目录契约。脚本拒绝读取仓库内的配置文件，不
   （`bucket.mode=auto` 识别 PFS、中文目录 mkdirs、append、truncate、原子目录 rename、递归删除）、目录重命名压力 3 轮。
 - Hadoop 3.3.6 官方契约 `LiveS3*` 对真实普通桶：Create 16（跳过 2，能力声明不支持）、Delete 8、Rename 10、
   Open 19、Seek 18、GetFileStatus 20、Mkdir 8、ContentSummary 2、VectoredRead 34，共 **135 项 0 失败**，无残留。
-- 未测：SSE-KMS（会调用 KMS，可能产生费用）、AccessLabel（需额外权限）、临时 AK/SK + securitytoken
-  （凭据刷新测试用的是错误密钥→正确密钥）、真实网络吞吐与性能。
+- 第二轮修复后 Hadoop 契约：PFS 桶（`bucket.mode=auto`，PFS 能力声明）Append 8、Create 16（跳过 2）、Delete 8、
+  Rename 10、Open 19、Seek 18、GetFileStatus 20、Mkdir 8、ContentSummary 2、VectoredRead 34，共 **143 项 0 失败**；
+  普通桶同一套 143 项 0 失败（Append 8 项因普通桶不能追加而跳过）。
+- AccessLabel（设置/读取/删除）在 PFS 上通过。
+- 临时凭证：用长期 AK/SK 调 IAM `POST /v3.0/OS-CREDENTIAL/securitytokens`（SDK-HMAC-SHA256 签名）取得 15 分钟
+  临时 AK/SK + securitytoken，经 `OBS_LIVE_SESSION_TOKEN` 跑完整 Rust 线上测试 5/5（`x-obs-security-token` 签名、
+  刷新时携带令牌）。
+- 未测：SSE-KMS（会调用 KMS，可能产生费用）、真实网络吞吐与性能。

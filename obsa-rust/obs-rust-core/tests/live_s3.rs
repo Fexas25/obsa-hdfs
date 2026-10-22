@@ -25,6 +25,8 @@ fn live_config_for(bucket: &str, bucket_mode: BucketMode, signature_type: String
         endpoint: var("OBS_LIVE_ENDPOINT")?,
         access_key: var("OBS_LIVE_ACCESS_KEY")?,
         secret_key: var("OBS_LIVE_SECRET_KEY")?,
+        // Temporary credentials (x-obs-security-token), e.g. from IAM securitytokens.
+        session_token: var("OBS_LIVE_SESSION_TOKEN"),
         bucket: bucket.to_string(),
         secure: var("OBS_LIVE_SECURE").is_some_and(|v| v == "true"),
         signature_type,
@@ -128,12 +130,13 @@ async fn filesystem_flow_against_live_s3_compatible_server() {
 async fn refreshed_credentials_sign_the_next_live_request() {
     let Some(config) = live_config() else { return };
     let (access, secret) = (config.access_key.clone(), config.secret_key.clone());
+    let token = config.session_token.clone();
     let fs = ObsFileSystem::from_config(ObsConfig { secret_key: format!("wrong-{secret}"), ..config })
         .await.expect("connect");
     let probe = format!("/obsa-live-creds-{}", std::process::id());
     let error = fs.exists(&probe).await.expect_err("a wrong secret must be rejected");
     assert!(!error.is_path_not_found(), "signature failure must not look like a missing path: {error}");
-    fs.update_credentials(&access, &secret, None).unwrap();
+    fs.update_credentials(&access, &secret, token.as_deref()).unwrap();
     assert!(!fs.exists(&probe).await.expect("refreshed credentials must be used"));
     write(&fs, &format!("{probe}/f"), b"ok").await;
     assert_eq!(read_all(&fs, &format!("{probe}/f")).await, b"ok");
@@ -199,15 +202,30 @@ async fn pfs_semantics_on_live_bucket() {
     assert_eq!(fs.get_file_status(&file).await.unwrap().length, 4);
     assert_eq!(read_all(&fs, &file).await, b"head");
 
+    // Overwriting with a longer file is read back in full (Hadoop testOverwriteExistingFile).
+    let over = format!("{root}/dir 目录/over");
+    write(&fs, &over, &[b'a'; 256]).await;
+    assert_eq!(read_all(&fs, &over).await, vec![b'a'; 256]);
+    write(&fs, &over, &[b'B'; 10 * 1024]).await;
+    assert_eq!(read_all(&fs, &over).await, vec![b'B'; 10 * 1024]);
+    fs.delete(&over, false).await.unwrap();
+
+    // Paths below a file do not exist (PFS answers HEAD with 409 FsObjectConflict),
+    // and deleting a missing path reports false (PFS DELETE answers 204 regardless).
+    assert!(!fs.exists(&format!("{file}/below")).await.unwrap());
+    assert!(!fs.delete(&format!("{root}/missing"), false).await.unwrap());
+    assert!(!fs.delete(&format!("{root}/missing"), true).await.unwrap());
+
     // Directory rename is a single PFS operation.
     assert!(fs.rename(&format!("{root}/dir 目录"), &format!("{root}/renamed"), false).await.unwrap());
     assert_eq!(read_all(&fs, &format!("{root}/renamed/log")).await, b"head");
     assert!(!fs.exists(&format!("{root}/dir 目录")).await.unwrap());
 
     if var("OBS_LIVE_PFS_ACCESS_LABEL").is_some_and(|v| v == "true") {
+        // Real PFS rejects `-` in labels (BadAccessLabel); letters, digits and `_` pass.
         let dir = format!("{root}/renamed");
-        fs.set_access_label(&dir, &["obsa-live-role".to_string()]).await.unwrap();
-        assert_eq!(fs.get_access_label(&dir).await.unwrap(), Some(vec!["obsa-live-role".to_string()]));
+        fs.set_access_label(&dir, &["obsa_live_role".to_string()]).await.unwrap();
+        assert_eq!(fs.get_access_label(&dir).await.unwrap(), Some(vec!["obsa_live_role".to_string()]));
         fs.remove_access_label(&dir).await.unwrap();
     }
 

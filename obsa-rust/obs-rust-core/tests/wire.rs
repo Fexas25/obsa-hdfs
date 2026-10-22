@@ -326,6 +326,37 @@ async fn mock_endpoint(
 }
 
 #[tokio::test]
+async fn head_errors_use_obs_error_headers_and_below_file_is_not_found() {
+    let (store, server) = server(vec![
+        // Real PFS HEAD of a path below a file (no body; code in headers).
+        ("409 Conflict", "x-obs-error-code: FsObjectConflict\r\nx-obs-error-message: conflict due to file or directory under file\r\n", ""),
+        // A service-level 404 is not a missing path.
+        ("404 Not Found", "x-obs-error-code: NoSuchBucket\r\nx-obs-error-message: missing bucket\r\n", ""),
+        ("404 Not Found", "x-obs-error-code: NoSuchKey\r\n", ""),
+    ])
+    .await;
+    assert!(store.head("file/below").await.unwrap_err().is_path_not_found());
+    let bucket = store.head("key").await.unwrap_err();
+    assert!(!bucket.is_path_not_found());
+    assert_eq!(bucket.code(), Some("NoSuchBucket"));
+    assert!(store.head("missing").await.unwrap_err().is_path_not_found());
+    server.await.unwrap();
+}
+
+#[tokio::test]
+async fn head_put_and_bucket_probe_omit_hws_client_header() {
+    // Real PFS keeps an existing file and still answers 200 when a PUT carries
+    // `x-hws-fs-client: true`; the OBS SDK never sends it.
+    let (store, server) = server(vec![("200 OK", "", ""), ("200 OK", "", ""), ("200 OK", "", "")]).await;
+    store.put("file", bytes::Bytes::from_static(b"new"), Default::default()).await.unwrap();
+    store.head("file").await.unwrap();
+    store.probe_posix_bucket().await.unwrap();
+    for request in server.await.unwrap() {
+        assert!(!request.to_lowercase().contains("x-hws-fs-client"), "{request}");
+    }
+}
+
+#[tokio::test]
 async fn get_replays_complete_hint_without_client_header() {
     let (store, server) = server(vec![("200 OK", "", "data")]).await;
     let hint = InodeHint::new(Some(42), Some("server%2Fencoded".into())).unwrap();

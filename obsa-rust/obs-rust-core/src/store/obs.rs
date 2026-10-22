@@ -216,7 +216,13 @@ impl ObsStore {
         let (code, message) = if !resp.body.is_empty() {
             xml::parse_error_xml(std::str::from_utf8(&resp.body).unwrap_or(""))
         } else {
-            (String::new(), format!("HTTP {status}"))
+            // HEAD errors carry no body; OBS reports them in headers, which the
+            // SDK reads as well.
+            (
+                resp.header("x-obs-error-code").unwrap_or_default().to_string(),
+                resp.header("x-obs-error-message")
+                    .map_or_else(|| format!("HTTP {status}"), str::to_string),
+            )
         };
 
         Err(ObsError::from_status(
@@ -314,10 +320,6 @@ impl ObsStore {
         }
         b
     }
-
-    fn apply_head_put_inode_headers(builder: RequestBuilder) -> RequestBuilder {
-        builder.hws_fs_header("x-hws-fs-client", "true")
-    }
 }
 
 #[async_trait]
@@ -326,8 +328,9 @@ impl ObjectStore for ObsStore {
         Some(self.pool.buffer_budget())
     }
     async fn head(&self, key: &str) -> ObsResult<ObjectMeta> {
-        let builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::HEAD).key(key);
-        let mut builder = Self::apply_head_put_inode_headers(builder);
+        // No `x-hws-fs-client` header: it is not in the OBS SDK, and on real PFS
+        // a PUT carrying it silently keeps an existing file (verified 2026-10-22).
+        let mut builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::HEAD).key(key);
         // The reference sends SSE-C on object-bucket metadata queries; PFS
         // status uses getAttribute without it.
         if !self.is_pfs {
@@ -335,7 +338,18 @@ impl ObjectStore for ObsStore {
         }
 
         let resp = self.signed_execute(builder, "", "").await?;
-        let resp = self.map_response(resp)?;
+        let resp = match self.map_response(resp) {
+            // PFS answers HEAD of a path below a file with 409 FsObjectConflict:
+            // no such path can exist, as HDFS reports for getFileInfo.
+            Err(e) if e.is_conflict_with_code(conflict_codes::FS_OBJECT_CONFLICT) => {
+                return Err(ObsError::NotFound {
+                    code: conflict_codes::FS_OBJECT_CONFLICT.into(),
+                    message: format!("path is below a file: {key}"),
+                    request_id: e.request_id().unwrap_or_default().to_string(),
+                });
+            }
+            other => other?,
+        };
 
         if resp.status != http::StatusCode::OK {
             return Err(ObsError::Io(format!(
@@ -439,7 +453,6 @@ impl ObjectStore for ObsStore {
             builder = builder.obs_header(format!("x-obs-meta-{k}"), v.clone());
         }
 
-        builder = Self::apply_head_put_inode_headers(builder);
         builder = self.with_sse(builder, &[SseUse::Write])?;
         let md5_hash = Md5::digest(&body);
         let content_md5 = BASE64.encode(md5_hash);
@@ -938,9 +951,7 @@ impl ObjectStore for ObsStore {
     }
 
     async fn probe_posix_bucket(&self) -> ObsResult<bool> {
-        let builder = Self::apply_head_put_inode_headers(
-            RequestBuilder::new(&self.config, &self.config.bucket, Method::HEAD).key(""),
-        );
+        let builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::HEAD).key("");
         let resp = self.signed_execute(builder, "", "").await?;
         let resp = self.map_response(resp)?;
         // The OBS SDK's getBucketFSStatus (used by the Java OBSA reference)

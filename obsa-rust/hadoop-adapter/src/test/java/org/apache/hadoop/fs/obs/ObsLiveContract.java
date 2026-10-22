@@ -13,14 +13,18 @@ import org.junit.Assume;
  * OBS_LIVE_ENDPOINT, OBS_LIVE_ACCESS_KEY, OBS_LIVE_SECRET_KEY, OBS_LIVE_BUCKET, and optionally
  * OBS_LIVE_SECURE=true and OBS_LIVE_SIGNATURE (obs | v2, default v2 for S3-compatible servers).
  * Tests are skipped when these are absent. Root-directory tests delete everything in the bucket
- * and run only with OBS_LIVE_ROOT_TESTS=true. Credentials are never logged.
+ * and run only with OBS_LIVE_ROOT_TESTS=true. With OBS_LIVE_CONTRACT_PFS=true the contracts run
+ * against OBS_LIVE_PFS_BUCKET instead, in auto bucket mode with PFS capabilities (append).
+ * Credentials are never logged.
  */
 final class ObsLiveContract extends AbstractFSContract {
   private OBSFileSystemRust fs;
 
+  private static final boolean PFS = "true".equals(System.getenv("OBS_LIVE_CONTRACT_PFS"));
+
   ObsLiveContract(Configuration conf) {
     super(conf);
-    ObsLocalContract.declareCapabilities(conf, false);
+    ObsLocalContract.declareCapabilities(conf, PFS);
     conf.setBoolean("fs.contract.test.root-tests-enabled", "true".equals(System.getenv("OBS_LIVE_ROOT_TESTS")));
   }
 
@@ -31,21 +35,27 @@ final class ObsLiveContract extends AbstractFSContract {
 
   @Override
   public void init() throws IOException {
-    String endpoint = env("OBS_LIVE_ENDPOINT"), bucket = env("OBS_LIVE_BUCKET");
+    String endpoint = env("OBS_LIVE_ENDPOINT");
+    String bucket = env(PFS ? "OBS_LIVE_PFS_BUCKET" : "OBS_LIVE_BUCKET");
     String access = env("OBS_LIVE_ACCESS_KEY"), secret = env("OBS_LIVE_SECRET_KEY");
     Assume.assumeTrue("OBS_LIVE_* not set", endpoint != null && bucket != null && access != null && secret != null);
     Configuration conf = getConf();
     conf.set("fs.obs.endpoint", endpoint);
     conf.set("fs.obs.access.key", access);
     conf.set("fs.obs.secret.key", secret);
+    if (env("OBS_LIVE_SESSION_TOKEN") != null) conf.set("fs.obs.session.token", env("OBS_LIVE_SESSION_TOKEN"));
     conf.setBoolean("fs.obs.connection.ssl.enabled", "true".equals(env("OBS_LIVE_SECURE")));
     conf.set("fs.obs.signature.type", env("OBS_LIVE_SIGNATURE") == null ? "v2" : env("OBS_LIVE_SIGNATURE"));
-    conf.set("fs.obs.bucket.mode", "object");
+    // PFS runs also exercise bucket type detection.
+    conf.set("fs.obs.bucket.mode", PFS ? "auto" : "object");
     // Real OBS requires virtual-host addressing; S3Proxy and other local servers need path style.
     conf.setBoolean("fs.obs.path.style.access", "true".equals(env("OBS_LIVE_PATH_STYLE")));
     conf.set("fs.obs.multipart.size", "5242880");
     fs = new OBSFileSystemRust();
     fs.initialize(URI.create("obs://" + bucket), conf);
+    if (PFS && !fs.hasPathCapability(new Path("/"), org.apache.hadoop.fs.CommonPathCapabilities.FS_APPEND)) {
+      throw new IOException("bucket.mode=auto did not detect PFS bucket " + bucket);
+    }
   }
 
   /**

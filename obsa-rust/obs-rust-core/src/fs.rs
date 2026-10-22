@@ -241,6 +241,11 @@ impl ObsFileSystem {
     async fn query_status(&self, key: &str) -> ObsResult<Option<FileStatus>> {
         match self.store.head(key).await {
             Ok(meta) => return Ok(Some(self.meta_status(key, meta))),
+            // PFS: the path is below a file, so nothing exists under it either
+            // (and a LIST of that prefix is rejected with 400).
+            Err(e) if e.is_path_not_found() && e.code() == Some(crate::error::conflict_codes::FS_OBJECT_CONFLICT) => {
+                return Ok(None)
+            }
             Err(e) if e.is_path_not_found() => {}
             Err(e) => return Err(e),
         }
@@ -783,6 +788,13 @@ impl ObsFileSystem {
                 self.cache.invalidate_ancestors(&key);
                 self.cache.invalidate_prefix(trash);
                 return Ok(true);
+            }
+            // Real PFS answers DELETE of a missing key with 204, so only an
+            // existence check can report false for a missing path.
+            match self.get_file_status(path).await {
+                Ok(_) => {}
+                Err(e) if e.is_path_not_found() => return Ok(false),
+                Err(e) => return Err(e),
             }
             self.pfs.dual_key_delete(&key, recursive).await?
         } else {

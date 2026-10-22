@@ -80,10 +80,10 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 
 ## 当前本地验证（2026-10-22）
 
-- 最新默认 Rust workspace 在 Windows 与 Linux（WSL2 Ubuntu 22.04）debug / release 各 **437 通过、0 失败、16 ignored**。
+- 最新默认 Rust workspace 在 Windows 与 Linux（WSL2 Ubuntu 22.04）debug / release 各 **439 通过、0 失败、16 ignored**。
 - 真实 JVM：显式构建 debug / release 动态库后，基础 JNI 冒烟和异常分类测试均通过。
-- Hadoop 3.3.6：两平台 debug / release 各 **545 项、0 失败、0 错误、147 跳过**（含官方 seek/定位读与向量化读契约）。跳过中 12 项对应普通桶不支持 append 和新建文件 close 才可见的能力边界，135 项是未设置 `OBS_LIVE_*` 时跳过的线上契约；它们对独立 S3 服务端 S3Proxy 及 2026-10-22 对华为云真实 OBS 实测均 0 失败，见 [LIVE_S3_TESTING.md](docs/LIVE_S3_TESTING.md)。
-- `append-diagnostics`（debug）**437 通过、0 失败、16 ignored**。
+- Hadoop 3.3.6：两平台 debug / release 各 **553 项、0 失败、0 错误、155 跳过**（含官方 seek/定位读与向量化读契约）。跳过中 12 项对应普通桶不支持 append 和新建文件 close 才可见的能力边界，143 项是未设置 `OBS_LIVE_*` 时跳过的线上契约；2026-10-22 它们对华为云真实普通桶与 PFS 桶各 0 失败（此前 135 项对 S3Proxy 0 失败），见 [LIVE_S3_TESTING.md](docs/LIVE_S3_TESTING.md)。
+- `append-diagnostics`（debug）**439 通过、0 失败、16 ignored**。
 
 2026-10-20 的改动、依据和待真实环境确认事项见 [HANDOFF_20261020.md](docs/HANDOFF_20261020.md)：
 原生定位读取与 Hadoop 3.3.5+ 向量化读取（[POSITIONED_VECTORED_READ.md](docs/POSITIONED_VECTORED_READ.md)）、
@@ -100,6 +100,6 @@ Rust ignored 项是手动基准，未混入上述通过数。以上数字使用�
 
 ## 尚未完成
 
-SSE-KMS、AccessLabel、临时凭证在真实环境的验证，原厂 Hadoop 版本互通，Spark/Hive/Flink 作业，普通桶 copy/delete 并发修改保护，委托令牌、完整能力声明及 ByteBuffer 定位读取，以及百万目录规模和真实网络下的性能验收仍需推进。
+SSE-KMS 在真实环境的验证，原厂 Hadoop 版本互通，Spark/Hive/Flink 作业，普通桶 copy/delete 并发修改保护，委托令牌、完整能力声明及 ByteBuffer 定位读取，以及百万目录规模和真实网络下的性能验收仍需推进。
 
 [ADAPTER_PLAN.md](docs/ADAPTER_PLAN.md) 定义后续验收要求；[历史实现说明](docs/README_HISTORY.md) 保留各阶段配置细节、设计决定和历史基准。旧 `PROMPT_NEXT_AI*.md` 是目标规格，不是完成声明。历史微基准不代表当前生产吞吐。

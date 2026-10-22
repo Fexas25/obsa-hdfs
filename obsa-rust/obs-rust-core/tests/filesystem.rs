@@ -1868,7 +1868,7 @@ async fn list_backfill_opens_without_head_and_keeps_zero_byte_file() {
     assert_eq!(store.count("head:"), 2); // Opening the listed file still needs no HEAD.
 }
 #[tokio::test]
-async fn pfs_delete_probes_directory_before_file_without_head() {
+async fn pfs_delete_checks_existence_then_probes_directory_before_file() {
     let store = Arc::new(MemoryStore {
         pfs: true,
         ..Default::default()
@@ -1883,11 +1883,10 @@ async fn pfs_delete_probes_directory_before_file_without_head() {
         .filter(|c| c.starts_with("delete:"))
         .map(|s| s.as_str())
         .collect();
-    assert_eq!(
-        deletes,
-        vec!["delete:file/", "delete:file", "delete:file/", "delete:file"]
-    );
-    assert!(!calls.iter().any(|c| c.starts_with("head:")));
+    // Real PFS answers DELETE of a missing key with 204: a missing path is
+    // only detectable by a status check, so the second delete sends none.
+    assert_eq!(deletes, vec!["delete:file/", "delete:file"]);
+    assert!(calls.iter().any(|c| c.starts_with("head:")));
 }
 #[tokio::test]
 async fn create_invalidates_negative_status_on_close() {
@@ -4993,13 +4992,15 @@ async fn classified_404_pfs_delete_and_mkdir_stop_on_bucket_failure() {
             folder_error: Some(bucket_missing_for_fs_test()),
             ..Default::default()
         });
+        if operation != 2 { store.put_empty("file").await.unwrap(); }
+        let puts = store.count("put");
         let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
         let result = if operation == 2 { fs.mkdirs("/parent/child", 0o755).await }
             else { fs.delete("/file", true).await };
         let error = result.unwrap_err();
         assert_eq!(error.code(), Some("NoSuchBucket"));
         assert_eq!(error.request_id(), Some("fs-missing"));
-        assert_eq!(store.count("put"), 0);
+        assert_eq!(store.count("put"), puts);
         assert_eq!(store.count("folder"), usize::from(operation == 2));
         assert_eq!(store.count("delete"), if operation == 2 { 0 } else { operation + 1 });
     }
