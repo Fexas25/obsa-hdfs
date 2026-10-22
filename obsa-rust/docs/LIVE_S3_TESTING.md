@@ -104,6 +104,19 @@ AccessLabel、根目录契约。脚本拒绝读取仓库内的配置文件，不
    （`testDeleteNonexistentPath*`）。
 7. AccessLabel：标签不允许 `-`（`400 BadAccessLabel`），字母、数字、`_` 可用；客户端请求格式无误。
 
+第三轮（同日）：
+
+8. **超时语义**：网络上行降到约 64 KiB/s 时，12 MiB 分片上传每个 5 MiB 分片都以 `read timeout` 失败——
+   `fs.obs.connection.timeout` 原是单次尝试的总期限（60 s）。参考实现把它交给 SDK 作 socket 超时（默认 120 s），
+   只在没有数据进展时触发。现改为同样的空闲超时（请求体按 64 KiB 分块发送、响应逐帧计进展），默认 120 s；
+   同样网络下该测试通过（128 s）。需要总期限时用 `fs.obs.request.timeout.ms`。
+9. **truncate 到更大长度**：真实 PFS 返回 204 并把文件扩展（模拟服务端原假设为 409）。现与参考实现一样先查状态：
+   目录与更大长度在本地拒绝，长度相同不发请求。
+10. 规格自创的 `x-obs-hdfs: true`（SDK 中没有）：rename 覆盖已有文件、错位 modify、扩展 truncate、删除非空目录、
+    目录 rename 等在真实 PFS 上带与不带结果完全相同，保留。另记录：PFS rename 到已有文件会**直接覆盖**、
+    modify 位置错误会覆盖中间数据，客户端依赖事先的状态检查（不防并发修改）。
+11. Hadoop 根目录契约（`LiveS3RootDirectoryContractTest`，需 `OBS_LIVE_ROOT_TESTS=true` 且桶专用）：普通桶、PFS 桶各 9/9。
+
 模拟服务端按以上实测行为更新。
 
 另外记录：真实 PFS 的 HEAD/PUT 响应带 `x-obs-inode-no`，不返回规格里的 `x-hws-fs-inode-no` /

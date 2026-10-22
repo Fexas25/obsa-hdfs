@@ -1,4 +1,5 @@
 pub mod pool;
+mod progress;
 pub mod request;
 pub mod tls;
 

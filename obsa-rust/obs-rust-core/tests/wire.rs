@@ -197,7 +197,38 @@ use tokio::{
 };
 
 #[tokio::test]
-async fn headers_and_body_share_deadline_and_timeout_releases_connection_slot() {
+async fn slow_but_progressing_transfer_outlasts_the_idle_timeout() {
+    use obs_rust_core::transport::HttpPool;
+    use std::time::Duration;
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let uri: http::Uri = format!("http://{}/file", listener.local_addr().unwrap()).parse().unwrap();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        socket.write_all(b"HTTP/1.1 200 OK
+Content-Length: 4
+Connection: close
+
+").await.unwrap();
+        // 4 x 400 ms = 1.6 s in total, never 1 s without progress.
+        for byte in [b"a", b"b", b"c", b"d"] {
+            tokio::time::sleep(Duration::from_millis(400)).await;
+            socket.write_all(byte).await.unwrap();
+            socket.flush().await.unwrap();
+        }
+    });
+    let pool = HttpPool::new(ObsConfig { connection_timeout_ms: 1000, ..Default::default() });
+    let response = pool.execute(http::Method::GET, uri, BTreeMap::new(), None, false).await.unwrap();
+    assert_eq!(response.body.as_ref(), b"abcd");
+    server.await.unwrap();
+}
+
+#[tokio::test]
+async fn stalled_body_times_out_and_releases_connection_slot() {
+    // `fs.obs.connection.timeout` is an idle (no-progress) timeout, as the
+    // SDK's socket timeout: headers after 600 ms are fine, then a body that
+    // stalls for longer than the timeout fails.
     use obs_rust_core::transport::HttpPool;
     use std::time::Duration;
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -213,7 +244,7 @@ async fn headers_and_body_share_deadline_and_timeout_releases_connection_slot() 
             .await
             .unwrap();
         let slow_body = tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_millis(600)).await;
+            tokio::time::sleep(Duration::from_millis(1500)).await;
             let _ = slow.write_all(b"slow").await;
         });
         let (mut fast, _) = listener.accept().await.unwrap();

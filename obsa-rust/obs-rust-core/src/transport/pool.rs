@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use http::{Method, StatusCode, Uri};
-use http_body_util::{BodyExt, Full, LengthLimitError, Limited};
+use http_body_util::{BodyExt, LengthLimitError, Limited};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
@@ -12,13 +12,14 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio::time::{timeout_at, Instant as TokioInstant};
 
+use super::progress::{with_idle_timeout, Progress, ProgressBody, ProgressRecv};
 use crate::io::budget::{BufferBudget, BudgetBuffer};
 use crate::config::{bounded_permits, ObsConfig};
 use crate::error::{ObsError, ObsResult};
 
 /// Shared HTTP connection pool (grow-on-demand, never shrink).
 pub struct HttpPool {
-    client: Client<HttpsConnector<HttpConnector>, Full<Bytes>>,
+    client: Client<HttpsConnector<HttpConnector>, ProgressBody>,
     config: ObsConfig,
     gate: Arc<Semaphore>,
     buffer_budget: Arc<BufferBudget>,
@@ -93,10 +94,14 @@ impl HttpPool {
         headers: &BTreeMap<String, String>,
         body: Option<Bytes>,
     ) -> ObsResult<HttpResponse> {
-        // One attempt budget covers queueing, request/headers and the body.
+        // `fs.obs.connection.timeout` bounds the connection queue wait, and
+        // then, like the OBS SDK's socket timeout, any stretch without upload or
+        // download progress; a slow but moving transfer is not cut off. The
+        // optional `fs.obs.request.timeout.ms` bounds the whole attempt.
         let start = Instant::now();
+        let idle = Duration::from_millis(self.config.connection_timeout_ms);
         let deadline = TokioInstant::now()
-            .checked_add(Duration::from_millis(self.config.connection_timeout_ms))
+            .checked_add(idle)
             .ok_or_else(|| ObsError::InvalidArgument("HTTP timeout is too large".into()))?;
         let _permit = timeout_at(deadline, self.gate.acquire())
             .await
@@ -104,9 +109,8 @@ impl HttpPool {
             .map_err(|e| ObsError::Transport(e.to_string()))?;
         let path = uri.path().to_string();
         let out_bytes = body.as_ref().map_or(0, |b| b.len());
-        let req_body = body
-            .map(Full::new)
-            .unwrap_or_else(|| Full::new(Bytes::new()));
+        let progress = Progress::new();
+        let req_body = ProgressBody::new(body.unwrap_or_default(), progress.clone());
 
         let mut builder = hyper::Request::builder().method(method).uri(uri);
         if let Some(headers_map) = builder.headers_mut() {
@@ -130,9 +134,8 @@ impl HttpPool {
             .body(req_body)
             .map_err(|e| ObsError::Transport(e.to_string()))?;
 
-        let resp = timeout_at(deadline, self.client.request(req))
-            .await
-            .map_err(|_| ObsError::Transport("read timeout".into()))?
+        let resp = with_idle_timeout(idle, &progress, self.client.request(req), "read timeout")
+            .await?
             .map_err(|e| ObsError::Transport(e.to_string()))?;
 
         let status = resp.status();
@@ -172,9 +175,15 @@ impl HttpPool {
         let known_length = expected.or_else(|| resp_headers.get("content-length")
             .and_then(|value| value.parse::<u64>().ok()))
             .and_then(|length| usize::try_from(length).ok());
-        let body_bytes = timeout_at(deadline, collect_response_body_budgeted(resp.into_body(), limit, known_length, self.buffer_budget.clone()))
-            .await
-            .map_err(|_| ObsError::Transport("response body timeout".into()))??;
+        progress.touch();
+        let body = ProgressRecv::new(resp.into_body(), progress.clone());
+        let body_bytes = with_idle_timeout(
+            idle,
+            &progress,
+            collect_response_body_budgeted(body, limit, known_length, self.buffer_budget.clone()),
+            "response body timeout",
+        )
+        .await??;
         if expected.is_some_and(|n| n != body_bytes.len() as u64) {
             return Err(ObsError::Io(
                 "response body length differs from Content-Range".into(),

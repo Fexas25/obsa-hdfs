@@ -285,11 +285,8 @@ final class LocalObsServer implements AutoCloseable {
             error(e, 404, "NoSuchKey");
             return;
           }
+          // Real PFS extends the file when the length is larger.
           int n = Integer.parseInt(q.get("length"));
-          if (n > current.length) {
-            error(e, 409, "TruncateBiggerNotAllowed");
-            return;
-          }
           data.put(key, Arrays.copyOf(current, n));
         } else if (q.containsKey("modify")) {
           modifies.incrementAndGet();

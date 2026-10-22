@@ -176,7 +176,7 @@ impl Default for ObsConfig {
             path_style_access: true,
             connection_maximum: cores.max(16) * 2,
             connection_establish_timeout_ms: 5000,
-            connection_timeout_ms: 60_000,
+            connection_timeout_ms: 120_000,
             request_timeout_ms: 0,
             http_response_max_bytes: 64 * 1024 * 1024,
             buffer_total_bytes: 0,

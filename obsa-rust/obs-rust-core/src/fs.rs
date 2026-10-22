@@ -840,6 +840,20 @@ impl ObsFileSystem {
         if key.is_empty() {
             return Err(ObsError::IsDirectory(path.into()));
         }
+        // Real PFS extends a file when asked to truncate it to a larger size
+        // (verified 2026-10-22), so check locally like the reference does.
+        let status = self.get_file_status(path).await?;
+        if status.is_dir {
+            return Err(ObsError::IsDirectory(path.into()));
+        }
+        if length > status.length {
+            return Err(ObsError::InvalidArgument(format!(
+                "cannot truncate {path} to a larger size: {} > {}", length, status.length
+            )));
+        }
+        if length == status.length {
+            return Ok(());
+        }
         let _invalidation = StatusInvalidation { cache: &self.cache, key: &key };
         self.pfs.truncate(&key, length).await
     }

@@ -1899,16 +1899,23 @@ async fn create_invalidates_negative_status_on_close() {
     assert_eq!(fs.get_file_status("/file").await.unwrap().length, 3);
 }
 #[tokio::test]
-async fn pfs_mkdir_and_truncate_use_no_head() {
+async fn pfs_mkdir_uses_no_head_and_truncate_checks_length_first() {
     let store = Arc::new(MemoryStore {
         pfs: true,
         ..Default::default()
     });
     let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
     fs.mkdirs("/dir", 0o755).await.unwrap();
-    store.put("file", Bytes::from_static(b"data"), PutHeaders::default()).await.unwrap();
-    fs.truncate("/file", 0).await.unwrap();
     assert_eq!(store.count("head:"), 0);
+    store.put("file", Bytes::from_static(b"data"), PutHeaders::default()).await.unwrap();
+    // Real PFS extends a file on a larger truncate, so the length is checked locally.
+    assert!(matches!(fs.truncate("/file", 5).await, Err(ObsError::InvalidArgument(_))));
+    assert!(fs.truncate("/dir", 0).await.is_err());
+    assert_eq!(store.count("truncate"), 0);
+    fs.truncate("/file", 4).await.unwrap();
+    assert_eq!(store.count("truncate"), 0);
+    fs.truncate("/file", 0).await.unwrap();
+    assert_eq!(store.count("truncate"), 1);
 }
 
 #[tokio::test]

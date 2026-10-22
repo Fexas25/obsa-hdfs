@@ -201,6 +201,9 @@ async fn pfs_semantics_on_live_bucket() {
     fs.truncate(&file, 4).await.unwrap();
     assert_eq!(fs.get_file_status(&file).await.unwrap().length, 4);
     assert_eq!(read_all(&fs, &file).await, b"head");
+    // PFS itself would extend the file; the client must refuse instead.
+    assert!(fs.truncate(&file, 100).await.is_err());
+    assert_eq!(fs.get_file_status(&file).await.unwrap().length, 4);
 
     // Overwriting with a longer file is read back in full (Hadoop testOverwriteExistingFile).
     let over = format!("{root}/dir 目录/over");
