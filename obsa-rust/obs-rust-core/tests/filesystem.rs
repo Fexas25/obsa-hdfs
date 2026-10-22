@@ -3018,6 +3018,20 @@ fn read_change_detection_configuration_defaults_on() {
 }
 
 #[test]
+fn hadoop_configuration_defaults_to_virtual_host_addressing() {
+    use obs_rust_core::types::AddressingStyle;
+    let mut props = std::collections::HashMap::new();
+    // Real OBS rejects path-style bucket requests (VirtualHostDomainRequired).
+    let config = obs_rust_core::config::config_from_hadoop(&props, "bucket");
+    assert!(!config.path_style_access);
+    assert_eq!(config.addressing_style, AddressingStyle::Vhost);
+    props.insert("fs.obs.path.style.access".into(), "true".into());
+    let config = obs_rust_core::config::config_from_hadoop(&props, "bucket");
+    assert!(config.path_style_access);
+    assert_eq!(config.addressing_style, AddressingStyle::Path);
+}
+
+#[test]
 fn debug_output_redacts_credentials_and_overrides() {
     let credentials = obs_rust_core::auth::Credentials::new("private-ak", "private-sk")
         .with_session_token("private-token");

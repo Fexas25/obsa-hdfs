@@ -41,7 +41,8 @@ final class ObsLiveContract extends AbstractFSContract {
     conf.setBoolean("fs.obs.connection.ssl.enabled", "true".equals(env("OBS_LIVE_SECURE")));
     conf.set("fs.obs.signature.type", env("OBS_LIVE_SIGNATURE") == null ? "v2" : env("OBS_LIVE_SIGNATURE"));
     conf.set("fs.obs.bucket.mode", "object");
-    conf.setBoolean("fs.obs.path.style.access", true);
+    // Real OBS requires virtual-host addressing; S3Proxy and other local servers need path style.
+    conf.setBoolean("fs.obs.path.style.access", "true".equals(env("OBS_LIVE_PATH_STYLE")));
     conf.set("fs.obs.multipart.size", "5242880");
     fs = new OBSFileSystemRust();
     fs.initialize(URI.create("obs://" + bucket), conf);

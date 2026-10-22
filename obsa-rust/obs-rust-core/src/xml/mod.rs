@@ -254,7 +254,7 @@ pub fn parse_list_xml(body: &str) -> ObsResult<ListXmlResult> {
                             "ETag" => entry.etag = Some(crate::types::unquote_etag(text.trim())
                                 .ok_or_else(|| ObsError::Io("malformed LIST ETag".into()))?.to_owned()),
                             "LastModified" => entry.last_modified = Some(text.trim().to_string()),
-                            "Mode" => entry.mode = ListEntry::parse_mode_octal(text.trim()),
+                            "Mode" => entry.mode = ListEntry::parse_mode(&text),
                             "Uid" => entry.uid = text.trim().parse().ok(),
                             "Gid" => entry.gid = text.trim().parse().ok(),
                             "InodeNo" => entry.inode_no = text.trim().parse().ok(),
@@ -627,7 +627,7 @@ mod tests {
     fn list_assembles_text_and_cdata_before_parsing_fields() {
         let result = parse_list_xml(r#"<ListBucketResult>
           <Contents><Key> dir/<!--split--><![CDATA[file &amp;]]> </Key>
-            <Size> 1<!--split-->2 </Size><Mode>100<![CDATA[644]]></Mode>
+            <Size> 1<!--split-->2 </Size><Mode>331<![CDATA[88]]></Mode>
             <Uid>4<!--split-->2</Uid><ETag>&quot;ta<![CDATA[g]]>&quot;</ETag>
           </Contents>
           <CommonPrefixes><Prefix> dir/<![CDATA[sub &]]>/ </Prefix></CommonPrefixes>
@@ -648,7 +648,7 @@ mod tests {
     fn list_preserves_key_prefix_and_marker_whitespace() {
         for key in [" leading", "trailing ", " both ", "   ", " dir/文件 "] {
             let result = parse_list_xml(&format!(
-                "<ListBucketResult><Contents><Key>{key}</Key><Size> 7 </Size><Mode> 100644 </Mode><Uid> 42 </Uid><Gid> 43 </Gid><InodeNo> 44 </InodeNo><FsDentryNo> 45 </FsDentryNo><FsLinkCount> 2 </FsLinkCount><ETag> &quot;tag&quot; </ETag></Contents><CommonPrefixes><Prefix>{key}/ </Prefix></CommonPrefixes><IsTruncated> true </IsTruncated><NextMarker>{key}</NextMarker></ListBucketResult>"
+                "<ListBucketResult><Contents><Key>{key}</Key><Size> 7 </Size><Mode> 33188 </Mode><Uid> 42 </Uid><Gid> 43 </Gid><InodeNo> 44 </InodeNo><FsDentryNo> 45 </FsDentryNo><FsLinkCount> 2 </FsLinkCount><ETag> &quot;tag&quot; </ETag></Contents><CommonPrefixes><Prefix>{key}/ </Prefix></CommonPrefixes><IsTruncated> true </IsTruncated><NextMarker>{key}</NextMarker></ListBucketResult>"
             )).unwrap();
             let entry = &result.contents[0];
             assert_eq!(entry.key, key);
@@ -670,7 +670,7 @@ mod tests {
             <Contents>
                 <Key>dir/file</Key>
                 <Size>1024</Size>
-                <Mode>100644</Mode>
+                <Mode>33188</Mode>
                 <Uid>1000</Uid>
                 <Gid>1000</Gid>
                 <InodeNo>12345</InodeNo>

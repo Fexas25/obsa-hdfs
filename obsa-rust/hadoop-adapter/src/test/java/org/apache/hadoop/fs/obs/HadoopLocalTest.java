@@ -40,6 +40,7 @@ public class HadoopLocalTest {
     server.pfs = pfs;
     Configuration conf = new Configuration(false);
     conf.set("fs.obs.endpoint", server.endpoint());
+    conf.setBoolean("fs.obs.path.style.access", true);
     conf.set("fs.obs.access.key", "test");
     conf.set("fs.obs.secret.key", "test");
     conf.setBoolean("fs.obs.connection.ssl.enabled", false);

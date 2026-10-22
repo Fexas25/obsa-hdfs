@@ -159,9 +159,11 @@ impl ListEntry {
         !self.key.ends_with('/')
     }
 
-    /// Parse Mode field as octal string per spec rule #8.
-    pub fn parse_mode_octal(s: &str) -> Option<u32> {
-        u32::from_str_radix(s.trim(), 8).ok()
+    /// Parse a PFS mode (LIST `Mode`, `x-obs-meta-mode`). Real PFS and the
+    /// OBS SDK (`Integer.parseInt`) use decimal, e.g. 16832 = 0o40700; an
+    /// object migrated from an object bucket reports -1, which is no mode.
+    pub fn parse_mode(s: &str) -> Option<u32> {
+        s.trim().parse::<i64>().ok().and_then(|m| u32::try_from(m).ok())
     }
 }
 
@@ -272,9 +274,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse_mode_octal() {
-        assert_eq!(ListEntry::parse_mode_octal("40755"), Some(0o40755));
-        assert_eq!(ListEntry::parse_mode_octal("100644"), Some(0o100644));
+    fn parse_mode_is_decimal() {
+        // Values observed on a real PFS bucket (2026-10-22).
+        assert_eq!(ListEntry::parse_mode("16832"), Some(0o40700));
+        assert_eq!(ListEntry::parse_mode(" 33152 "), Some(0o100600));
+        assert_eq!(ListEntry::parse_mode("-1"), None);
+        assert_eq!(ListEntry::parse_mode("x"), None);
     }
 
     #[test]

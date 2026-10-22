@@ -12,6 +12,7 @@ public class NativeConfigurationTest {
   private org.apache.hadoop.conf.Configuration localConfiguration(LocalObsServer server) {
     org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration(false);
     config.set("fs.obs.endpoint", server.endpoint());
+    config.setBoolean("fs.obs.path.style.access", true);
     config.setBoolean("fs.obs.connection.ssl.enabled", false);
     config.set("fs.obs.bucket.mode", "object");
     config.set("fs.obs.access.key", "test");
@@ -161,6 +162,7 @@ public class NativeConfigurationTest {
       server.getEtagOverride = "\"\"" + tag + "\"\"";
       org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration(false);
       config.set("fs.obs.endpoint", server.endpoint());
+      config.setBoolean("fs.obs.path.style.access", true);
       config.setBoolean("fs.obs.connection.ssl.enabled", false);
       config.set("fs.obs.bucket.mode", "object");
       config.set("fs.obs.access.key", "test");
@@ -208,6 +210,7 @@ public class NativeConfigurationTest {
         server.headStatus = headStatus;
         org.apache.hadoop.conf.Configuration config = new org.apache.hadoop.conf.Configuration(false);
         config.set("fs.obs.endpoint", server.endpoint());
+        config.setBoolean("fs.obs.path.style.access", true);
         config.setBoolean("fs.obs.connection.ssl.enabled", false);
         config.set("fs.obs.bucket.mode", pfs ? "pfs" : "object");
         config.set("fs.obs.access.key", "test");

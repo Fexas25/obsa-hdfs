@@ -15,6 +15,7 @@ public class NativeListingLifecycleTest {
     config
         .putObject("hadoop")
         .put("fs.obs.endpoint", server.endpoint())
+        .put("fs.obs.path.style.access", "true")
         .put("fs.obs.access.key", "test")
         .put("fs.obs.secret.key", "test")
         .put("fs.obs.bucket.mode", "object")

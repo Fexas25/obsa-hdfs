@@ -50,7 +50,9 @@ Rust 核心记录日志；Rust API 和 Hadoop/JNI 扩展均提供显式恢复入
 取得 upload ID 后，在阻塞工作线程写入记录、sync 文件、将 `.pending` 重命名为 `.json`，
 然后才允许发送分片。记录只有格式版本、目标命名空间摘要、对象键和 upload ID，不含
 AK/SK/token 或文件数据。对象键仍是业务元数据。命名空间由 endpoint、bucket、secure
-和 path_style_access 配置确定，恢复时这些配置必须保持一致。
+和 path_style_access 配置确定，恢复时这些配置必须保持一致。2026-10-22 起 Hadoop 配置默认虚拟主机方式
+（`fs.obs.path.style.access` 默认 false，与 SDK 一致），此前用默认配置写下的日志属于另一个命名空间，
+需临时设 `fs.obs.path.style.access=true` 才能恢复。
 
 每个命名空间持有 OS 文件锁，进程退出自动释放；同一目录和命名空间只允许一个文件系统
 实例拥有，避免其他实例清理活跃 MPU。并行实例可配置独立日志目录。活跃流另外持有本地

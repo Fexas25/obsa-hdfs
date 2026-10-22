@@ -66,6 +66,7 @@ final class ObsLocalContract extends AbstractFSContract {
     server = new LocalObsServer(pfs);
     Configuration conf = getConf();
     conf.set("fs.obs.endpoint", server.endpoint());
+    conf.setBoolean("fs.obs.path.style.access", true);
     // Tests of the keyless security-provider path supply credentials themselves.
     if (conf.get(NativeCredentials.SECURITY_PROVIDER) == null) {
       conf.set("fs.obs.access.key", "test");

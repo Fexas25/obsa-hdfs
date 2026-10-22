@@ -225,8 +225,13 @@ pub fn config_from_hadoop(props: &HashMap<String, String>, bucket: &str) -> ObsC
         }
     }
     let props = &effective;
+    // Like the OBS SDK (pathStyle=false), Hadoop configs default to virtual-host
+    // addressing: real OBS rejects path-style bucket requests with
+    // VirtualHostDomainRequired. Set fs.obs.path.style.access=true for S3 servers
+    // or private deployments that need it.
     let mut cfg = ObsConfig {
         bucket: bucket.to_string(),
+        path_style_access: false,
         ..Default::default()
     };
 

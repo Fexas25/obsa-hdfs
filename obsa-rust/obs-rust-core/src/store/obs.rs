@@ -275,7 +275,7 @@ impl ObsStore {
             etag,
             last_modified: get("last-modified"),
             content_type: get("content-type"),
-            mode: get("x-obs-meta-mode").and_then(|s| u32::from_str_radix(&s, 8).ok()),
+            mode: get("x-obs-meta-mode").and_then(|s| crate::types::ListEntry::parse_mode(&s)),
             uid: get("x-obs-meta-uid").and_then(|s| s.parse().ok()),
             gid: get("x-obs-meta-gid").and_then(|s| s.parse().ok()),
             inode_no: get("x-hws-fs-inode-no").and_then(|s| s.parse().ok()),
@@ -786,9 +786,11 @@ impl ObjectStore for ObsStore {
             format!("{key}/")
         };
 
+        // Like the SDK's newFolder: a plain PUT of `key/`. Real PFS creates
+        // missing parents, keeps an existing directory and its children, and
+        // answers `?folder` with 404 NoSuchKey (verified 2026-10-22).
         let builder = RequestBuilder::new(&self.config, &self.config.bucket, Method::PUT)
             .key(&folder_key)
-            .sub_resource("folder", None)
             .obs_header("x-obs-hdfs", "true");
 
         let resp = self.signed_execute(builder, "", "").await?;
@@ -801,6 +803,19 @@ impl ObjectStore for ObsStore {
         if status == 409 {
             let (code, _) = xml::parse_error_xml(std::str::from_utf8(&resp.body).unwrap_or(""));
             return match code.as_str() {
+                // PFS uses one code for "a file is at this path" and "an
+                // ancestor is a file"; the path itself tells them apart.
+                conflict_codes::FS_OBJECT_CONFLICT => {
+                    match self.head(folder_key.trim_end_matches('/')).await {
+                        Ok(_) => Err(ObsError::AlreadyExists(format!(
+                            "FileAlreadyExists: {folder_key}"
+                        ))),
+                        Err(e) if e.is_path_not_found() => Err(ObsError::ParentNotDirectory(
+                            format!("parent is file: {folder_key}"),
+                        )),
+                        Err(e) => Err(e),
+                    }
+                }
                 conflict_codes::DIRECTORY_ALREADY_EXISTS => Ok(()),
                 conflict_codes::FILE_ALREADY_EXISTS => Err(ObsError::AlreadyExists(format!(
                     "FileAlreadyExists: {folder_key}"
@@ -833,7 +848,7 @@ impl ObjectStore for ObsStore {
         let mut metadata = current.user_meta;
         if let Some(mode) = mode {
             let mode = (current.mode.unwrap_or(0) & !0o7777) | (mode & 0o7777);
-            metadata.insert("mode".into(), format!("{mode:o}"));
+            metadata.insert("mode".into(), mode.to_string());
         }
         if let Some(uid) = uid { metadata.insert("uid".into(), uid.to_string()); }
         if let Some(gid) = gid { metadata.insert("gid".into(), gid.to_string()); }

@@ -370,7 +370,7 @@ impl ObsFileSystem {
         .with_buffer_budget(self.buffer_budget.clone())
         .with_journal(journal)
         .with_headers(PutHeaders {
-            user_meta: vec![("mode".into(), format!("{:o}", permission | S_IFREG))],
+            user_meta: vec![("mode".into(), (permission | S_IFREG).to_string())],
             hdfs_client: self.is_pfs(),
             ..Default::default()
         })

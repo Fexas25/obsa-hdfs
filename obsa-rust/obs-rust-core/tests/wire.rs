@@ -544,7 +544,7 @@ async fn create_mode_header_and_cached_permission_match_head_projection() {
         ("404 Not Found", "", ""),
         ("200 OK", "", "<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>"),
         ("200 OK", "ETag: \"created\"\r\n", ""),
-        ("200 OK", "x-obs-meta-mode: 100640\r\n", ""),
+        ("200 OK", "x-obs-meta-mode: 33184\r\n", ""),
     ]).await;
     let store = std::sync::Arc::new(store);
     let fs = obs_rust_core::ObsFileSystem::with_store(ObsConfig::default(), store.clone());
@@ -556,7 +556,7 @@ async fn create_mode_header_and_cached_permission_match_head_projection() {
     }, store).get_file_status("/file").await.unwrap();
     let requests = server.await.unwrap();
     assert!(requests[2].starts_with("PUT /bucket/file HTTP/1.1\r\n"));
-    assert!(requests[2].to_ascii_lowercase().contains("x-obs-meta-mode: 100640\r\n"));
+    assert!(requests[2].to_ascii_lowercase().contains("x-obs-meta-mode: 33184\r\n"));
     assert_eq!(cached.permission, fresh.permission);
     assert_eq!(cached.permission, 0o640);
     assert!(!cached.is_dir && !fresh.is_dir);
@@ -592,10 +592,39 @@ async fn pfs_mutations_all_send_hdfs_header() {
 }
 
 #[tokio::test]
+async fn pfs_folder_is_a_plain_put_and_conflicts_are_classified_by_head() {
+    const CONFLICT: &str = "<Error><Code>FsObjectConflict</Code><Message>m</Message></Error>";
+    let (store, server) = server(vec![
+        ("200 OK", "", ""),
+        // A file is at the path itself.
+        ("409 Conflict", "", CONFLICT),
+        ("200 OK", "", ""),
+        // An ancestor is a file: the path itself does not exist.
+        ("409 Conflict", "", CONFLICT),
+        ("404 Not Found", "", ""),
+    ])
+    .await;
+    store.create_folder("dir 目录").await.unwrap();
+    assert!(matches!(
+        store.create_folder("file").await,
+        Err(obs_rust_core::ObsError::AlreadyExists(_))
+    ));
+    assert!(matches!(
+        store.create_folder("file/sub").await,
+        Err(obs_rust_core::ObsError::ParentNotDirectory(_))
+    ));
+    let requests = server.await.unwrap();
+    // Real PFS answers `?folder` with NoSuchKey; the SDK's newFolder is a PUT of `key/`.
+    assert!(requests[0].starts_with("PUT /bucket/dir%20%E7%9B%AE%E5%BD%95/ "), "{}", requests[0]);
+    assert!(requests[2].starts_with("HEAD /bucket/file "), "{}", requests[2]);
+    assert!(requests[4].starts_with("HEAD /bucket/file/sub "), "{}", requests[4]);
+}
+
+#[tokio::test]
 async fn metadata_replace_preserves_unmodified_fields_and_file_type() {
     for permission in [true, false] {
         let (store, server) = server(vec![
-            ("200 OK", "x-obs-meta-mode: 100644\r\nx-obs-meta-uid: 17\r\nx-obs-meta-gid: 18\r\nx-obs-meta-project: retained\r\nx-obs-meta-user: alice\r\n", ""),
+            ("200 OK", "x-obs-meta-mode: 33188\r\nx-obs-meta-uid: 17\r\nx-obs-meta-gid: 18\r\nx-obs-meta-project: retained\r\nx-obs-meta-user: alice\r\n", ""),
             ("200 OK", "", ""),
         ]).await;
         if permission {
@@ -609,7 +638,7 @@ async fn metadata_replace_preserves_unmodified_fields_and_file_type() {
         assert!(update.starts_with("put /bucket/file?metadata "));
         assert!(update.contains("x-obs-meta-project: retained\r\n"));
         assert!(update.contains("x-obs-meta-user: alice\r\n"));
-        assert!(update.contains(if permission { "x-obs-meta-mode: 100600\r\n" } else { "x-obs-meta-mode: 100644\r\n" }));
+        assert!(update.contains(if permission { "x-obs-meta-mode: 33152\r\n" } else { "x-obs-meta-mode: 33188\r\n" }));
         assert!(update.contains(if permission { "x-obs-meta-uid: 17\r\n" } else { "x-obs-meta-uid: 42\r\n" }));
         assert!(update.contains(if permission { "x-obs-meta-gid: 18\r\n" } else { "x-obs-meta-gid: 43\r\n" }));
     }
@@ -635,7 +664,7 @@ async fn multipart_initiation_preserves_file_metadata() {
         .initiate_multipart_upload_with_headers(
             "file",
             obs_rust_core::store::PutHeaders {
-                user_meta: vec![("mode".into(), "100640".into())],
+                user_meta: vec![("mode".into(), "33184".into())],
                 hdfs_client: true,
                 ..Default::default()
             },
@@ -645,7 +674,7 @@ async fn multipart_initiation_preserves_file_metadata() {
     let requests = server.await.unwrap();
     assert!(requests[0]
         .to_lowercase()
-        .contains("x-obs-meta-mode: 100640"));
+        .contains("x-obs-meta-mode: 33184"));
 }
 
 #[tokio::test]
@@ -1114,6 +1143,7 @@ async fn configured_retry_limits_apply_to_signed_and_raw_requests() {
             let props = std::collections::HashMap::from([
                 ("fs.obs.retry.max.attempts".into(), retries.to_string()),
                 ("fs.obs.retry.backoff.ms".into(), "0".into()),
+                ("fs.obs.path.style.access".into(), "true".into()),
             ]);
             let tuning = config_from_hadoop(&props, "bucket");
             let responses = if retries == 0 {
@@ -1353,12 +1383,12 @@ async fn complete_metadata_does_not_report_xml_length_as_object_size() {
 #[tokio::test]
 async fn metadata_prefix_is_removed_exactly_once_on_read() {
     let (store, task) = server(vec![("200 OK",
-        "x-obs-meta-mode: 100644\r\nX-Obs-Meta-X-Obs-Meta-Mode: custom\r\nx-obs-meta-x-obs-meta-x-obs-meta-tag: deep\r\n", "")]).await;
+        "x-obs-meta-mode: 33188\r\nX-Obs-Meta-X-Obs-Meta-Mode: custom\r\nx-obs-meta-x-obs-meta-x-obs-meta-tag: deep\r\n", "")]).await;
     let meta = store.head("file").await.unwrap();
     assert_eq!(task.await.unwrap().len(), 1);
     assert_eq!(meta.mode, Some(0o100644));
     assert_eq!(meta.user_meta.len(), 3);
-    assert_eq!(meta.user_meta.get("mode").map(String::as_str), Some("100644"));
+    assert_eq!(meta.user_meta.get("mode").map(String::as_str), Some("33188"));
     assert_eq!(meta.user_meta.get("x-obs-meta-mode").map(String::as_str), Some("custom"));
     assert_eq!(meta.user_meta.get("x-obs-meta-x-obs-meta-tag").map(String::as_str), Some("deep"));
 }
@@ -1367,7 +1397,7 @@ async fn metadata_prefix_is_removed_exactly_once_on_read() {
 async fn metadata_prefix_survives_permission_and_user_metadata_replace() {
     for permission in [true, false] {
         let (store, task) = server(vec![
-            ("200 OK", "x-obs-meta-mode: 100644\r\nX-Obs-Meta-X-Obs-Meta-Mode: custom\r\nx-obs-meta-x-obs-meta-x-obs-meta-tag: deep\r\n", ""),
+            ("200 OK", "x-obs-meta-mode: 33188\r\nX-Obs-Meta-X-Obs-Meta-Mode: custom\r\nx-obs-meta-x-obs-meta-x-obs-meta-tag: deep\r\n", ""),
             ("200 OK", "", ""),
         ]).await;
         if permission {
@@ -1386,9 +1416,9 @@ async fn metadata_prefix_survives_permission_and_user_metadata_replace() {
         assert!(update.contains("x-obs-meta-x-obs-meta-x-obs-meta-tag: deep\r\n"));
         assert!(!update.contains("\r\nx-obs-meta-tag:"));
         assert!(update.contains(if permission {
-            "x-obs-meta-mode: 100600\r\n"
+            "x-obs-meta-mode: 33152\r\n"
         } else {
-            "x-obs-meta-mode: 100644\r\n"
+            "x-obs-meta-mode: 33188\r\n"
         }));
         if !permission { assert!(update.contains("x-obs-meta-project: updated\r\n")); }
     }
@@ -2174,7 +2204,7 @@ async fn aws_v2_signature_mode_renames_headers_both_ways() {
     };
     let (config, task) = mock_endpoint(vec![
         ("200 OK", "ETag: \"e\"\r\n", ""),
-        ("200 OK", "Content-Length: 3\r\nETag: \"e\"\r\nx-amz-meta-mode: 100644\r\nx-amz-meta-custom: v\r\nx-amz-request-id: amz-req\r\n", ""),
+        ("200 OK", "Content-Length: 3\r\nETag: \"e\"\r\nx-amz-meta-mode: 33188\r\nx-amz-meta-custom: v\r\nx-amz-request-id: amz-req\r\n", ""),
     ], tuning).await;
     let mut store = ObsStore::new(ObsConfig { bucket_mode: BucketMode::Object, ..config },
         CredentialChain::new(Credentials::new("AK", "SK").with_session_token("tok")));

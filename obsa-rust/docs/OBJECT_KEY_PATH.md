@@ -13,5 +13,5 @@
 此前签名使用未编码的对象键（`/bucket/a b/文件`），而请求行发送百分号编码路径。对照华为 OBS Java SDK 源码（`RestStorageService` 以 `uri.getRawPath()` 作为 CanonicalizedResource，`AbstractAuthentication.makeServiceCanonicalString` 按 `ALLOWED_RESOURCE_PARAMTER_NAMES` 白名单不区分大小写筛选查询参数并解码其值），含空格、中文、`+`、`%`、`*` 等需要编码字符的键在真实 OBS 上会签名不一致。
 
 - `canonical_resource` 现在与 `build_uri` 共用 `encode_object_key`，签名覆盖实际发送的编码路径；保留 `A-Za-z0-9-_.~` 不编码，与 SDK（URLEncoder 后替换 `%20`/`%2A`/`~`）一致。子资源值保持解码形式。
-- 子资源从黑名单改为白名单：华为 API obs_04_0010 列表与 SDK 列表的并集（不区分大小写），以及所有 `x-obs-` 开头参数。LIST 参数、PFS mkdirs 的 `folder` 等不再参与签名。`folder` 不在官方文档或 SDK 的签名列表里；SDK 的 `newFolder` 实际发送不带查询参数的 `PUT key/`。是否保留 `?folder` 请求参数仍需真实 PFS 验证（当前保留，规格要求如此）。
+- 子资源从黑名单改为白名单：华为 API obs_04_0010 列表与 SDK 列表的并集（不区分大小写），以及所有 `x-obs-` 开头参数。LIST 参数、PFS mkdirs 的 `folder` 等不再参与签名。`folder` 不在官方文档或 SDK 的签名列表里；SDK 的 `newFolder` 实际发送不带查询参数的 `PUT key/`。2026-10-22 真实 PFS 实测 `?folder` 返回 404 NoSuchKey，mkdirs 已改为 SDK 的 `PUT key/`。
 - 本地回归：HEAD 与带子资源的 PUT 均从实际请求行重算签名比对。仍未在真实 OBS/PFS 上验证。

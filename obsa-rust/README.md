@@ -2,7 +2,7 @@
 
 华为云 OBS/PFS 的 **Rust 存储核心**，通过 Rust JNI 桥接供 Hadoop 使用。文件操作、网络请求、签名、缓存、上传恢复与并发协调在 Rust 中实现；Java 负责 Hadoop 接口适配。
 
-这是可运行并有本地回归覆盖的实现，**尚未完成真实 OBS/PFS 和生产作业验收**。本地模拟测试不能证明云端兼容性或生产性能。
+这是可运行并有本地回归覆盖的实现。2026-10-22 已在华为云真实普通桶与 PFS 桶上通过功能冒烟和 Hadoop 官方契约（[LIVE_S3_TESTING.md](docs/LIVE_S3_TESTING.md)“华为云实测”），**尚未完成生产作业与真实网络性能验收**。
 
 ## 从哪里开始
 
@@ -58,6 +58,8 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 <property><name>fs.obs.bucket.mode</name><value>auto</value></property>
 ```
 
+与 OBS SDK 一致默认使用虚拟主机方式（`bucket.endpoint`），华为云 OBS 拒绝路径方式的桶请求；S3 兼容服务端或按 IP 访问的私有部署可设 `fs.obs.path.style.access=true`。
+
 通过 Hadoop CredentialProvider 提供 `fs.obs.access.key`、`fs.obs.secret.key` 和可选 `fs.obs.session.token`，也支持桶级别名。也可与参考实现一样用 `fs.obs.credentials.provider`（实现 `org.apache.hadoop.fs.obs.BasicSessionCredential`）或在未配置密钥时用 `fs.obs.security.provider`（OBS SDK 的 `IObsCredentialsProvider`，如 ECS 委托凭证，反射调用、适配层不依赖 SDK）。两种提供器每 `fs.obs.credentials.refresh.interval.ms`（默认 60000，0 关闭）重新读取一次，变化后推送给 Rust 签名；读取失败保留原凭证。尚无委托令牌。不要将真实凭据放进仓库。
 
 ## 已实现与行为边界
@@ -76,19 +78,19 @@ Maven 默认使用公开 Hadoop 3.3.6；部署其他版本可通过 `-Dhadoop.ve
 
 配置、能力和接口覆盖详见 [API_COVERAGE.md](docs/API_COVERAGE.md)，预算详见 [BUFFER_BUDGET.md](docs/BUFFER_BUDGET.md)，恢复详见 [UPLOAD_RECOVERY.md](docs/UPLOAD_RECOVERY.md)。
 
-## 当前本地验证（2026-10-21）
+## 当前本地验证（2026-10-22）
 
-- 最新默认 Rust workspace 在 Windows 与 Linux（WSL2 Ubuntu 22.04）debug / release 各 **435 通过、0 失败、16 ignored**。
+- 最新默认 Rust workspace 在 Windows 与 Linux（WSL2 Ubuntu 22.04）debug / release 各 **437 通过、0 失败、16 ignored**。
 - 真实 JVM：显式构建 debug / release 动态库后，基础 JNI 冒烟和异常分类测试均通过。
-- Hadoop 3.3.6：两平台 debug / release 各 **545 项、0 失败、0 错误、147 跳过**（含官方 seek/定位读与向量化读契约）。跳过中 12 项对应普通桶不支持 append 和新建文件 close 才可见的能力边界，135 项是未设置 `OBS_LIVE_*` 时跳过的线上契约；它们对独立 S3 服务端 S3Proxy 实测 0 失败，见 [LIVE_S3_TESTING.md](docs/LIVE_S3_TESTING.md)。
-- `append-diagnostics`（debug）**435 通过、0 失败、16 ignored**。
+- Hadoop 3.3.6：两平台 debug / release 各 **545 项、0 失败、0 错误、147 跳过**（含官方 seek/定位读与向量化读契约）。跳过中 12 项对应普通桶不支持 append 和新建文件 close 才可见的能力边界，135 项是未设置 `OBS_LIVE_*` 时跳过的线上契约；它们对独立 S3 服务端 S3Proxy 及 2026-10-22 对华为云真实 OBS 实测均 0 失败，见 [LIVE_S3_TESTING.md](docs/LIVE_S3_TESTING.md)。
+- `append-diagnostics`（debug）**437 通过、0 失败、16 ignored**。
 
 2026-10-20 的改动、依据和待真实环境确认事项见 [HANDOFF_20261020.md](docs/HANDOFF_20261020.md)：
 原生定位读取与 Hadoop 3.3.5+ 向量化读取（[POSITIONED_VECTORED_READ.md](docs/POSITIONED_VECTORED_READ.md)）、
 对照官方 OBS Java SDK 修正的 V2 签名（编码路径、子资源白名单）与 PFS 自动识别、
 普通桶祖先探测减负（[ANCESTOR_PROBES.md](docs/ANCESTOR_PROBES.md)）、目录 AccessLabel xattr、S3 兼容签名模式与独立 S3 服务端验证（[LIVE_S3_TESTING.md](docs/LIVE_S3_TESTING.md)）；随后补充了基于服务端 CRC32C 的 getFileChecksum（API_COVERAGE 第 27 项）。
 
-Rust ignored 项是手动基准，未混入上述通过数。全部使用内存或本机 HTTP 模拟；没有真实云桶、生产作业或跨平台验收结论。详细运行证据见 [LOCAL_VALIDATION.md](docs/LOCAL_VALIDATION.md)。
+Rust ignored 项是手动基准，未混入上述通过数。以上数字使用内存或本机 HTTP 模拟；真实云桶结果单独记录在 LIVE_S3_TESTING.md，尚无生产作业或真实网络性能结论。详细运行证据见 [LOCAL_VALIDATION.md](docs/LOCAL_VALIDATION.md)。
 
 输入流新增显式 heap/direct ByteBuffer 读取，保留原 byte[] 小请求路径；接口边界、可复现脚本和两次缓存对照见 [JNI_READ_BUFFER.md](docs/JNI_READ_BUFFER.md)。缓存微基准收益不能替代真实网络性能验收。
 
@@ -98,6 +100,6 @@ Rust ignored 项是手动基准，未混入上述通过数。全部使用内存�
 
 ## 尚未完成
 
-真实 OBS/PFS 与原厂 Hadoop 版本互通，Spark/Hive/Flink 作业，普通桶 copy/delete 并发修改保护，委托令牌、完整能力声明及 ByteBuffer 定位读取，以及百万目录规模和真实网络下的性能验收仍需推进。
+SSE-KMS、AccessLabel、临时凭证在真实环境的验证，原厂 Hadoop 版本互通，Spark/Hive/Flink 作业，普通桶 copy/delete 并发修改保护，委托令牌、完整能力声明及 ByteBuffer 定位读取，以及百万目录规模和真实网络下的性能验收仍需推进。
 
 [ADAPTER_PLAN.md](docs/ADAPTER_PLAN.md) 定义后续验收要求；[历史实现说明](docs/README_HISTORY.md) 保留各阶段配置细节、设计决定和历史基准。旧 `PROMPT_NEXT_AI*.md` 是目标规格，不是完成声明。历史微基准不代表当前生产吞吐。

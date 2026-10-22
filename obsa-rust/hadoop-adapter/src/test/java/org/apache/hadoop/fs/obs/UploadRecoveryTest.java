@@ -95,6 +95,7 @@ public class UploadRecoveryTest {
     server.start();
     conf = new Configuration(false);
     conf.set("fs.obs.endpoint", "127.0.0.1:" + server.getAddress().getPort());
+    conf.setBoolean("fs.obs.path.style.access", true);
     conf.set("fs.obs.access.key", "test");
     conf.set("fs.obs.secret.key", "test");
     conf.setBoolean("fs.obs.connection.ssl.enabled", false);

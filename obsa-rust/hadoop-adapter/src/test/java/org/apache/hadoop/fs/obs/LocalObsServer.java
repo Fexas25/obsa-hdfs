@@ -136,7 +136,7 @@ final class LocalObsServer implements AutoCloseable {
           crc.update(current, 0, current.length);
           e.getResponseHeaders().set("x-obs-checksum-crc32c", Long.toString(crc.getValue()));
         }
-        e.getResponseHeaders().set("x-obs-meta-mode", key.endsWith("/") ? "40755" : "100644");
+        e.getResponseHeaders().set("x-obs-meta-mode", key.endsWith("/") ? "16877" : "33188");
         metadata
             .getOrDefault(key, Collections.emptyMap())
             .forEach((name, value) -> e.getResponseHeaders().set("x-obs-meta-" + name, value));
@@ -195,7 +195,7 @@ final class LocalObsServer implements AutoCloseable {
                 .append("</Key><Size>")
                 .append(entry.getValue())
                 .append("</Size><Mode>")
-                .append(name.endsWith("/") ? "40755" : "100644")
+                .append(name.endsWith("/") ? "16877" : "33188")
                 .append("</Mode></Contents>");
           }
         }
@@ -253,17 +253,25 @@ final class LocalObsServer implements AutoCloseable {
           metadata.put(key, replaced);
           metadataWrites.incrementAndGet();
         } else if (q.containsKey("folder")) {
-          String file = key.endsWith("/") ? key.substring(0, key.length() - 1) : key;
-          if (data.containsKey(file)) {
-            error(e, 409, "FileAlreadyExists");
-            return;
+          // Real PFS does not implement `?folder`.
+          error(e, 404, "NoSuchKey");
+          return;
+        } else if (pfs && key.endsWith("/") && q.isEmpty()
+            && e.getRequestHeaders().getFirst("x-obs-copy-source") == null) {
+          // Real PFS folder PUT: a file at the path or at an ancestor is a
+          // conflict; missing parents are created; an existing directory stays.
+          String file = key.substring(0, key.length() - 1);
+          for (int slash = file.indexOf('/'); ; slash = file.indexOf('/', slash + 1)) {
+            String prefix = slash < 0 ? file : file.substring(0, slash);
+            if (data.containsKey(prefix)) {
+              error(e, 409, "FsObjectConflict");
+              return;
+            }
+            if (slash < 0) break;
+            data.putIfAbsent(prefix + "/", new byte[0]);
           }
-          int slash = file.lastIndexOf('/');
-          if (slash >= 0 && !data.containsKey(file.substring(0, slash + 1))) {
-            error(e, 404, "ParentNotFound");
-            return;
-          }
-          data.put(file + "/", new byte[0]);
+          body(e);
+          data.putIfAbsent(key, new byte[0]);
         } else if (q.containsKey("truncate")) {
           if (current == null) {
             error(e, 404, "NoSuchKey");

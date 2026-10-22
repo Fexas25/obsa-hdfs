@@ -24,7 +24,7 @@ for name in OBS_LIVE_ENDPOINT OBS_LIVE_ACCESS_KEY OBS_LIVE_SECRET_KEY OBS_LIVE_B
   [ -n "${!name:-}" ] || { echo "missing $name in $env_file" >&2; exit 2; }
 done
 echo "endpoint=$OBS_LIVE_ENDPOINT bucket=$OBS_LIVE_BUCKET signature=${OBS_LIVE_SIGNATURE:-v2}" \
-  "sse=${OBS_LIVE_SSE_TYPE:-off} pfs_bucket=${OBS_LIVE_PFS_BUCKET:-off}"
+  "sse=${OBS_LIVE_SSE_TYPE:-off} pfs_bucket=${OBS_LIVE_PFS_BUCKET:-off} path_style=${OBS_LIVE_PATH_STYLE:-false}"
 cd "$root"
 status=0
 echo "=== Rust live tests"

@@ -19,6 +19,8 @@ fn live_config() -> Option<ObsConfig> {
 }
 
 fn live_config_for(bucket: &str, bucket_mode: BucketMode, signature_type: String) -> Option<ObsConfig> {
+    // Real OBS requires virtual-host addressing; S3Proxy and other local servers need path style.
+    let path_style = var("OBS_LIVE_PATH_STYLE").is_some_and(|v| v == "true");
     Some(ObsConfig {
         endpoint: var("OBS_LIVE_ENDPOINT")?,
         access_key: var("OBS_LIVE_ACCESS_KEY")?,
@@ -27,8 +29,8 @@ fn live_config_for(bucket: &str, bucket_mode: BucketMode, signature_type: String
         secure: var("OBS_LIVE_SECURE").is_some_and(|v| v == "true"),
         signature_type,
         bucket_mode,
-        path_style_access: true,
-        addressing_style: AddressingStyle::Path,
+        path_style_access: path_style,
+        addressing_style: if path_style { AddressingStyle::Path } else { AddressingStyle::Vhost },
         // Multipart uploads need parts of at least 5 MiB on S3 servers.
         multipart_size: 5 * 1024 * 1024,
         multipart_threshold: 5 * 1024 * 1024,
