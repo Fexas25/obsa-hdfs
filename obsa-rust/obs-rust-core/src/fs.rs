@@ -19,6 +19,23 @@ use crate::{
 use std::{collections::BTreeSet, sync::Arc};
 use tokio::sync::Semaphore;
 
+tokio::task_local! {
+    /// Ancestors confirmed not to be files during the current public operation.
+    /// One create, mkdirs, delete or rename checks the same ancestors several
+    /// times (path visibility, own status, parent status); on a real network
+    /// each repeat is a round trip. Later operations still probe afresh.
+    static VERIFIED_ANCESTORS: std::cell::RefCell<std::collections::HashSet<String>>;
+}
+
+/// Runs one public operation with its own ancestor memo (nested calls share it).
+async fn in_operation<T>(operation: impl std::future::Future<Output = T>) -> T {
+    if VERIFIED_ANCESTORS.try_with(|_| ()).is_ok() {
+        operation.await
+    } else {
+        VERIFIED_ANCESTORS.scope(Default::default(), operation).await
+    }
+}
+
 // Mutations can partially succeed, or be cancelled after the server commits.
 // Invalidate on every exit, including errors and dropped futures.
 struct MutationInvalidation {
@@ -331,6 +348,9 @@ impl ObsFileSystem {
         ))?.recover(self.store.as_ref(), limit).await
     }
     pub async fn create(&self, path: &str, options: CreateOptions) -> ObsResult<ObsOutputStream> {
+        in_operation(self.create_inner(path, options)).await
+    }
+    async fn create_inner(&self, path: &str, options: CreateOptions) -> ObsResult<ObsOutputStream> {
         let journal = self.upload_journal().await?;
         let key = self.key(path)?;
         self.ensure_visible_path(&key).await?;
@@ -387,6 +407,9 @@ impl ObsFileSystem {
         }))
     }
     pub async fn mkdirs(&self, path: &str, permission: u32) -> ObsResult<bool> {
+        in_operation(self.mkdirs_inner(path, permission)).await
+    }
+    async fn mkdirs_inner(&self, path: &str, permission: u32) -> ObsResult<bool> {
         let permission = permission & 0o7777;
         let key = self.key(path)?;
         self.ensure_visible_path(&key).await?;
@@ -503,7 +526,13 @@ impl ObsFileSystem {
             .map(|(end, _)| &key[..end]);
         let mut probed = Vec::new();
         let mut pending = Vec::new();
+        let verified = |ancestor: &str| {
+            VERIFIED_ANCESTORS.try_with(|set| set.borrow().contains(ancestor)).unwrap_or(false)
+        };
         for ancestor in ancestors {
+            if verified(ancestor) {
+                continue;
+            }
             match self.cache.get(ancestor) {
                 Some(Some(status)) if !status.is_dir => return Err(Self::not_found(key)),
                 Some(Some(_)) => {}
@@ -521,6 +550,7 @@ impl ObsFileSystem {
             if file.is_some() {
                 return Err(Self::not_found(key));
             }
+            let _ = VERIFIED_ANCESTORS.try_with(|set| set.borrow_mut().insert(ancestor.to_string()));
             probed.push(ancestor);
         }
         Ok(probed)
@@ -737,6 +767,9 @@ impl ObsFileSystem {
         Ok(())
     }
     pub async fn delete(&self, path: &str, recursive: bool) -> ObsResult<bool> {
+        in_operation(self.delete_inner(path, recursive)).await
+    }
+    async fn delete_inner(&self, path: &str, recursive: bool) -> ObsResult<bool> {
         let key = self.key(path)?;
         if key.is_empty() {
             if !recursive {
@@ -895,6 +928,9 @@ impl ObsFileSystem {
         result
     }
     pub async fn rename(&self, src: &str, dst: &str, overwrite: bool) -> ObsResult<bool> {
+        in_operation(self.rename_inner(src, dst, overwrite)).await
+    }
+    async fn rename_inner(&self, src: &str, dst: &str, overwrite: bool) -> ObsResult<bool> {
         let source = self.key(src)?;
         let mut target = self.key(dst)?;
         if source.is_empty() {

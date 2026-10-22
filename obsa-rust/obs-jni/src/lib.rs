@@ -156,6 +156,16 @@ fn guard<T: Default>(env: &mut JNIEnv, f: impl FnOnce(&mut JNIEnv) -> ObsResult<
 }
 #[no_mangle]
 pub extern "system" fn JNI_OnLoad(_: *mut JavaVM, _: *mut std::ffi::c_void) -> jint {
+    // Opt-in diagnostics to stderr, e.g. OBS_RUST_LOG=info with
+    // fs.obs.access.log.enabled=true for one line per HTTP request. Logs carry
+    // methods, paths and timings, never credentials or signatures.
+    if let Ok(filter) = std::env::var("OBS_RUST_LOG") {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::new(filter))
+            .with_writer(std::io::stderr)
+            .with_ansi(false)
+            .try_init();
+    }
     JNI_VERSION_1_8
 }
 #[no_mangle]

@@ -6255,3 +6255,24 @@ async fn file_ancestor_created_through_filesystem_hides_cached_child_immediately
     store.objects.lock().unwrap().insert("a/b".into(), Bytes::from_static(b"child"));
     assert!(fs.get_file_status("/a/b").await.unwrap_err().is_path_not_found());
 }
+
+#[tokio::test]
+async fn one_operation_probes_each_ancestor_once_and_the_next_probes_again() {
+    // Object bucket, strict file precedence: ancestors are re-verified by every
+    // operation, but not repeatedly within one (visibility, own and parent status).
+    let store = Arc::new(MemoryStore::default());
+    store.put_empty("a/b/c/").await.unwrap();
+    let fs = ObsFileSystem::with_store(ObsConfig::default(), store.clone());
+    let probes = |s: &MemoryStore, key: &str| {
+        s.calls.lock().unwrap().iter().filter(|c| c.as_str() == format!("head:{key}")).count()
+    };
+    let out = fs.create("/a/b/c/file", CreateOptions::default()).await.unwrap();
+    out.close().await.unwrap();
+    for ancestor in ["a", "a/b"] {
+        assert_eq!(probes(&store, ancestor), 1, "{ancestor} probed once by create");
+    }
+    // An out-of-band file at an ancestor is still noticed by the next operation.
+    store.put_empty("a").await.unwrap();
+    assert!(!fs.exists("/a/b/c/file").await.unwrap());
+    assert_eq!(probes(&store, "a"), 2);
+}
